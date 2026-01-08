@@ -1,0 +1,80 @@
+{
+    "meta": {
+        "title": "Digital Signature MVP API",
+        "version": "1.0.0",
+        "base_url": "http://localhost:8001/api"
+    },
+    "endpoints": [
+        {
+            "method": "POST",
+            "path": "/auth/google",
+            "description": "Login with Google ID and Email.",
+            "params": {
+                "email": "required|email",
+                "google_id": "required|string",
+                "name": "required|string"
+            },
+            "response": {
+                "message": "Login successful",
+                "token": "Sanctum Bearer Token",
+                "user": "User Object"
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/user",
+            "description": "Get current authenticated user.",
+            "auth": "Bearer Token"
+        },
+        {
+            "method": "POST",
+            "path": "/certificates/issue",
+            "description": "Issue a new digital certificate (Generates Keys on Server).",
+            "auth": "Bearer Token",
+            "response": {
+                "message": "Certificate issued successfully",
+                "certificate_content": "PEM Content",
+                "certificate_id": 1
+            }
+        },
+        {
+            "method": "POST",
+            "path": "/documents",
+            "description": "Upload a PDF document.",
+            "auth": "Bearer Token",
+            "params": {
+                "file": "required|file|pdf",
+                "x_coord": "optional|numeric",
+                "y_coord": "optional|numeric"
+            },
+            "response": {
+                "message": "Document uploaded successfully",
+                "document": "Document Object"
+            }
+        },
+        {
+            "method": "POST",
+            "path": "/documents/{id}/sign",
+            "description": "Sign a document with the user's active certificate.",
+            "auth": "Bearer Token",
+            "response": {
+                "message": "Document signed successfully",
+                "signed_url": "URL to signed PDF",
+                "path": "Relative storage path"
+            }
+        },
+        {
+            "method": "POST",
+            "path": "/documents/verify",
+            "description": "Verify a signed document's integrity.",
+            "auth": "Bearer Token",
+            "params": {
+                "document_id": "required|exists:documents,id"
+            },
+            "response": {
+                "verified": true,
+                "message": "Signature is valid..."
+            }
+        }
+    ]
+}
