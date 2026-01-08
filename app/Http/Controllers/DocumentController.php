@@ -37,12 +37,6 @@ class DocumentController extends Controller
 
         $doc = $this->documentService->upload($request->file('file'), $user);
 
-        // Update coords if provided
-        $doc->update([
-            'x_coord' => $request->input('x_coord', 50),
-            'y_coord' => $request->input('y_coord', 250),
-        ]);
-
         return response()->json([
             'message' => 'Document uploaded successfully',
             'document' => new DocumentResource($doc)
@@ -53,6 +47,18 @@ class DocumentController extends Controller
     {
         $user = $request->user();
         $document = Document::where('id', $id)->where('user_id', $user->id)->firstOrFail();
+
+        // Validate request
+        $validated = $request->validate([
+            'x_coord' => 'nullable|numeric',
+            'y_coord' => 'nullable|numeric',
+        ]);
+
+        // Update coordinates if provided
+        $document->update([
+            'x_coord' => $request->input('x_coord', 50),
+            'y_coord' => $request->input('y_coord', 250),
+        ]);
 
         // Get user's active certificate
         $cert = Certificate::where('user_id', $user->id)->where('status', 'active')->latest()->first();
@@ -65,7 +71,7 @@ class DocumentController extends Controller
             $signedPath = $this->documentService->signPdf($document, $cert);
             return response()->json([
                 'message' => 'Document signed successfully',
-                'signed_url' => url('storage/' . $signedPath), // Assuming storage link is set
+                'signed_url' => url('storage/' . $signedPath),
                 'path' => $signedPath
             ]);
         } catch (\Exception $e) {

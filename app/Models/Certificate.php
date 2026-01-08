@@ -11,10 +11,18 @@ class Certificate extends Model
 
     protected $fillable = [
         'user_id',
+        'certificate_number',
         'private_key_path',
         'public_key_path',
         'certificate_path',
         'status',
+        'issued_at',
+        'expires_at',
+    ];
+
+    protected $casts = [
+        'issued_at' => 'datetime',
+        'expires_at' => 'datetime',
     ];
 
     public function user()

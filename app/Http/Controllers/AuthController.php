@@ -69,6 +69,12 @@ class AuthController extends Controller
                 ]
             );
 
+            // Always update name and avatar from Google profile on every login
+            $user->update([
+                'name' => $googleUser->getName(),
+                'avatar' => $googleUser->getAvatar(),
+            ]);
+
             $token = $user->createToken('auth_token')->accessToken;
 
             return redirect(URL::to('/?token=' . urlencode($token)));

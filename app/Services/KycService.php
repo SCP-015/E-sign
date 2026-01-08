@@ -22,9 +22,8 @@ class KycService
         $idPhotoPath = $idPhoto->store("{$email}/kyc/id_card", 'private');
         $selfiePhotoPath = $selfiePhoto->store("{$email}/kyc/selfie", 'private');
 
-        // Update User Status & Data
+        // Update User KYC Status (don't overwrite name from auth)
         $user->update([
-            'name' => $data['full_name'],
             'kyc_status' => 'verified',
         ]);
 

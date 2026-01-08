@@ -97,13 +97,19 @@ class CertificateService
         exec($command);
 
         if (file_exists($certPath) && file_exists($keyPath)) {
+            // Generate certificate number (format: CERT-YYYY-XXXXX)
+            $certNumber = 'CERT-' . date('Y') . '-' . str_pad($user->id, 5, '0', STR_PAD_LEFT);
+            
             // Create Database Record
             return \App\Models\Certificate::create([
                 'user_id' => $user->id,
+                'certificate_number' => $certNumber,
                 'private_key_path' => $keyPath,
                 'public_key_path' => $csrPath,
                 'certificate_path' => $certPath,
                 'status' => 'active',
+                'issued_at' => now(),
+                'expires_at' => now()->addYear(), // Valid for 1 year
             ]);
         }
 
