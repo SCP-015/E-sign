@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\DocumentUploadRequest;
+use App\Http\Resources\DocumentResource;
 use App\Models\Document;
 use App\Models\Certificate;
 use App\Services\DocumentService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class DocumentController extends Controller
 {
@@ -19,18 +20,21 @@ class DocumentController extends Controller
 
     public function index(Request $request)
     {
-        return $request->user()->documents()->latest()->get();
+        return DocumentResource::collection($request->user()->documents()->latest()->get());
     }
 
-    public function upload(Request $request)
+    public function upload(DocumentUploadRequest $request)
     {
-        $request->validate([
-            'file' => 'required|file|mimes:pdf',
-            'x_coord' => 'numeric',
-            'y_coord' => 'numeric',
-        ]);
-
         $user = $request->user();
+
+        // Validate user has active certificate before allowing upload
+        $cert = Certificate::where('user_id', $user->id)->where('status', 'active')->first();
+        if (!$cert) {
+            return response()->json([
+                'message' => 'No active certificate found. Please complete KYC verification first.'
+            ], 400);
+        }
+
         $doc = $this->documentService->upload($request->file('file'), $user);
 
         // Update coords if provided
@@ -41,7 +45,7 @@ class DocumentController extends Controller
 
         return response()->json([
             'message' => 'Document uploaded successfully',
-            'document' => $doc
+            'document' => new DocumentResource($doc)
         ]);
     }
 

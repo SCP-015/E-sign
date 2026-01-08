@@ -1,35 +1,41 @@
 <template>
-    <div class="login-container">
-        <div class="glass login-box">
-            <h1>Digital Signature</h1>
-            <p class="subtitle">Secure, Fast, & Legal</p>
-            
-            <form @submit.prevent="handleLogin">
-                <div class="input-group">
-                    <label>Email Address</label>
-                    <input type="email" v-model="email" placeholder="you@example.com" required>
+    <div class="login-wrapper">
+        <div class="login-container glass">
+            <div class="brand-section">
+                <div class="logo-circle">
+                    <span class="icon">✍️</span>
+                </div>
+                <h1>E-Sign Secure</h1>
+                <p class="tagline">The most secure way to sign and manage your documents digitally.</p>
+            </div>
+
+            <div class="action-section">
+                <div class="features">
+                    <div class="feature-item">
+                        <span class="check">✓</span> Legally Binding
+                    </div>
+                    <div class="feature-item">
+                        <span class="check">✓</span> Encrypted Storage
+                    </div>
+                    <div class="feature-item">
+                        <span class="check">✓</span> Identity Verified
+                    </div>
                 </div>
 
-                <div class="input-group">
-                    <label>Password (New or Existing)</label>
-                    <input type="password" v-model="password" placeholder="********" required>
+                <div v-if="loading" class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Verifying Identity...</p>
                 </div>
 
-                <button type="submit" :disabled="loading">
-                    <span v-if="!loading">Login / Register</span>
-                    <span v-else>Processing...</span>
+                <button v-else @click="googleLogin" class="btn-google-large">
+                    <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google Logo" />
+                    <span>Continue with Google</span>
                 </button>
 
-                <!-- Google Login Button -->
-                <div class="divider">
-                    <span>OR</span>
-                </div>
-                
-                <button type="button" @click="googleLogin" class="btn-google" :disabled="loading">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="G" />
-                    Sign in with Google
-                </button>
-            </form>
+                <p class="terms">
+                    By continuing, you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
+                </p>
+            </div>
         </div>
     </div>
 </template>
@@ -37,13 +43,12 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import axios from 'axios';
+import { useAuthStore } from '../stores/auth';
 
-const email = ref('');
-const password = ref('');
 const loading = ref(false);
 const router = useRouter();
 const route = useRoute();
+const authStore = useAuthStore();
 
 onMounted(async () => {
     // Check for token in URL (from Google Callback)
@@ -51,173 +56,167 @@ onMounted(async () => {
     if (token) {
         loading.value = true;
         try {
-            // Save token
-            localStorage.setItem('token', token);
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            
-            // FOR DEBUGGING: Log token to console so user can copy it
-            console.log('🔥 YOUR AUTH TOKEN:', token);
-
-            // Fetch User Details to store in local storage (needed for Dashboard)
-            const userRes = await axios.get('/api/user');
-            localStorage.setItem('user', JSON.stringify(userRes.data));
-
-            // Redirect to Dashboard
+            await authStore.setAuth(token, {}); 
+            await authStore.fetchUser();
             router.push('/dashboard');
         } catch (error) {
-            console.error('Google Auth Failed to fetch User', error);
-            alert('Google Login Error: Could not fetch user data.');
-            localStorage.removeItem('token');
+            console.error('Login Error', error);
+            authStore.logout();
+            alert('Authentication Failed. Please try again.');
         } finally {
             loading.value = false;
         }
     }
 });
 
-const handleLogin = async () => {
-    loading.value = true;
-    try {
-        const response = await axios.post('/api/auth/login', {
-            email: email.value,
-            password: password.value
-        });
-        
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-        
-        router.push('/dashboard');
-    } catch (error) {
-        alert('Login Failed: ' + (error.response?.data?.message || error.message));
-    } finally {
-        loading.value = false;
-    }
-};
-
 const googleLogin = () => {
-    // Redirect to backend Google Auth route
     window.location.href = '/api/auth/google/redirect';
 };
 </script>
 
 <style scoped>
-.login-container {
-    height: 100vh;
+.login-wrapper {
+    min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: radial-gradient(circle at top right, #1e293b, #0f172a);
+    background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+    padding: 2rem;
 }
 
-.login-box {
+.login-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 480px;
     width: 100%;
-    max-width: 400px;
     padding: 3rem;
+    border-radius: 24px;
     text-align: center;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.5);
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.logo-circle {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #38bdf8, #2563eb);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+    box-shadow: 0 10px 30px -5px rgba(37, 99, 235, 0.5);
+}
+
+.icon {
+    font-size: 2.5rem;
 }
 
 h1 {
     font-size: 2rem;
+    font-weight: 800;
     margin-bottom: 0.5rem;
-    background: linear-gradient(to right, #38bdf8, #818cf8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: white;
+    letter-spacing: -0.5px;
 }
 
-.subtitle {
+.tagline {
     color: #94a3b8;
+    font-size: 1rem;
+    line-height: 1.5;
     margin-bottom: 2rem;
 }
 
-.input-group {
-    text-align: left;
-    margin-bottom: 1.5rem;
+.features {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-bottom: 2.5rem;
+    flex-wrap: wrap;
 }
 
-label {
-    display: block;
-    font-size: 0.875rem;
+.feature-item {
+    font-size: 0.85rem;
     color: #cbd5e1;
-    margin-bottom: 0.5rem;
-}
-
-input {
-    width: 100%;
-    padding: 0.75rem;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(0, 0, 0, 0.2);
-    color: white;
-    font-size: 1rem;
-    outline: none;
-    transition: all 0.3s;
-}
-
-input:focus {
-    border-color: #38bdf8;
-    background: rgba(0, 0, 0, 0.3);
-}
-
-button {
-    width: 100%;
-    padding: 1rem;
-    border-radius: 8px;
-    border: none;
-    background: linear-gradient(to right, #38bdf8, #818cf8);
-    color: white;
-    font-weight: 600;
-    font-size: 1rem;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-
-button:hover {
-    transform: translateY(-2px);
-    opacity: 0.9;
-}
-
-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.divider {
     display: flex;
     align-items: center;
-    text-align: center;
-    margin: 1.5rem 0;
-    color: #64748b;
+    gap: 6px;
 }
 
-.divider::before,
-.divider::after {
-    content: '';
-    flex: 1;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+.check {
+    color: #34d399;
+    font-weight: bold;
 }
 
-.divider span {
-    padding: 0 10px;
-    font-size: 0.8rem;
-}
-
-.btn-google {
+.btn-google-large {
+    width: 100%;
     background: white;
     color: #1e293b;
+    border: none;
+    padding: 1rem;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    gap: 12px;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
-.btn-google img {
-    width: 20px;
-    height: 20px;
-}
-
-.btn-google:hover {
-    background: #f1f5f9;
-    color: #0f172a;
+.btn-google-large:hover {
     transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    background: #f8fafc;
+}
+
+.btn-google-large img {
+    width: 24px;
+    height: 24px;
+}
+
+.terms {
+    margin-top: 2rem;
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.terms a {
+    color: #38bdf8;
+    text-decoration: none;
+}
+
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.spinner {
+    width: 30px;
+    height: 30px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-radius: 50%;
+    border-top-color: #38bdf8;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Glassmorphism utility */
+.glass {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 </style>

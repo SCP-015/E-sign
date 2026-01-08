@@ -10,22 +10,24 @@ class DocumentService
 {
     public function upload($file, $user)
     {
-        $path = $file->store('documents', 'public');
+        // Use email-based folder structure: private/{email}/documents/
+        $email = strtolower($user->email);
+        $path = $file->store("{$email}/documents", 'private');
         
         return Document::create([
             'user_id' => $user->id,
             'file_path' => $path,
             'status' => 'pending',
-            'x_coord' => 10, // Default or request? Request should provide these, but svc signature didn't strictly require.
+            'x_coord' => 10,
             'y_coord' => 10,
         ]);
-        // Note: Controller updates coords from request if present.
     }
 
     public function signPdf(Document $document, $certificate)
     {
-        // Paths - use public disk path
-        $docPath = Storage::disk('public')->path($document->file_path);
+        // Remove 'private/' prefix if present since Storage::disk('private')->path() already adds it
+        $relativePath = str_replace('private/', '', $document->file_path);
+        $docPath = Storage::disk('private')->path($relativePath);
         
         // Ensure Certificate and Key paths
         $certPath = $certificate->certificate_path;
@@ -88,12 +90,18 @@ class DocumentService
              }
         }
 
-        // Output
+        // Output to private storage with email-based folder structure
         $signedFileName = 'signed_' . basename($document->file_path);
-        $signedPath = 'documents/' . $signedFileName;
-        // Use public disk path for output
-        $fullSignedPath = Storage::disk('public')->path($signedPath);
+        $email = strtolower($document->user->email);
+        $signedPath = "private/{$email}/documents/{$signedFileName}";
         
+        // Create directory if not exists
+        $signedDir = storage_path("app/private/{$email}/documents");
+        if (!is_dir($signedDir)) {
+            mkdir($signedDir, 0755, true);
+        }
+        
+        $fullSignedPath = storage_path("app/{$signedPath}");
         $pdf->Output($fullSignedPath, 'F');
 
         // Update Document

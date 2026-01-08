@@ -1,158 +1,210 @@
 <template>
     <div class="dashboard">
-        <nav class="navbar glass">
-            <div class="logo">E-Sign</div>
-            <div class="user-info">
-                <span>{{ user.name }}</span>
-                <button @click="logout" class="btn-sm">Logout</button>
+        <!-- Header Navigation -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <h1 class="logo">✍️ E-Sign</h1>
+                    <p class="tagline">Digital Document Signing</p>
+                </div>
+                <div class="header-actions">
+                    <div class="user-profile">
+                        <img v-if="user.avatar" :src="user.avatar" :alt="user.name" class="avatar">
+                        <div v-else class="avatar-placeholder">{{ user.name?.charAt(0).toUpperCase() }}</div>
+                        <div class="user-details">
+                            <p class="user-name">{{ user.name }}</p>
+                            <p class="user-email">{{ user.email }}</p>
+                        </div>
+                    </div>
+                    <button @click="logout" class="btn-logout">Logout</button>
+                </div>
             </div>
-        </nav>
+        </header>
 
-        <div class="content">
-            <!-- KYC / Certificate Status Section -->
-            <div class="card glass">
-                <h2>Digital Identity</h2>
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Welcome Section -->
+            <section class="welcome-section">
+                <div class="welcome-card">
+                    <h2 class="welcome-title">Halo, {{ user.name }}! 👋</h2>
+                    <p class="welcome-subtitle">Welcome back to your E-Sign dashboard</p>
+                    <div class="welcome-stats">
+                        <div class="stat-item">
+                            <span class="stat-number">{{ documents.length }}</span>
+                            <span class="stat-label">Documents</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">{{ signedCount }}</span>
+                            <span class="stat-label">Signed</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">{{ pendingCount }}</span>
+                            <span class="stat-label">Pending</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Identity Status Section -->
+            <section class="identity-section">
+                <div class="section-header">
+                    <h3>🔐 Digital Identity Status</h3>
+                </div>
                 
-                <!-- Helper for Simulation -->
-                <div v-if="user.kyc_status === 'unverified'">
-                    <div class="alert-warning">
-                        <h3>⚠️ Identity Unverified</h3>
-                        <p>To sign documents, please download our <strong>Mobile App</strong> and complete the KYC process (scan ID & Face).</p>
-                        <p class="small">Use your email <strong>{{ user.email }}</strong> to login on the app.</p>
-                        <div class="simulation-tip">
-                            (Dev Note: Simulate KYC via POST /api/kyc/submit in Postman)
+                <div v-if="user.kyc_status === 'unverified'" class="identity-card unverified">
+                    <div class="identity-icon">⚠️</div>
+                    <div class="identity-content">
+                        <h4>Identity Not Verified</h4>
+                        <p>To sign documents, please complete the KYC verification process on our Mobile App.</p>
+                        <div class="identity-steps">
+                            <div class="step">
+                                <span class="step-number">1</span>
+                                <span>Download E-Sign Mobile App</span>
+                            </div>
+                            <div class="step">
+                                <span class="step-number">2</span>
+                                <span>Login with {{ user.email }}</span>
+                            </div>
+                            <div class="step">
+                                <span class="step-number">3</span>
+                                <span>Complete KYC (Scan ID & Face)</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div v-else class="cert-status">
-                    <span class="badge success">✅ Verified & Certificate Active</span>
-                    <p class="mono">Certificate ID: {{ certificateId || 'Active' }}</p>
+                <div v-else class="identity-card verified">
+                    <div class="identity-icon">✅</div>
+                    <div class="identity-content">
+                        <h4>Identity Verified</h4>
+                        <p>Your digital certificate is active and ready to sign documents.</p>
+                        <div class="cert-details">
+                            <span class="cert-badge">Certificate Active</span>
+                            <p class="cert-info">Valid until {{ certificateExpiry }}</p>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </section>
 
             <!-- Upload Section (Only if Verified) -->
-            <div v-if="user.kyc_status === 'verified'" class="card glass mt-4">
-                <h2>Upload Document</h2>
-                <div class="upload-area" @dragover.prevent @drop.prevent="handleDrop">
-                    <input type="file" ref="fileInput" @change="handleFileSelect" accept="application/pdf" hidden>
-                    <button @click="$refs.fileInput.click()" class="btn-secondary">choose file</button>
-                    <p>or drag & drop PDF here</p>
+            <section v-if="user.kyc_status === 'verified'" class="upload-section">
+                <div class="section-header">
+                    <h3>📤 Upload Document</h3>
                 </div>
-            </div>
-
-            <!-- Documents List -->
-            <div v-if="user.kyc_status === 'verified'" class="card glass mt-4">
-                <h2>Your Documents</h2>
-                <div class="doc-list">
-                    <div v-for="doc in documents" :key="doc.id" class="doc-item">
-                        <div class="doc-info">
-                            <span class="doc-name">{{ getFileName(doc.file_path) }}</span>
-                            <span :class="['status', doc.status]">{{ doc.status }}</span>
-                        </div>
-                        <div class="actions">
-                            <button v-if="doc.status === 'pending'" @click="signDocument(doc.id)" class="btn-primary" :disabled="!hasCertificate">
-                                Sign Now
-                            </button>
-                            <button v-if="doc.status === 'signed'" @click="verifyDocument(doc.id)" class="btn-secondary">
-                                Verify
-                            </button>
-                            <a v-if="doc.status === 'signed'" :href="getDownloadUrl(doc.signed_path)" target="_blank" class="btn-link">Download</a>
+                <div class="upload-card">
+                    <div class="upload-area" @dragover.prevent="dragActive = true" @dragleave.prevent="dragActive = false" @drop.prevent="handleDrop" :class="{ 'drag-active': dragActive }">
+                        <input type="file" ref="fileInput" @change="handleFileSelect" accept="application/pdf" hidden>
+                        <div class="upload-content">
+                            <div class="upload-icon">📄</div>
+                            <h4>Drag & Drop PDF Here</h4>
+                            <p>or</p>
+                            <button @click="$refs.fileInput.click()" class="btn-primary">Choose File</button>
+                            <p class="upload-hint">Maximum file size: 10MB</p>
                         </div>
                     </div>
-                    <div v-if="documents.length === 0" class="empty-state">No documents found.</div>
                 </div>
-            </div>
-        </div>
+            </section>
+
+            <!-- Documents Section -->
+            <section v-if="user.kyc_status === 'verified'" class="documents-section">
+                <div class="section-header">
+                    <h3>📋 Document History</h3>
+                    <span class="doc-count">{{ documents.length }} documents</span>
+                </div>
+
+                <div v-if="documents.length > 0" class="documents-grid">
+                    <div v-for="doc in documents" :key="doc.id" class="document-card" :class="doc.status">
+                        <div class="doc-header">
+                            <div class="doc-icon">
+                                <span v-if="doc.status === 'pending'">⏳</span>
+                                <span v-else-if="doc.status === 'signed'">✅</span>
+                                <span v-else>📄</span>
+                            </div>
+                            <div class="doc-meta">
+                                <h4 class="doc-name">{{ getFileName(doc.file_path) }}</h4>
+                                <p class="doc-date">{{ formatDate(doc.created_at) }}</p>
+                            </div>
+                            <span :class="['status-badge', doc.status]">{{ doc.status }}</span>
+                        </div>
+                        <div class="doc-actions">
+                            <button v-if="doc.status === 'pending'" @click="signDocument(doc.id)" class="btn-primary btn-sm">
+                                Sign Now
+                            </button>
+                            <button v-if="doc.status === 'signed'" @click="verifyDocument(doc.id)" class="btn-secondary btn-sm">
+                                Verify Signature
+                            </button>
+                            <a v-if="doc.status === 'signed'" :href="getDownloadUrl(doc.signed_path)" target="_blank" class="btn-link btn-sm">
+                                Download
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-else class="empty-state">
+                    <div class="empty-icon">📭</div>
+                    <h4>No Documents Yet</h4>
+                    <p>Upload your first document to get started</p>
+                </div>
+            </section>
+        </main>
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
+import { useAuthStore } from '../stores/auth';
 
 const router = useRouter();
-const user = ref({});
+const authStore = useAuthStore();
+const user = computed(() => authStore.user || {});
+
 const loading = ref(false);
-const hasCertificate = ref(false);
-const certificateId = ref(null);
+const dragActive = ref(false);
 const documents = ref([]);
 const fileInput = ref(null);
 
-// Axios Config
-const token = localStorage.getItem('token');
-if (token) {
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-} else {
-    router.push('/');
-}
+const signedCount = computed(() => documents.value.filter(d => d.status === 'signed').length);
+const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending').length);
+const certificateExpiry = computed(() => {
+    const date = new Date();
+    date.setFullYear(date.getFullYear() + 1);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+});
 
-const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+const logout = async () => {
+    try {
+        await axios.post('/api/auth/logout');
+    } catch (e) {
+        console.error('Logout error:', e);
+    }
+    authStore.logout();
     router.push('/');
 };
 
-const getFileName = (path) => path.split('/').pop();
-const getDownloadUrl = (path) => `/storage/${path}`; // Assumes symlink and public access for MVP
+const getFileName = (path) => path ? path.split('/').pop() : 'document.pdf';
+const getDownloadUrl = (path) => `/storage/${path}`;
+const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+};
 
-// Fetch Initial Data (Mocking Dashboard Data Loading)
-// Real app would have a /dashboard endpoint or separate calls
 onMounted(async () => {
     try {
-        // 1. Load from Cache first (for instant render)
-        const cachedUser = JSON.parse(localStorage.getItem('user'));
-        if (cachedUser) user.value = cachedUser;
-        
-        // 2. Refresh from API (Background)
-        const res = await axios.get('/api/user');
-        user.value = res.data;
-        localStorage.setItem('user', JSON.stringify(res.data)); // Update cache
-
-        // MVP: If verified, assume they have a certificate
-        if (user.value.kyc_status === 'verified') {
-            hasCertificate.value = true;
-        }
-        // For MVP, we don't have a specific "get my cert" endpoint easily exposed unless we check user relation
-        // We'll trust the user state or we could hit /user again if it returned relation
-        // Let's assume we might need to store cert status in local or fetch.
-        // Re-fetch user to get latest state if we added relations to User model response?
-        // Or separate call.
-        
-        // For now, let's just allow "Issue" to be idempotent-ish or check local state if we had one.
-        // Actually, let's just try to list docs. We really need a GET /documents endpoint?
-        // Plan didn't explicitly say "GET /documents". It said "Upload" and "Sign".
-        // I will add a GET /documents endpoint to DocumentController quickly to support this UI.
+        await authStore.fetchUser();
         await fetchDocuments();
-        
     } catch (e) {
-        console.error(e);
+        console.error('Failed to init dashboard:', e);
     }
 });
 
-const issueCertificate = async () => {
-    loading.value = true;
-    try {
-        // We need to send a dummy CSR or just let server generate.
-        // Server refactor: generateUserCertificate(user).
-        // Controller issue(Request $request) -> checks user. Logic updated to internal generation.
-        // But Controller validation might still want "csr"? I removed it in refactor? 
-        // Let's check Controller code.
-        // Controller issue() was refactored to NOT validate 'csr'.
-        const res = await axios.post('/api/certificates/issue');
-        hasCertificate.value = true;
-        certificateId.value = res.data.certificate_id;
-        alert('Certificate Issued!');
-    } catch (e) {
-        alert('Error: ' + e.response?.data?.message);
-    } finally {
-        loading.value = false;
-    }
-};
-
 const handleFileSelect = (e) => uploadFile(e.target.files[0]);
-const handleDrop = (e) => uploadFile(e.dataTransfer.files[0]);
+const handleDrop = (e) => {
+    dragActive.value = false;
+    uploadFile(e.dataTransfer.files[0]);
+};
 
 const uploadFile = async (file) => {
     if (!file) return;
@@ -161,169 +213,581 @@ const uploadFile = async (file) => {
     
     try {
         await axios.post('/api/documents', formData);
-        await fetchDocuments(); // Refresh list
+        await fetchDocuments();
     } catch (e) {
-        alert('Upload Failed');
+        alert('Upload Failed: ' + (e.response?.data?.message || e.message));
     }
 };
 
 const signDocument = async (id) => {
     try {
         await axios.post(`/api/documents/${id}/sign`);
-        alert('Signed Successfully!');
-        fetchDocuments();
+        alert('Document signed successfully!');
+        await fetchDocuments();
     } catch (e) {
-        alert('Signing Failed: ' + e.response?.data?.message);
+        alert('Signing Failed: ' + (e.response?.data?.message || e.message));
     }
 };
 
 const verifyDocument = async (id) => {
     try {
         const res = await axios.post('/api/documents/verify', { document_id: id });
-        if (res.data.verified) {
-            alert('VALID: ' + res.data.message);
+        if (res.data.is_valid) {
+            alert('✅ Signature is valid!');
         } else {
-            alert('INVALID: ' + res.data.error);
+            alert('❌ Signature is invalid');
         }
     } catch (e) {
-        alert('Verification Error');
+        alert('Verification Error: ' + (e.response?.data?.message || e.message));
     }
 };
 
-// We need a way to list documents. I'll mock it or add the endpoint.
-// Since I can run commands, I will add the endpoint in the next step.
 const fetchDocuments = async () => {
-   // Placeholder for now
-   const res = await axios.get('/api/documents'); 
-   documents.value = res.data;
+    try {
+        const res = await axios.get('/api/documents');
+        // Response is direct array, not wrapped in data key
+        documents.value = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+    } catch (e) {
+        console.error('Failed to fetch documents:', e);
+        documents.value = [];
+    }
 };
 
 </script>
 
 <style scoped>
-.dashboard {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem;
-    width: 100%;
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-.navbar {
+.dashboard {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Header */
+.header {
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    padding: 1.5rem 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 2rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1rem 2rem;
-    margin-bottom: 2rem;
+}
+
+.logo-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
 }
 
 .logo {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #38bdf8;
+    font-size: 1.75rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #38bdf8 0%, #06b6d4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
-.user-info {
+.tagline {
+    font-size: 0.875rem;
+    color: #94a3b8;
+}
+
+.header-actions {
     display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.user-profile {
+    display: flex;
+    align-items: center;
     gap: 1rem;
-    align-items: center;
 }
 
-.card {
-    padding: 2rem;
-    margin-bottom: 2rem;
-}
-
-h2 {
-    margin-top: 0;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    padding-bottom: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.upload-area {
-    border: 2px dashed rgba(255,255,255,0.2);
-    padding: 3rem;
-    text-align: center;
-    border-radius: 8px;
-    transition: all 0.3s;
-}
-
-.upload-area:hover {
-    border-color: #38bdf8;
-    background: rgba(56, 189, 248, 0.05);
-}
-
-.doc-item {
+.avatar, .avatar-placeholder {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: linear-gradient(135deg, #38bdf8 0%, #06b6d4 100%);
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 1rem;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-
-.status {
-    font-size: 0.8rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    margin-left: 1rem;
-}
-
-.status.pending { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
-.status.signed { background: rgba(52, 211, 153, 0.2); color: #34d399; }
-
-.btn-primary {
-    background: #38bdf8;
+    justify-content: center;
+    font-weight: 700;
     color: #0f172a;
-    border: none;
-    padding: 0.5rem 1rem;
+    flex-shrink: 0;
+}
+
+.user-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.user-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.user-email {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.btn-logout {
+    padding: 0.625rem 1.25rem;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
     border-radius: 6px;
     cursor: pointer;
     font-weight: 600;
+    transition: all 0.3s;
+}
+
+.btn-logout:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* Main Content */
+.main-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+/* Welcome Section */
+.welcome-section {
+    margin-bottom: 3rem;
+}
+
+.welcome-card {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 12px;
+    padding: 2.5rem;
+    backdrop-filter: blur(10px);
+}
+
+.welcome-title {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, #38bdf8 0%, #06b6d4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.welcome-subtitle {
+    font-size: 1rem;
+    color: #94a3b8;
+    margin-bottom: 1.5rem;
+}
+
+.welcome-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #38bdf8;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #94a3b8;
+    margin-top: 0.5rem;
+}
+
+/* Section Headers */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.section-header h3 {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.doc-count {
+    background: rgba(56, 189, 248, 0.1);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    color: #38bdf8;
+}
+
+/* Identity Section */
+.identity-section {
+    margin-bottom: 3rem;
+}
+
+.identity-card {
+    display: flex;
+    gap: 2rem;
+    padding: 2rem;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    backdrop-filter: blur(10px);
+}
+
+.identity-card.unverified {
+    background: rgba(251, 191, 36, 0.05);
+    border-color: rgba(251, 191, 36, 0.2);
+}
+
+.identity-card.verified {
+    background: rgba(52, 211, 153, 0.05);
+    border-color: rgba(52, 211, 153, 0.2);
+}
+
+.identity-icon {
+    font-size: 3rem;
+    flex-shrink: 0;
+}
+
+.identity-content h4 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.identity-content p {
+    color: #cbd5e1;
+    margin-bottom: 1rem;
+}
+
+.identity-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.step {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.step-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: rgba(251, 191, 36, 0.2);
+    border-radius: 50%;
+    font-weight: 700;
+    color: #fbbf24;
+    flex-shrink: 0;
+}
+
+.cert-details {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.cert-badge {
+    background: rgba(52, 211, 153, 0.2);
+    color: #34d399;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.cert-info {
+    color: #94a3b8;
+    font-size: 0.875rem;
+}
+
+/* Upload Section */
+.upload-section {
+    margin-bottom: 3rem;
+}
+
+.upload-card {
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    border-radius: 12px;
+    padding: 2rem;
+    backdrop-filter: blur(10px);
+}
+
+.upload-area {
+    border: 2px dashed rgba(56, 189, 248, 0.3);
+    border-radius: 12px;
+    padding: 3rem;
+    text-align: center;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.upload-area:hover,
+.upload-area.drag-active {
+    border-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+}
+
+.upload-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.upload-content h4 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.upload-content p {
+    color: #94a3b8;
+    margin: 0.5rem 0;
+}
+
+.upload-hint {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin-top: 1rem;
+}
+
+/* Documents Section */
+.documents-section {
+    margin-bottom: 3rem;
+}
+
+.documents-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.document-card {
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    border-radius: 12px;
+    padding: 1.5rem;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s;
+}
+
+.document-card:hover {
+    border-color: rgba(56, 189, 248, 0.3);
+    background: rgba(56, 189, 248, 0.05);
+}
+
+.document-card.signed {
+    border-color: rgba(52, 211, 153, 0.2);
+}
+
+.document-card.pending {
+    border-color: rgba(251, 191, 36, 0.2);
+}
+
+.doc-header {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.doc-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.doc-meta {
+    flex: 1;
+}
+
+.doc-name {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    display: block;
+    word-break: break-word;
+}
+
+.doc-date {
+    font-size: 0.875rem;
+    color: #94a3b8;
+}
+
+.status-badge {
+    padding: 0.375rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-badge.pending {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+}
+
+.status-badge.signed {
+    background: rgba(52, 211, 153, 0.2);
+    color: #34d399;
+}
+
+.doc-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+/* Buttons */
+.btn-primary {
+    background: linear-gradient(135deg, #38bdf8 0%, #06b6d4 100%);
+    color: #0f172a;
+    border: none;
+    padding: 0.625rem 1.25rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.3s;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(56, 189, 248, 0.3);
+}
+
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .btn-secondary {
     background: transparent;
-    border: 1px solid #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.3);
     color: #94a3b8;
-    padding: 0.5rem 1rem;
+    padding: 0.625rem 1.25rem;
     border-radius: 6px;
     cursor: pointer;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.3s;
 }
 
-.btn-sm {
-    padding: 0.25rem 0.75rem;
-    font-size: 0.875rem;
+.btn-secondary:hover {
+    border-color: rgba(148, 163, 184, 0.5);
+    color: #cbd5e1;
 }
 
 .btn-link {
     color: #38bdf8;
     text-decoration: none;
-    margin-left: 1rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.3s;
 }
 
-.mt-4 { margin-top: 1.5rem; }
-
-.alert-warning {
-    background: rgba(251, 191, 36, 0.1);
-    border: 1px solid rgba(251, 191, 36, 0.3);
-    padding: 1rem;
-    border-radius: 8px;
-    color: #fbbf24;
+.btn-link:hover {
+    color: #06b6d4;
+    text-decoration: underline;
 }
 
-.alert-warning h3 {
-    margin-top: 0;
-    margin-bottom: 0.5rem;
-    font-size: 1.1rem;
-}
-
-.simulation-tip {
-    font-family: monospace;
+.btn-sm {
+    padding: 0.5rem 1rem;
     font-size: 0.8rem;
-    opacity: 0.7;
-    margin-top: 1rem;
-    background: rgba(0,0,0,0.3);
-    padding: 0.5rem;
-    border-radius: 4px;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #94a3b8;
+}
+
+.empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.empty-state h4 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+    color: #cbd5e1;
+}
+
+.empty-state p {
+    color: #94a3b8;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .main-content {
+        padding: 1rem;
+    }
+
+    .welcome-title {
+        font-size: 1.5rem;
+    }
+
+    .welcome-stats {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .documents-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .identity-card {
+        flex-direction: column;
+    }
 }
 </style>

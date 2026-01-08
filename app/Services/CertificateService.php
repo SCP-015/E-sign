@@ -13,8 +13,8 @@ class CertificateService
 
     public function __construct()
     {
-        // Use the centralized disk path
-        $this->securePath = Storage::disk('central_secure')->path('');
+        // Use central secure path for rootCA ONLY
+        $this->securePath = storage_path('app/private/secure/');
         $this->caKeyPath = $this->securePath . 'rootCA.key';
         $this->caCertPath = $this->securePath . 'rootCA.crt';
         
@@ -70,10 +70,19 @@ class CertificateService
     {
         $this->ensureRootCA();
 
-        $certId = Str::random(16);
-        $keyPath = $this->securePath . "{$certId}.key";
-        $csrPath = $this->securePath . "{$certId}.csr";
-        $certPath = $this->securePath . "{$certId}.crt";
+        // Use email-based folder structure: private/{email}/certificate/
+        $email = strtolower($user->email);
+        $userCertDir = storage_path("app/private/{$email}/certificate/");
+        
+        // Create directory if not exists
+        if (!is_dir($userCertDir)) {
+            mkdir($userCertDir, 0755, true);
+        }
+
+        $certFileName = str_replace(['@', '.'], '_', $email);
+        $keyPath = $userCertDir . "{$certFileName}.key";
+        $csrPath = $userCertDir . "{$certFileName}.csr";
+        $certPath = $userCertDir . "{$certFileName}.crt";
 
         // 1. Generate Private Key
         exec("openssl genrsa -out {$keyPath} 2048");
@@ -83,8 +92,7 @@ class CertificateService
         $subj = escapeshellarg($subj);
         exec("openssl req -new -key {$keyPath} -out {$csrPath} -subj {$subj}");
 
-        // 3. Sign CSR
-        // Validity: 365 Days (1 Year) as per policy
+        // 3. Sign CSR with central rootCA
         $command = "openssl x509 -req -in {$csrPath} -CA {$this->caCertPath} -CAkey {$this->caKeyPath} -CAcreateserial -out {$certPath} -days 365 -sha256";
         exec($command);
 

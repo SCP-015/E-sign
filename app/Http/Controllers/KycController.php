@@ -2,65 +2,69 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use App\Services\CertificateService;
+use App\Http\Requests\KycSubmitRequest;
+use App\Http\Resources\KycResource;
+use App\Services\KycService;
 use App\Models\User;
 
 class KycController extends Controller
 {
-    protected $certificateService;
+    protected $kycService;
 
-    public function __construct(CertificateService $certificateService)
+    public function __construct(KycService $kycService)
     {
-        $this->certificateService = $certificateService;
+        $this->kycService = $kycService;
     }
 
-    public function submit(Request $request)
+    public function submit(KycSubmitRequest $request)
     {
-        // Simulate Mobile App sending FormData
-        $request->validate([
-            'nik' => 'required|string',
-            'name' => 'required|string', // Name from ID Card
-            'id_card' => 'required|file|mimes:jpg,jpeg,png',
-            'selfie' => 'required|file|mimes:jpg,jpeg,png',
-            // 'email' => 'required|email', // Removed: use Auth user
-        ]);
-
-        /** @var User $user */
-        $user = $request->user();
-
-        if (!$user) {
-             return response()->json(['message' => 'Unauthorized'], 401);
-        }
-
-        // 1. Simulate Verification (Always True for MVP)
-        // In real app, we would verify OCR and Face Match here.
-        
-        // 2. Store Files (Optional for MVP, but good practice)
-        $idCardPath = $request->file('id_card')->store('kyc/id_cards', 'local'); // Secure storage
-        $selfiePath = $request->file('selfie')->store('kyc/selfies', 'local');
-
-        // 3. Update User Status & Data
-        $user->update([
-            'name' => $request->name, // Update name to match ID Card
-            'kyc_status' => 'verified',
-            // 'nik' => $request->nik // Add NIK column if needed, skipping for MVP schema simplicity
-        ]);
-
-        // 4. Generate Certificate
-        // We reuse the logic from CertificateController logic but internally
-        // Note: modify generateUserCertificate to be public or accessible
-        // Creating a fresh Request or passing user directly?
-        // CertificateService->generateUserCertificate logic handles creation.
-        
         try {
-            $cert = $this->certificateService->generateUserCertificate($user);
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthenticated'
+                ], 401);
+            }
+
+            $result = $this->kycService->submitKyc(
+                $user,
+                $request->validated(),
+                $request->file('id_photo'),
+                $request->file('selfie_photo')
+            );
+
             return response()->json([
-                'message' => 'KYC Verified & Certificate Issued',
-                'certificate_id' => $cert->id
-            ]);
+                'status' => 'success',
+                'message' => 'KYC data submitted successfully',
+                'data' => [
+                    'id' => $result['user']->id,
+                    'full_name' => $request->full_name,
+                    'id_type' => $request->id_type,
+                    'id_number' => $request->id_number,
+                    'date_of_birth' => $request->date_of_birth,
+                    'address' => $request->address,
+                    'city' => $request->city,
+                    'province' => $request->province,
+                    'postal_code' => $request->postal_code,
+                    'id_photo_path' => $result['kyc_data']->id_photo_path,
+                    'selfie_photo_path' => $result['kyc_data']->selfie_photo_path,
+                    'kyc_status' => 'verified',
+                    'certificate' => [
+                        'id' => $result['certificate']->id,
+                        'certificate_number' => $result['certificate']->certificate_number,
+                        'status' => $result['certificate']->status,
+                        'issued_at' => $result['certificate']->issued_at,
+                        'expires_at' => $result['certificate']->expires_at,
+                    ]
+                ]
+            ], 200);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Certificate Generation Failed: ' . $e->getMessage()], 500);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'KYC submission failed: ' . $e->getMessage()
+            ], 500);
         }
     }
 }
