@@ -101,11 +101,23 @@ class DocumentService
             'page' => 1,
         ];
         
-        // Import pages
+        // Import pages - preserve original page size
         $pageCount = $pdf->setSourceFile($sourcePdf);
         for ($i = 1; $i <= $pageCount; $i++) {
-            $pdf->AddPage();
+            // Import page first to get its dimensions
             $tplIdx = $pdf->importPage($i);
+            
+            // Get the dimensions of the imported page
+            $pageSize = $pdf->getTemplateSize($tplIdx);
+            $pageWidth = $pageSize['width'];
+            $pageHeight = $pageSize['height'];
+            
+            // Add page with original dimensions (not forced A4)
+            // Detect orientation: if height > width = portrait, else = landscape
+            $orientation = $pageHeight > $pageWidth ? 'P' : 'L';
+            $pdf->AddPage($orientation, [$pageWidth, $pageHeight]);
+            
+            // Use the imported template
             $pdf->useTemplate($tplIdx);
             
             // Add QR code on specified page using TCPDF's built-in write2DBarcode (no extensions needed!)
