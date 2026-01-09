@@ -142,7 +142,7 @@ class DocumentController extends Controller
                 'status' => 'COMPLETED',
                 'verifyUrl' => $verifyUrl,
                 'qrValue' => $verifyUrl,
-                'finalPdfUrl' => url('/storage/' . str_replace('private/', '', $finalPdfPath)),
+                'finalPdfUrl' => url('/api/documents/' . $document->id . '/download'),
                 'completedAt' => $document->completed_at->toIso8601String(),
             ]);
         } catch (\Exception $e) {
@@ -205,7 +205,7 @@ class DocumentController extends Controller
         $user = $request->user();
         $document = Document::where('id', $id)->where('user_id', $user->id)->firstOrFail();
 
-        if ($document->status !== 'signed') {
+        if (!in_array($document->status, ['signed', 'COMPLETED'], true)) {
             return response()->json(['message' => 'Document is not signed yet'], 400);
         }
 
