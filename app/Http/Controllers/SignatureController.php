@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Signature;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 
 class SignatureController extends Controller
@@ -50,8 +51,16 @@ class SignatureController extends Controller
         
         // Store file in private storage with email-based folder
         $email = strtolower($user->email);
-        $filename = 'signature_' . uniqid() . '.' . $extension;
-        $path = $file->storeAs("{$email}/signatures", $filename, 'private');
+        $filename = 'signature_' . uniqid() . '.' . $extension . '.enc';
+        $path = "{$email}/signatures/{$filename}";
+
+        $plaintext = file_get_contents($file->getRealPath());
+        if ($plaintext === false) {
+            return response()->json(['message' => 'Failed to read uploaded signature file'], 400);
+        }
+
+        $ciphertext = Crypt::encrypt($plaintext);
+        Storage::disk('private')->put($path, $ciphertext);
 
         // If this is set as default, unset other defaults
         if ($request->boolean('is_default')) {
@@ -91,16 +100,23 @@ class SignatureController extends Controller
 
         // Remove 'private/' prefix if present
         $relativePath = str_replace('private/', '', $signature->image_path);
-        $filePath = Storage::disk('private')->path($relativePath);
-
-        if (!file_exists($filePath)) {
+        if (!Storage::disk('private')->exists($relativePath)) {
             return response()->json(['message' => 'Signature image not found'], 404);
+        }
+
+        $ciphertext = Storage::disk('private')->get($relativePath);
+        try {
+            $plaintext = Crypt::decrypt($ciphertext);
+        } catch (\Exception $e) {
+            // Backward compatibility: old signatures may be stored as plaintext.
+            $plaintext = $ciphertext;
         }
 
         $mimeType = $signature->image_type === 'svg' ? 'image/svg+xml' : 'image/png';
 
-        return response()->file($filePath, [
+        return response($plaintext, 200, [
             'Content-Type' => $mimeType,
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
         ]);
     }
 

@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\KycData;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Storage;
 
 class KycService
 {
@@ -19,8 +21,22 @@ class KycService
     {
         // Store KYC files in private storage with email-based folder structure
         $email = strtolower($user->email);
-        $idPhotoPath = $idPhoto->store("{$email}/kyc/id_card", 'private');
-        $selfiePhotoPath = $selfiePhoto->store("{$email}/kyc/selfie", 'private');
+
+        $idExt = strtolower($idPhoto->getClientOriginalExtension() ?: 'bin');
+        $selfieExt = strtolower($selfiePhoto->getClientOriginalExtension() ?: 'bin');
+
+        $idRelPath = "{$email}/kyc/id_card/id_" . uniqid() . ".{$idExt}.enc";
+        $selfieRelPath = "{$email}/kyc/selfie/selfie_" . uniqid() . ".{$selfieExt}.enc";
+
+        $idPlain = file_get_contents($idPhoto->getRealPath());
+        $selfiePlain = file_get_contents($selfiePhoto->getRealPath());
+
+        if ($idPlain === false || $selfiePlain === false) {
+            throw new \Exception('Failed to read uploaded KYC files');
+        }
+
+        Storage::disk('private')->put($idRelPath, Crypt::encrypt($idPlain));
+        Storage::disk('private')->put($selfieRelPath, Crypt::encrypt($selfiePlain));
 
         // Update User KYC Status (don't overwrite name from auth)
         $user->update([
@@ -38,8 +54,8 @@ class KycService
             'city' => $data['city'],
             'province' => $data['province'],
             'postal_code' => $data['postal_code'],
-            'id_photo_path' => "private/{$idPhotoPath}",
-            'selfie_photo_path' => "private/{$selfiePhotoPath}",
+            'id_photo_path' => "private/{$idRelPath}",
+            'selfie_photo_path' => "private/{$selfieRelPath}",
             'status' => 'verified',
         ]);
 

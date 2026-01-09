@@ -4,16 +4,36 @@ namespace App\Services;
 
 use App\Models\Document;
 use App\Models\Signature;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 use setasign\Fpdi\Tcpdf\Fpdi;
 
 class DocumentService
 {
+    protected function decryptPrivateFileToTempPath(string $privatePathWithOptionalPrefix, string $extension)
+    {
+        $relativePath = str_replace('private/', '', $privatePathWithOptionalPrefix);
+        if (!Storage::disk('private')->exists($relativePath)) {
+            return null;
+        }
+
+        $ciphertext = Storage::disk('private')->get($relativePath);
+        try {
+            $plaintext = Crypt::decrypt($ciphertext);
+        } catch (\Exception $e) {
+            // Backward compatibility: older files may be stored unencrypted.
+            $plaintext = $ciphertext;
+        }
+
+        $tempPath = sys_get_temp_dir() . '/dec_' . uniqid() . '.' . $extension;
+        file_put_contents($tempPath, $plaintext);
+        return $tempPath;
+    }
     public function upload($file, $user)
     {
         // Use email-based folder structure: private/{email}/documents/
         $email = strtolower($user->email);
-        $path = $file->store("{$email}/documents", 'private');
+        $path = $file->store("{$email}/documents/original", 'private');
         
         return Document::create([
             'user_id' => $user->id,
@@ -31,7 +51,7 @@ class DocumentService
     public function uploadWithMetadata($file, $user, $title = null)
     {
         $email = strtolower($user->email);
-        $path = $file->store("{$email}/documents", 'private');
+        $path = $file->store("{$email}/documents/original", 'private');
         
         // Get page count using FPDI
         $pageCount = 0;
@@ -73,6 +93,8 @@ class DocumentService
         
         // Load all placements with relationships
         $placements = $document->placements()->with(['signature', 'signer'])->get();
+
+        $tempFiles = [];
         
         // Import all pages
         $pageCount = $pdf->setSourceFile($sourcePdf);
@@ -95,10 +117,11 @@ class DocumentService
             // Add all signature placements for this page
             $pagePlacements = $placements->where('page', $i);
             foreach ($pagePlacements as $placement) {
-                $sigPath = str_replace('private/', '', $placement->signature->image_path);
-                $sigImagePath = Storage::disk('private')->path($sigPath);
-                
-                if (file_exists($sigImagePath)) {
+                $imageType = strtoupper($placement->signature->image_type);
+                $ext = ($imageType === 'SVG') ? 'svg' : 'png';
+                $sigImagePath = $this->decryptPrivateFileToTempPath($placement->signature->image_path, $ext);
+                if ($sigImagePath && file_exists($sigImagePath)) {
+                    $tempFiles[] = $sigImagePath;
                     $x = $placement->x;
                     $y = $placement->y;
                     $w = $placement->w;
@@ -112,7 +135,6 @@ class DocumentService
                         $h = $h * $pageHeight;
                     }
 
-                    $imageType = strtoupper($placement->signature->image_type);
                     if ($imageType === 'SVG') {
                         $pdf->ImageSVG($sigImagePath, $x, $y, $w, $h);
                     } else {
@@ -155,9 +177,9 @@ class DocumentService
         // Save final PDF
         $finalFileName = 'final_' . basename($document->file_path);
         $email = strtolower($document->user->email);
-        $finalPath = "private/{$email}/documents/{$finalFileName}";
+        $finalPath = "private/{$email}/documents/final/{$finalFileName}";
         
-        $finalDir = storage_path("app/private/{$email}/documents");
+        $finalDir = storage_path("app/private/{$email}/documents/final");
         if (!is_dir($finalDir)) {
             mkdir($finalDir, 0755, true);
         }
@@ -168,6 +190,12 @@ class DocumentService
         // Clean up
         if (file_exists($tempCleanPath)) {
             unlink($tempCleanPath);
+        }
+
+        foreach ($tempFiles as $tf) {
+            if ($tf && file_exists($tf)) {
+                unlink($tf);
+            }
         }
         
         return $finalPath;
@@ -197,10 +225,10 @@ class DocumentService
         }
 
         // Get signature image path
-        $sigRelativePath = str_replace('private/', '', $signature->image_path);
-        $sigImagePath = Storage::disk('private')->path($sigRelativePath);
-        
-        if (!file_exists($sigImagePath)) {
+        $sigExt = strtolower($signature->image_type) === 'svg' ? 'svg' : 'png';
+        $sigImagePath = $this->decryptPrivateFileToTempPath($signature->image_path, $sigExt);
+
+        if (!$sigImagePath || !file_exists($sigImagePath)) {
             throw new \Exception("Signature image not found.");
         }
 
@@ -314,9 +342,9 @@ class DocumentService
         // Output to private storage
         $signedFileName = 'signed_' . basename($document->file_path);
         $email = strtolower($document->user->email);
-        $signedPath = "private/{$email}/documents/{$signedFileName}";
+        $signedPath = "private/{$email}/documents/signed/{$signedFileName}";
         
-        $signedDir = storage_path("app/private/{$email}/documents");
+        $signedDir = storage_path("app/private/{$email}/documents/signed");
         if (!is_dir($signedDir)) {
             mkdir($signedDir, 0755, true);
         }
@@ -333,6 +361,10 @@ class DocumentService
         // Clean up temp file
         if (file_exists($tempCleanPath)) {
             unlink($tempCleanPath);
+        }
+
+        if ($sigImagePath && file_exists($sigImagePath)) {
+            unlink($sigImagePath);
         }
 
         return $signedPath;
