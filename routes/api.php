@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -21,20 +22,45 @@ Route::prefix('auth')->group(function () {
 
 Route::middleware('auth:api')->group(function () {
     Route::get('/user', function (Request $request) {
-        return $request->user();
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        return new UserResource($user->load('certificate'));
     });
     Route::post('/certificates/issue', [\App\Http\Controllers\CertificateController::class, 'issue']);
     
+    // Documents
     Route::get('/documents', [\App\Http\Controllers\DocumentController::class, 'index']);
     Route::post('/documents', [\App\Http\Controllers\DocumentController::class, 'upload']);
+    Route::get('/documents/{document}', [\App\Http\Controllers\DocumentController::class, 'show']);
+    Route::get('/documents/{document}/view-url', [\App\Http\Controllers\DocumentController::class, 'viewUrl']);
     Route::post('/documents/{document}/sign', [\App\Http\Controllers\DocumentController::class, 'sign']);
+    Route::post('/documents/{document}/finalize', [\App\Http\Controllers\DocumentController::class, 'finalize']);
     Route::get('/documents/{document}/download', [\App\Http\Controllers\DocumentController::class, 'download']);
-    Route::post('/documents/verify', [\App\Http\Controllers\VerificationController::class, 'verify']);
     
-    // QR Position Management (Modern drag & drop signature)
-    Route::get('/documents/{document}/qr-position', [\App\Http\Controllers\DocumentController::class, 'getQrPosition']);
-    Route::put('/documents/{document}/qr-position', [\App\Http\Controllers\DocumentController::class, 'updateQrPosition']);
+    // Document Signers
+    Route::post('/documents/{document}/signers', [\App\Http\Controllers\SignerController::class, 'store']);
+    Route::get('/documents/{document}/signers', [\App\Http\Controllers\SignerController::class, 'index']);
+    
+    // Signature Placements
+    Route::post('/documents/{document}/placements', [\App\Http\Controllers\PlacementController::class, 'store']);
+    Route::get('/documents/{document}/placements', [\App\Http\Controllers\PlacementController::class, 'index']);
+    Route::put('/documents/{document}/placements/{placement}', [\App\Http\Controllers\PlacementController::class, 'update']);
+    
+    // User Signatures
+    Route::get('/signatures', [\App\Http\Controllers\SignatureController::class, 'index']);
+    Route::post('/signatures', [\App\Http\Controllers\SignatureController::class, 'store']);
+    Route::get('/signatures/{signature}/image', [\App\Http\Controllers\SignatureController::class, 'getImage']);
+    Route::put('/signatures/{signature}/default', [\App\Http\Controllers\SignatureController::class, 'setDefault']);
+    Route::delete('/signatures/{signature}', [\App\Http\Controllers\SignatureController::class, 'destroy']);
+    
+    // Verify
+    Route::post('/documents/verify', [\App\Http\Controllers\VerificationController::class, 'verify']);
 
-    // Mobile KYC (Protected)
+    // Mobile KYC
     Route::post('/kyc/submit', [\App\Http\Controllers\KycController::class, 'submit']);
 });
+
+// Public verify endpoint (no auth required)
+Route::get('/verify/{token}', [\App\Http\Controllers\VerifyController::class, 'verify']);

@@ -13,10 +13,17 @@
                         <div v-else class="avatar-placeholder">{{ user.name?.charAt(0).toUpperCase() }}</div>
                         <div class="user-details">
                             <p class="user-name">{{ user.name }}</p>
-                            <p class="user-email">{{ user.email }}</p>
                         </div>
                     </div>
-                    <button @click="logout" class="btn-logout">Logout</button>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <span>{{ user.name }}</span>
+                        <button @click="goToSignatureSetup" class="btn-secondary btn-sm">
+                            ✍️ Setup Signature
+                        </button>
+                        <button @click="logout" class="btn-logout">Logout</button>
+                    </div>
                 </div>
             </div>
         </header>
@@ -127,11 +134,8 @@
                             <span :class="['status-badge', doc.status]">{{ doc.status }}</span>
                         </div>
                         <div class="doc-actions">
-                            <button v-if="doc.status === 'pending'" @click="showQrPositioner(doc.id)" class="btn-secondary btn-sm">
-                                🎯 Position QR
-                            </button>
-                            <button v-if="doc.status === 'pending'" @click="signDocument(doc.id)" class="btn-primary btn-sm">
-                                Sign Now
+                            <button v-if="doc.status === 'pending'" @click="openSigningModal(doc.id, doc.page_count)" class="btn-primary btn-sm">
+                                ✍️ Sign Now
                             </button>
                             <button v-if="doc.status === 'signed'" @click="verifyDocument(doc.id)" class="btn-secondary btn-sm">
                                 Verify Signature
@@ -151,13 +155,14 @@
             </section>
         </main>
 
-        <!-- QR Positioner Modal -->
-        <div v-if="showQrModal" class="modal-overlay" @click.self="closeQrModal">
-            <div class="modal-content">
-                <button @click="closeQrModal" class="modal-close">✕</button>
-                <DocumentQrPositioner :documentId="selectedDocId" />
-            </div>
-        </div>
+        <!-- Signing Modal -->
+        <SigningModal 
+            :isOpen="showSigningModal" 
+            :documentId="selectedDocId"
+            :pageCount="selectedDocPageCount"
+            @close="showSigningModal = false"
+            @signed="onDocumentSigned"
+        />
     </div>
 </template>
 
@@ -166,7 +171,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
-import DocumentQrPositioner from './DocumentQrPositioner.vue';
+import SigningModal from './SigningModal.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -176,14 +181,16 @@ const loading = ref(false);
 const dragActive = ref(false);
 const documents = ref([]);
 const fileInput = ref(null);
-const showQrModal = ref(false);
+const showSigningModal = ref(false);
 const selectedDocId = ref(null);
+const selectedDocPageCount = ref(0);
 
 const signedCount = computed(() => documents.value.filter(d => d.status === 'signed').length);
 const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending').length);
 const certificateExpiry = computed(() => {
-    const date = new Date();
-    date.setFullYear(date.getFullYear() + 1);
+    const expiresAt = user.value?.certificate?.expires_at;
+    if (!expiresAt) return '-';
+    const date = new Date(expiresAt);
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 });
 
@@ -195,6 +202,10 @@ const logout = async () => {
     }
     authStore.logout();
     router.push('/');
+};
+
+const goToSignatureSetup = () => {
+    router.push('/signature-setup');
 };
 
 const getFileName = (path) => path ? path.split('/').pop() : 'document.pdf';
@@ -232,24 +243,36 @@ const uploadFile = async (file) => {
     }
 };
 
-const signDocument = async (id) => {
-    try {
-        await axios.post(`/api/documents/${id}/sign`);
-        alert('Document signed successfully!');
-        await fetchDocuments();
-    } catch (e) {
-        alert('Signing Failed: ' + (e.response?.data?.message || e.message));
-    }
+const openSigningModal = (docId, pageCount) => {
+    selectedDocId.value = docId;
+    selectedDocPageCount.value = pageCount || 1;
+    showSigningModal.value = true;
+};
+
+const onDocumentSigned = async () => {
+    await fetchDocuments();
 };
 
 const verifyDocument = async (id) => {
     try {
-        const res = await axios.post('/api/documents/verify', { document_id: id });
-        if (res.data.is_valid) {
-            alert('✅ Signature is valid!');
-        } else {
-            alert('❌ Signature is invalid');
+        // Get document to get verify token
+        const docRes = await axios.get(`/api/documents/${id}`);
+        const verifyToken = docRes.data.verify_token;
+        
+        if (!verifyToken) {
+            alert('❌ No verify token found for this document');
+            return;
         }
+        
+        // Call public verify endpoint
+        const res = await axios.get(`/api/verify/${verifyToken}`);
+        
+        // Show verification details
+        const signers = res.data.signers.map(s => 
+            `${s.name}: ${s.status} (${s.signedAt || 'pending'})`
+        ).join('\n');
+        
+        alert(`✅ Document Verified!\n\nStatus: ${res.data.status}\nSigners:\n${signers}`);
     } catch (e) {
         alert('Verification Error: ' + (e.response?.data?.message || e.message));
     }
@@ -264,17 +287,6 @@ const fetchDocuments = async () => {
         console.error('Failed to fetch documents:', e);
         documents.value = [];
     }
-};
-
-const showQrPositioner = (docId) => {
-    selectedDocId.value = docId;
-    showQrModal.value = true;
-};
-
-const closeQrModal = () => {
-    showQrModal.value = false;
-    selectedDocId.value = null;
-    fetchDocuments(); // Refresh documents after QR position update
 };
 
 const downloadDocument = async (id) => {

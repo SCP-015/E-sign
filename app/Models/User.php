@@ -56,6 +56,11 @@ class User extends Authenticatable
         return $this->hasMany(\App\Models\Document::class);
     }
 
+    public function signatures()
+    {
+        return $this->hasMany(\App\Models\Signature::class);
+    }
+
     public function certificate()
     {
         return $this->hasOne(\App\Models\Certificate::class)->latest();

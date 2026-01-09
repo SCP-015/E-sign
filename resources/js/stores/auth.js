@@ -23,7 +23,8 @@ export const useAuthStore = defineStore('auth', {
                 // If it's a social login redirect, we handle it in component
                 // This is for manual login
                 const response = await axios.post('/api/auth/login', credentials);
-                this.setAuth(response.data.token, response.data.user);
+                const user = response.data.user?.data ?? response.data.user;
+                this.setAuth(response.data.token, user);
                 return response;
             } catch (error) {
                 throw error;
@@ -36,7 +37,7 @@ export const useAuthStore = defineStore('auth', {
             if (!this.token) return;
             try {
                 const response = await axios.get('/api/user');
-                this.user = response.data;
+                this.user = response.data?.data ?? response.data;
                 localStorage.setItem('user', JSON.stringify(this.user));
             } catch (error) {
                 if (error.response && error.response.status === 401) {
