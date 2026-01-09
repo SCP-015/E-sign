@@ -127,15 +127,18 @@
                             <span :class="['status-badge', doc.status]">{{ doc.status }}</span>
                         </div>
                         <div class="doc-actions">
+                            <button v-if="doc.status === 'pending'" @click="showQrPositioner(doc.id)" class="btn-secondary btn-sm">
+                                🎯 Position QR
+                            </button>
                             <button v-if="doc.status === 'pending'" @click="signDocument(doc.id)" class="btn-primary btn-sm">
                                 Sign Now
                             </button>
                             <button v-if="doc.status === 'signed'" @click="verifyDocument(doc.id)" class="btn-secondary btn-sm">
                                 Verify Signature
                             </button>
-                            <a v-if="doc.status === 'signed'" :href="getDownloadUrl(doc.signed_path)" target="_blank" class="btn-link btn-sm">
-                                Download
-                            </a>
+                            <button v-if="doc.status === 'signed'" @click="downloadDocument(doc.id)" class="btn-link btn-sm">
+                                📥 Download
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -147,6 +150,14 @@
                 </div>
             </section>
         </main>
+
+        <!-- QR Positioner Modal -->
+        <div v-if="showQrModal" class="modal-overlay" @click.self="closeQrModal">
+            <div class="modal-content">
+                <button @click="closeQrModal" class="modal-close">✕</button>
+                <DocumentQrPositioner :documentId="selectedDocId" />
+            </div>
+        </div>
     </div>
 </template>
 
@@ -155,6 +166,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
+import DocumentQrPositioner from './DocumentQrPositioner.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -164,6 +176,8 @@ const loading = ref(false);
 const dragActive = ref(false);
 const documents = ref([]);
 const fileInput = ref(null);
+const showQrModal = ref(false);
+const selectedDocId = ref(null);
 
 const signedCount = computed(() => documents.value.filter(d => d.status === 'signed').length);
 const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending').length);
@@ -184,7 +198,6 @@ const logout = async () => {
 };
 
 const getFileName = (path) => path ? path.split('/').pop() : 'document.pdf';
-const getDownloadUrl = (path) => `/storage/${path}`;
 const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -250,6 +263,50 @@ const fetchDocuments = async () => {
     } catch (e) {
         console.error('Failed to fetch documents:', e);
         documents.value = [];
+    }
+};
+
+const showQrPositioner = (docId) => {
+    selectedDocId.value = docId;
+    showQrModal.value = true;
+};
+
+const closeQrModal = () => {
+    showQrModal.value = false;
+    selectedDocId.value = null;
+    fetchDocuments(); // Refresh documents after QR position update
+};
+
+const downloadDocument = async (id) => {
+    try {
+        const response = await axios.get(`/api/documents/${id}/download`, {
+            responseType: 'blob', // Important for file download
+        });
+        
+        // Get filename from Content-Disposition header or use default
+        const contentDisposition = response.headers['content-disposition'];
+        let filename = 'signed_document.pdf';
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1];
+            }
+        }
+        
+        // Create blob URL and trigger download
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        
+        // Cleanup
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    } catch (e) {
+        alert('Download Failed: ' + (e.response?.data?.message || e.message));
     }
 };
 
@@ -722,6 +779,56 @@ const fetchDocuments = async () => {
     font-weight: 600;
     font-size: 0.875rem;
     transition: all 0.3s;
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    position: relative;
+    background: white;
+    border-radius: 12px;
+    max-width: 95vw;
+    max-height: 95vh;
+    overflow: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-close {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: #ef4444;
+    color: white;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 20px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    transition: all 0.2s;
+}
+
+.modal-close:hover {
+    background: #dc2626;
+    transform: rotate(90deg);
 }
 
 .btn-link:hover {

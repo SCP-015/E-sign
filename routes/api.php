@@ -28,7 +28,12 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/documents', [\App\Http\Controllers\DocumentController::class, 'index']);
     Route::post('/documents', [\App\Http\Controllers\DocumentController::class, 'upload']);
     Route::post('/documents/{document}/sign', [\App\Http\Controllers\DocumentController::class, 'sign']);
+    Route::get('/documents/{document}/download', [\App\Http\Controllers\DocumentController::class, 'download']);
     Route::post('/documents/verify', [\App\Http\Controllers\VerificationController::class, 'verify']);
+    
+    // QR Position Management (Modern drag & drop signature)
+    Route::get('/documents/{document}/qr-position', [\App\Http\Controllers\DocumentController::class, 'getQrPosition']);
+    Route::put('/documents/{document}/qr-position', [\App\Http\Controllers\DocumentController::class, 'updateQrPosition']);
 
     // Mobile KYC (Protected)
     Route::post('/kyc/submit', [\App\Http\Controllers\KycController::class, 'submit']);

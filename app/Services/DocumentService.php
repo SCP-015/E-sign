@@ -17,9 +17,19 @@ class DocumentService
         return Document::create([
             'user_id' => $user->id,
             'file_path' => $path,
+            'original_filename' => $file->getClientOriginalName(),
+            'file_size' => $file->getSize(),
+            'mime_type' => $file->getMimeType(),
             'status' => 'pending',
+            // Legacy absolute coordinates (deprecated)
             'x_coord' => 10,
             'y_coord' => 10,
+            // Default QR position (center of page)
+            'signature_x' => 0.5,
+            'signature_y' => 0.5,
+            'signature_width' => 0.15,
+            'signature_height' => 0.15,
+            'signature_page' => 1,
         ]);
     }
 
@@ -74,6 +84,23 @@ class DocumentService
         // set document signature
         $pdf->setSignature($certificateContent, $privateKeyContent, '', '', 2, $info);
 
+        // Generate QR Code data
+        $qrData = json_encode([
+            'document_id' => $document->id,
+            'signed_by' => $document->user->name,
+            'signed_at' => now()->toIso8601String(),
+            'certificate_id' => $certificate->id,
+        ]);
+        
+        // Get QR position from document (relative coordinates 0-1)
+        $qrPos = $document->qr_position ?? [
+            'x' => 0.5,
+            'y' => 0.5,
+            'width' => 0.15,
+            'height' => 0.15,
+            'page' => 1,
+        ];
+        
         // Import pages
         $pageCount = $pdf->setSourceFile($sourcePdf);
         for ($i = 1; $i <= $pageCount; $i++) {
@@ -81,13 +108,36 @@ class DocumentService
             $tplIdx = $pdf->importPage($i);
             $pdf->useTemplate($tplIdx);
             
-            // Add visual signature on the last page? or where X/Y are?
-            // Let's assume on the last page for now or all? Usually last.
-             if ($i == $pageCount) {
-                $pdf->SetXY($document->x_coord, $document->y_coord);
-                $pdf->SetFont('helvetica', '', 12);
-                $pdf->Cell(50, 15, 'Digitally Signed by ' . $document->user->name, 1, 0, 'C');
-             }
+            // Add QR code on specified page using TCPDF's built-in write2DBarcode (no extensions needed!)
+            if ($i == $qrPos['page']) {
+                // Get page dimensions
+                $pageWidth = $pdf->getPageWidth();
+                $pageHeight = $pdf->getPageHeight();
+                
+                // Convert relative coordinates to absolute pixels
+                $actualX = $pageWidth * $qrPos['x'];
+                $actualY = $pageHeight * $qrPos['y'];
+                $actualWidth = $pageWidth * $qrPos['width'];
+                $actualHeight = $pageHeight * $qrPos['height'];
+                
+                // Use TCPDF's native QR code generator (built-in, no dependencies)
+                $pdf->write2DBarcode(
+                    $qrData,           // QR code content
+                    'QRCODE,H',        // Type: QR Code with High error correction
+                    $actualX,          // X position
+                    $actualY,          // Y position
+                    $actualWidth,      // Width
+                    $actualHeight,     // Height
+                    array(             // Style
+                        'border' => false,
+                        'vpadding' => 0,
+                        'hpadding' => 0,
+                        'fgcolor' => array(0, 0, 0),
+                        'bgcolor' => false,
+                    ),
+                    'N'                // Alignment
+                );
+            }
         }
 
         // Output to private storage with email-based folder structure
