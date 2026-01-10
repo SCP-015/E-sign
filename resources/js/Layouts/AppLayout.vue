@@ -1,7 +1,7 @@
 <template>
     <div class="flex min-h-screen flex-col">
         <header v-if="showHeader" class="sticky top-0 z-40 border-b border-base-200 bg-base-100/90 shadow-sm backdrop-blur">
-            <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3">
+            <div class="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3">
                 <Link href="/dashboard" class="flex items-center gap-3 text-base font-semibold">
                     <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm">
                         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
@@ -68,7 +68,7 @@
         </main>
 
         <footer class="border-t border-base-200 bg-base-100/80">
-            <div class="mx-auto grid w-full max-w-6xl gap-4 px-4 py-6 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_1fr]">
+            <div class="mx-auto grid w-full max-w-7xl gap-4 px-4 py-6 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_1fr]">
                 <div class="space-y-2">
                     <div class="flex items-center gap-3 font-semibold">
                         <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -113,7 +113,7 @@
                 </div>
             </div>
             <div class="border-t border-base-200">
-                <div class="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-3 text-xs text-base-content/60 sm:flex-row sm:items-center sm:justify-between">
+                <div class="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-3 text-xs text-base-content/60 sm:flex-row sm:items-center sm:justify-between">
                     <p>&copy; 2023 E-SIGN SECURE. All rights reserved.</p>
                     <div class="flex items-center gap-2">
                         <a class="btn btn-ghost btn-xs btn-circle" href="#" aria-label="LinkedIn">

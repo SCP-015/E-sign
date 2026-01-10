@@ -126,7 +126,7 @@ const quickTips = [
     },
     {
         text: 'Use Setup Signature before signing new documents.',
-        className: 'border-primary/20 bg-primary/10 text-primary-content',
+        className: 'border-primary/20 bg-primary/10 text-primary',
         dotClass: 'bg-primary',
     },
     {
