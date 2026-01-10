@@ -1,11 +1,104 @@
 @import 'tailwindcss';
+@plugin "daisyui";
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 @source '../**/*.blade.php';
+@source '../**/*.vue';
 @source '../**/*.js';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Sora', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+    html {
+        font-family: var(--font-sans);
+    }
+
+    body {
+        @apply bg-base-100 text-base-content;
+        background-image:
+            radial-gradient(1200px circle at 15% 10%, rgba(14, 116, 144, 0.12), transparent 50%),
+            radial-gradient(900px circle at 85% 20%, rgba(234, 179, 8, 0.12), transparent 55%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.95)),
+            repeating-linear-gradient(90deg, rgba(15, 23, 42, 0.03) 0 1px, transparent 1px 26px),
+            repeating-linear-gradient(180deg, rgba(15, 23, 42, 0.03) 0 1px, transparent 1px 26px);
+        background-attachment: fixed;
+    }
+}
+
+@layer utilities {
+    .animate-fade-up {
+        animation: fade-up 0.6s ease both;
+    }
+
+    .animate-delay-150 {
+        animation-delay: 150ms;
+    }
+
+    .animate-delay-300 {
+        animation-delay: 300ms;
+    }
+
+    .animation-delay-2000 {
+        animation-delay: 2000ms;
+    }
+
+    .mesh-gradient {
+        background-color: #f3f4f6;
+        background-image:
+            radial-gradient(at 0% 0%, rgba(15, 23, 42, 0) 0, rgba(15, 23, 42, 0) 50%),
+            radial-gradient(at 50% 0%, rgba(30, 64, 175, 0.08) 0, rgba(30, 64, 175, 0) 50%),
+            radial-gradient(at 100% 0%, rgba(190, 24, 93, 0.08) 0, rgba(190, 24, 93, 0) 50%),
+            radial-gradient(at 0% 100%, rgba(224, 231, 255, 1) 0, rgba(224, 231, 255, 0) 50%),
+            radial-gradient(at 50% 100%, rgba(219, 234, 254, 1) 0, rgba(219, 234, 254, 0) 50%),
+            radial-gradient(at 100% 100%, rgba(254, 249, 195, 1) 0, rgba(254, 249, 195, 0) 50%);
+    }
+
+    .text-gradient {
+        background-image: linear-gradient(90deg, #4f46e5, #818cf8);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+
+    .animate-blob {
+        animation: blob 7s infinite;
+    }
+
+    .hide-scroll::-webkit-scrollbar {
+        display: none;
+    }
+
+    .hide-scroll {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+}
+
+@keyframes fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes blob {
+    0% {
+        transform: translate(0, 0) scale(1);
+    }
+    33% {
+        transform: translate(12px, -16px) scale(1.05);
+    }
+    66% {
+        transform: translate(-8px, 12px) scale(0.98);
+    }
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
 }

@@ -1,106 +1,111 @@
 <template>
-  <div v-if="isOpen" class="signing-modal-overlay" @click.self="close">
-    <div class="signing-modal">
-      <!-- Header -->
-      <div class="modal-header">
-        <h2>Sign Document</h2>
-        <button @click="close" class="close-btn">✕</button>
+  <div v-if="isOpen" class="modal modal-open" @click.self="close">
+    <div class="modal-box w-11/12 max-w-5xl p-0">
+      <div class="flex items-center justify-between border-b border-base-200 px-6 py-4">
+        <div>
+          <h2 class="text-lg font-semibold">Sign Document</h2>
+          <p class="text-xs text-base-content/60">Place your signature on the PDF.</p>
+        </div>
+        <button @click="close" class="btn btn-ghost btn-sm">✕</button>
       </div>
 
-      <!-- Content -->
-      <div class="modal-body">
-        <!-- PDF Preview -->
-        <div class="pdf-preview-section">
-          <h3>Document Preview</h3>
-          <div class="pdf-viewer" ref="pdfViewer">
-            <div class="pdf-toolbar">
-              <button class="btn-mini" @click="prevPage" :disabled="placementPage <= 1 || pdfLoading">Prev</button>
-              <span class="page-indicator">{{ placementPage }} / {{ pages || '-' }}</span>
-              <button class="btn-mini" @click="nextPage" :disabled="!pages || placementPage >= pages || pdfLoading">Next</button>
+      <div class="grid gap-6 px-6 py-6 lg:grid-cols-[1.6fr,1fr]">
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold">Document Preview</h3>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-outline btn-xs" @click="prevPage" :disabled="placementPage <= 1 || pdfLoading">Prev</button>
+              <span class="badge badge-outline text-xs">{{ placementPage }} / {{ pages || '-' }}</span>
+              <button class="btn btn-outline btn-xs" @click="nextPage" :disabled="!pages || placementPage >= pages || pdfLoading">Next</button>
             </div>
+          </div>
 
-            <div v-if="pdfLoading" class="loading">Loading PDF...</div>
-            <div v-else class="pdf-stage" ref="pdfStage">
-              <div class="pdf-page-wrap" ref="pageWrap">
-                <VuePDF
-                  v-if="pdf"
-                  class="pdf-page"
-                  :pdf="pdf"
-                  :page="placementPage"
-                />
+          <div class="rounded-2xl border border-base-200 bg-base-200/40 p-3">
+            <div class="relative h-[520px] overflow-auto rounded-xl bg-white" ref="pdfViewer">
+              <div v-if="pdfLoading" class="flex h-full items-center justify-center text-sm text-base-content/60">
+                Loading PDF...
+              </div>
+              <div v-else class="relative p-3">
+                <div class="relative" ref="pageWrap">
+                  <VuePDF
+                    v-if="pdf"
+                    class="w-full"
+                    :pdf="pdf"
+                    :page="placementPage"
+                  />
 
-                <div
-                  v-if="selectedSignatureId && signatureImageUrl"
-                  class="signature-overlay"
-                  :style="signatureOverlayStyle"
-                  @pointerdown.prevent="onSigPointerDown"
-                >
-                  <img :src="signatureImageUrl" class="signature-img" alt="Signature" />
+                  <div
+                    v-if="selectedSignatureId && signatureImageUrl"
+                    class="absolute left-0 top-0 cursor-grab select-none"
+                    :style="signatureOverlayStyle"
+                    @pointerdown.prevent="onSigPointerDown"
+                  >
+                    <img :src="signatureImageUrl" class="h-full w-full rounded-lg object-contain" alt="Signature" />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Signature Placement -->
-        <div class="signature-section">
-          <h3>Place Your Signature</h3>
-          
-          <!-- Signature Selection -->
-          <div class="signature-select">
-            <label>Select Signature:</label>
-            <select v-model="selectedSignatureId" class="form-control">
+        <div class="space-y-4">
+          <div>
+            <h3 class="text-sm font-semibold">Place Your Signature</h3>
+            <p class="text-xs text-base-content/60">Choose a signature and position it on the preview.</p>
+          </div>
+
+          <div class="rounded-2xl border border-base-200 bg-base-100 p-4">
+            <label class="text-xs font-semibold">Select Signature</label>
+            <select v-model="selectedSignatureId" class="select select-bordered select-sm mt-2 w-full">
               <option :value="null">-- Choose a signature --</option>
               <option v-for="sig in signatures" :key="sig.id" :value="sig.id">
                 {{ sig.name }}
               </option>
             </select>
 
-            <div v-if="selectedSignatureId && signatureImageUrl" class="selected-sig-preview">
-              <img :src="signatureImageUrl" alt="Selected signature" />
+            <div v-if="selectedSignatureId && signatureImageUrl" class="mt-4 flex h-20 items-center justify-center rounded-xl border border-base-200 bg-base-100">
+              <img :src="signatureImageUrl" alt="Selected signature" class="max-h-16 max-w-full object-contain" />
             </div>
 
-            <button @click="goToSignatureSetup" class="btn-secondary btn-sm">
-              + Create New Signature
+            <button @click="goToSignatureSetup" class="btn btn-outline btn-sm mt-4 w-full">
+              Create New Signature
             </button>
           </div>
 
-          <!-- Page & Position Selection -->
-          <div v-if="selectedSignatureId" class="placement-controls">
-            <div class="control-group">
-              <label>Page:</label>
-              <input 
-                v-model.number="placementPage" 
-                type="number" 
-                min="1" 
+          <div v-if="selectedSignatureId" class="rounded-2xl border border-base-200 bg-base-100 p-4">
+            <label class="text-xs font-semibold">Page</label>
+            <div class="mt-2 flex items-center gap-2">
+              <input
+                v-model.number="placementPage"
+                type="number"
+                min="1"
                 :max="pageCount"
-                class="form-control"
+                class="input input-bordered input-sm w-24"
               >
-              <span class="help-text">of {{ pageCount }}</span>
+              <span class="text-xs text-base-content/60">of {{ pageCount }}</span>
             </div>
-
-            <p class="help-text">
-              Drag the signature on the document preview. Position and size will be saved automatically.
+            <p class="mt-3 text-xs text-base-content/60">
+              Drag the signature on the preview. Position and size will be saved automatically.
             </p>
           </div>
         </div>
       </div>
 
-      <!-- Footer -->
-      <div class="modal-footer">
-        <button @click="close" class="btn-secondary">Cancel</button>
-        <button 
-          @click="saveSignature" 
-          class="btn-primary"
+      <div class="modal-action border-t border-base-200 px-6 py-4">
+        <button @click="close" class="btn btn-ghost">Cancel</button>
+        <button
+          @click="saveSignature"
+          class="btn btn-primary"
           :disabled="!selectedSignatureId || saving"
         >
-          {{ saving ? 'Saving...' : '✓ Save Signature' }}
+          {{ saving ? 'Saving...' : 'Save Signature' }}
         </button>
       </div>
 
-      <!-- Message -->
-      <div v-if="message" :class="['message', messageType]">
-        {{ message }}
+      <div v-if="message" class="px-6 pb-6">
+        <div :class="['alert shadow-sm', messageClass]">
+          <span>{{ message }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -108,7 +113,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
+import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
 import { VuePDF, usePDF } from '@tato30/vue-pdf';
@@ -122,11 +127,9 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'signed']);
 
-const router = useRouter();
 const authStore = useAuthStore();
 const pdfLoading = ref(false);
 const pdfViewer = ref(null);
-const pdfStage = ref(null);
 const pageWrap = ref(null);
 
 const pdfSource = ref(null);
@@ -154,6 +157,12 @@ const isDragging = ref(false);
 const dragOffsetX = ref(0);
 const dragOffsetY = ref(0);
 
+const messageClass = computed(() => {
+  if (messageType.value === 'success') return 'alert-success';
+  if (messageType.value === 'error') return 'alert-error';
+  return 'alert-info';
+});
+
 onMounted(async () => {
   await loadSignatures();
 });
@@ -163,7 +172,6 @@ onBeforeUnmount(() => {
   detachDragListeners();
 });
 
-// Watch for modal open
 watch(() => props.isOpen, async (newVal) => {
   if (newVal && props.documentId) {
     await loadSignatures();
@@ -226,7 +234,6 @@ async function loadSignatureImage(signatureId) {
     signatureImageObjectUrl.value = url;
     signatureImageUrl.value = url;
 
-    // Update overlay size based on actual image dimensions (cropped PNG)
     await new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
@@ -235,12 +242,9 @@ async function loadSignatureImage(signatureId) {
 
         const ratio = img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 1;
 
-        // Choose a default display height, then compute width by ratio.
-        // Clamp so it doesn't become too large or too small.
         const targetH = 60;
         let targetW = Math.round(targetH * ratio);
 
-        // Reasonable bounds
         const maxW = wrapW ? Math.max(80, Math.floor(wrapW * 0.7)) : 420;
         targetW = Math.min(Math.max(targetW, 80), maxW);
 
@@ -337,12 +341,9 @@ const signatureOverlayStyle = computed(() => {
 async function loadSignatures() {
   try {
     const res = await axios.get('/api/signatures');
-    console.log('Signatures loaded:', res.data);
     signatures.value = Array.isArray(res.data) ? res.data : [];
     if (signatures.value.length > 0) {
       selectedSignatureId.value = signatures.value[0].id;
-    } else {
-      console.warn('No signatures found for user');
     }
   } catch (e) {
     console.error('Failed to load signatures:', e);
@@ -372,7 +373,7 @@ async function saveSignature() {
 
   saving.value = true;
   try {
-    const response = await axios.post(`/api/documents/${props.documentId}/placements`, {
+    await axios.post(`/api/documents/${props.documentId}/placements`, {
       signerUserId: authStore.user.id,
       placements: [
         {
@@ -408,341 +409,10 @@ function showMessage(msg, type = 'info') {
 
 function goToSignatureSetup() {
   close();
-  router.push('/signature-setup');
+  router.visit('/signature-setup');
 }
 
 function close() {
   emit('close');
 }
 </script>
-
-<style scoped>
-.signing-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.signing-modal {
-  background: white;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 1000px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  padding: 20px;
-  border-bottom: 1px solid #eee;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 20px;
-  color: #333;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: #999;
-}
-
-.close-btn:hover {
-  color: #333;
-}
-
-.modal-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 20px;
-}
-
-.pdf-preview-section h3,
-.signature-section h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
-  font-size: 16px;
-  color: #333;
-}
-
-.pdf-viewer {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #f5f5f5;
-  height: 500px;
-  position: relative;
-  overflow: auto;
-}
-
-.pdf-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
-  background: #fff;
-  border-bottom: 1px solid #eee;
-  position: sticky;
-  top: 0;
-  z-index: 20;
-}
-
-.page-indicator {
-  font-size: 13px;
-  color: #333;
-}
-
-.btn-mini {
-  background: #6c757d;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 10px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.btn-mini:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pdf-stage {
-  position: relative;
-  padding: 10px;
-}
-
-.pdf-page-wrap {
-  position: relative;
-  width: 100%;
-}
-
-.pdf-page {
-  width: 100%;
-}
-
-.pdf-canvas-wrap {
-  position: relative;
-  min-height: 100%;
-}
-
-.pdf-canvas {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.signature-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  cursor: grab;
-  user-select: none;
-  touch-action: none;
-  z-index: 10;
-}
-
-.signature-overlay:active {
-  cursor: grabbing;
-}
-
-.signature-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  border: none;
-  border-radius: 6px;
-}
-
-.selected-sig-preview {
-  width: 100%;
-  height: 80px;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  background: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 10px;
-}
-
-.selected-sig-preview img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-.loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #999;
-}
-
-.signature-select {
-  margin-bottom: 20px;
-}
-
-.signature-select label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 500;
-  color: #333;
-}
-
-.form-control {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 14px;
-  margin-bottom: 10px;
-}
-
-.form-control:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.btn-secondary {
-  background: #6c757d;
-  color: white;
-  border: none;
-  padding: 8px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  width: 100%;
-}
-
-.btn-secondary:hover {
-  background: #5a6268;
-}
-
-.placement-controls {
-  margin-top: 20px;
-}
-
-.control-group {
-  margin-bottom: 15px;
-}
-
-.control-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: 500;
-  font-size: 13px;
-  color: #333;
-}
-
-.position-inputs,
-.size-inputs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.position-inputs > div,
-.size-inputs > div {
-  display: flex;
-  flex-direction: column;
-}
-
-.position-inputs label,
-.size-inputs label {
-  font-size: 12px;
-  margin-bottom: 3px;
-}
-
-.help-text {
-  font-size: 12px;
-  color: #999;
-  margin-top: 5px;
-}
-
-.modal-footer {
-  padding: 15px 20px;
-  border-top: 1px solid #eee;
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
-.btn-primary,
-.btn-secondary {
-  padding: 10px 16px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.3s;
-}
-
-.btn-primary {
-  background: #667eea;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #5568d3;
-}
-
-.btn-primary:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-.message {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  padding: 15px 20px;
-  border-radius: 8px;
-  font-weight: 500;
-  z-index: 1001;
-}
-
-.message.success {
-  background: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
-}
-
-.message.error {
-  background: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
-}
-
-@media (max-width: 768px) {
-  .modal-body {
-    grid-template-columns: 1fr;
-  }
-
-  .pdf-viewer {
-    height: 300px;
-  }
-}
-</style>
