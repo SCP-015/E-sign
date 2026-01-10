@@ -28,22 +28,23 @@
                     Loading PDF...
                   </div>
                   <div v-else class="relative p-3">
-                    <div class="relative" ref="pageWrap">
-                      <VuePDF
-                        v-if="pdf"
-                        class="w-full"
-                        :pdf="pdf"
-                        :page="placementPage"
-                        @loaded="onPdfLoaded"
-                      />
+                    <div class="flex min-w-max justify-center">
+                      <div class="relative inline-block overflow-hidden" ref="pageWrap">
+                        <VuePDF
+                          v-if="pdf"
+                          :pdf="pdf"
+                          :page="placementPage"
+                          @loaded="onPdfLoaded"
+                        />
 
-                      <div
-                        v-if="selectedSignatureId && signatureImageUrl"
-                        class="absolute left-0 top-0 cursor-grab select-none drop-shadow-md"
-                        :style="signatureOverlayStyle"
-                        @pointerdown.prevent="onSigPointerDown"
-                      >
-                        <img :src="signatureImageUrl" class="h-full w-full rounded-lg object-contain" alt="Signature" />
+                        <div
+                          v-if="selectedSignatureId && signatureImageUrl"
+                          class="absolute left-0 top-0 cursor-grab select-none drop-shadow-md"
+                          :style="signatureOverlayStyle"
+                          @pointerdown.prevent="onSigPointerDown"
+                        >
+                          <img :src="signatureImageUrl" class="h-full w-full rounded-lg object-contain" alt="Signature" />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -353,7 +354,9 @@ function onPointerUp() {
 
 function onPdfLoaded() {
   if (!selectedSignatureId.value) return;
-  clampSignature();
+  nextTick(() => {
+    clampSignature();
+  });
 }
 
 function attachDragListeners() {
