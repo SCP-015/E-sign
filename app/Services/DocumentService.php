@@ -67,6 +67,9 @@ class DocumentService
             'user_id' => $user->id,
             'title' => $title ?? $file->getClientOriginalName(),
             'file_path' => $path,
+            'original_filename' => $file->getClientOriginalName(),
+            'file_size' => $file->getSize(),
+            'mime_type' => $file->getMimeType(),
             'file_type' => 'pdf',
             'file_size_bytes' => $file->getSize(),
             'page_count' => $pageCount,
@@ -90,6 +93,37 @@ class DocumentService
 
         // Initialize FPDI
         $pdf = new Fpdi();
+
+        // Embed verify marker into PDF metadata so /verify/upload can map back without decoding QR image
+        $verifyUrl = url('/api/verify/' . $verifyToken);
+        $pdf->SetTitle($document->title ?? ('Document #' . $document->id));
+        $pdf->SetAuthor($document->user?->name ?? 'E-Sign');
+        $pdf->SetSubject('E-Sign Document');
+        $pdf->SetKeywords('E-SIGN;VERIFY_TOKEN=' . $verifyToken . ';VERIFY_URL=' . $verifyUrl);
+
+        // Best-effort: apply a real PDF digital signature using owner's certificate if available
+        try {
+            $cert = $document->user?->certificate;
+            $certPath = $cert?->certificate_path;
+            $keyPath = $cert?->private_key_path;
+
+            if ($certPath && $keyPath && file_exists($certPath) && file_exists($keyPath)) {
+                $certificateContent = file_get_contents($certPath);
+                $privateKeyContent = file_get_contents($keyPath);
+
+                if ($certificateContent !== false && $privateKeyContent !== false) {
+                    $info = [
+                        'Name' => $document->user?->name,
+                        'Location' => 'Office',
+                        'Reason' => 'Digital Signature',
+                        'ContactInfo' => $document->user?->email,
+                    ];
+                    $pdf->setSignature($certificateContent, $privateKeyContent, '', '', 2, $info);
+                }
+            }
+        } catch (\Exception $e) {
+            // Ignore: final PDF can still be generated with visual signatures and QR.
+        }
         
         // Load all placements with relationships
         $placements = $document->placements()->with(['signature', 'signer'])->get();
@@ -155,7 +189,7 @@ class DocumentService
         $qrY = $lastPageHeight - $qrSize - $marginBottom;
         
         // Verify URL
-        $verifyUrl = url('/api/verify/' . $verifyToken);
+        // NOTE: $verifyUrl is defined above (also embedded in metadata)
         
         $pdf->write2DBarcode(
             $verifyUrl,
@@ -173,6 +207,15 @@ class DocumentService
             ),
             'N'
         );
+
+        // Also write a tiny (near-invisible) text marker so token is present even if metadata is stripped
+        try {
+            $pdf->SetFont('helvetica', '', 4);
+            $pdf->SetTextColor(255, 255, 255);
+            $pdf->Text(1, $lastPageHeight - 2, 'VERIFY_TOKEN=' . $verifyToken);
+        } catch (\Exception $e) {
+            // ignore
+        }
         
         // Save final PDF
         $finalFileName = 'final_' . basename($document->file_path);

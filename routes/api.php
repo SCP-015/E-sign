@@ -63,4 +63,5 @@ Route::middleware('auth:api')->group(function () {
 });
 
 // Public verify endpoint (no auth required)
+Route::post('/verify/upload', [\App\Http\Controllers\VerifyController::class, 'upload']);
 Route::get('/verify/{token}', [\App\Http\Controllers\VerifyController::class, 'verify']);

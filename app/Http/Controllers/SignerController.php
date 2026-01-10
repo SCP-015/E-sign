@@ -47,11 +47,11 @@ class SignerController extends Controller
 
             return response()->json([
                 'documentId' => $document->id,
+                'status' => $document->status,
                 'signers' => collect($signers)->map(fn($s) => [
                     'userId' => $s->user_id,
                     'name' => $s->name,
                     'order' => $s->order,
-                    'status' => $s->status,
                 ])->toArray(),
             ]);
         } catch (\Exception $e) {
@@ -72,12 +72,12 @@ class SignerController extends Controller
 
         return response()->json([
             'documentId' => $document->id,
+            'status' => $document->status,
             'signers' => $signers->map(fn($s) => [
                 'id' => $s->id,
                 'userId' => $s->user_id,
                 'name' => $s->name,
                 'order' => $s->order,
-                'status' => $s->status,
                 'signedAt' => $s->signed_at?->toIso8601String(),
             ])->toArray(),
         ]);

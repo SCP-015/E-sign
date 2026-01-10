@@ -64,11 +64,6 @@ class DocumentController extends Controller
             'status' => $document->status,
             'pageCount' => $document->page_count,
             'verify_token' => $document->verify_token,
-            'signers' => $document->signers->map(fn($s) => [
-                'userId' => $s->user_id,
-                'status' => $s->status,
-                'signedAt' => $s->signed_at?->toIso8601String(),
-            ])->toArray(),
         ]);
     }
 

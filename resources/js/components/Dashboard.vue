@@ -112,6 +112,48 @@
                 </div>
             </section>
 
+            <!-- Verify Uploaded Signed PDF (Public Verify via Upload) -->
+            <section v-if="user.kyc_status === 'verified'" class="upload-section">
+                <div class="section-header">
+                    <h3>🧾 Verify Signed PDF (Upload)</h3>
+                </div>
+                <div class="upload-card">
+                    <div class="upload-area" @dragover.prevent="verifyDragActive = true" @dragleave.prevent="verifyDragActive = false" @drop.prevent="handleVerifyDrop" :class="{ 'drag-active': verifyDragActive }">
+                        <input type="file" ref="verifyFileInput" @change="handleVerifyFileSelect" accept="application/pdf" hidden>
+                        <div class="upload-content">
+                            <div class="upload-icon">✅</div>
+                            <h4>Drop Signed PDF to Verify</h4>
+                            <p>or</p>
+                            <button @click="$refs.verifyFileInput.click()" class="btn-secondary">Choose File</button>
+                            <p class="upload-hint">This checks signature markers and, if the PDF contains our verify URL, checks certificate validity.</p>
+                        </div>
+                    </div>
+
+                    <div v-if="verifyUploadResult" style="margin-top: 1rem;">
+                        <div class="glass" style="padding: 1rem;">
+                            <p style="font-weight: 700; margin-bottom: 0.5rem;">
+                                Result: {{ verifyUploadResult.is_valid ? 'VALID' : 'INVALID' }}
+                            </p>
+                            <p style="margin: 0; color: #cbd5e1;">
+                                {{ verifyUploadResult.message }}
+                            </p>
+                            <p v-if="verifyUploadResult.file_name" style="margin: 0.5rem 0 0; color: #94a3b8; font-size: 0.875rem;">
+                                File: {{ verifyUploadResult.file_name }}
+                            </p>
+                            <p v-if="verifyUploadResult.document_id" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
+                                Document ID: {{ verifyUploadResult.document_id }}
+                            </p>
+                            <p v-if="verifyUploadResult.signed_by" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
+                                Signed by: {{ verifyUploadResult.signed_by }}
+                            </p>
+                            <p v-if="verifyUploadResult.signed_at" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
+                                Signed at: {{ verifyUploadResult.signed_at }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Documents Section -->
             <section v-if="user.kyc_status === 'verified'" class="documents-section">
                 <div class="section-header">
@@ -179,11 +221,15 @@ const user = computed(() => authStore.user || {});
 
 const loading = ref(false);
 const dragActive = ref(false);
+const verifyDragActive = ref(false);
 const documents = ref([]);
 const fileInput = ref(null);
+const verifyFileInput = ref(null);
 const showSigningModal = ref(false);
 const selectedDocId = ref(null);
 const selectedDocPageCount = ref(0);
+
+const verifyUploadResult = ref(null);
 
 const signedCount = computed(() => documents.value.filter(d => d.status === 'signed').length);
 const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending').length);
@@ -202,6 +248,28 @@ const logout = async () => {
     }
     authStore.logout();
     router.push('/');
+};
+
+const verifyUploadFile = async (file) => {
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    verifyUploadResult.value = null;
+
+    try {
+        const res = await axios.post('/api/verify/upload', formData);
+        verifyUploadResult.value = res.data;
+    } catch (e) {
+        const msg = e.response?.data?.message || e.message;
+        verifyUploadResult.value = {
+            is_valid: false,
+            message: msg,
+            signed_by: null,
+            signed_at: null,
+            document_id: null,
+            file_name: file?.name,
+        };
+    }
 };
 
 const goToSignatureSetup = () => {
@@ -228,6 +296,12 @@ const handleFileSelect = (e) => uploadFile(e.target.files[0]);
 const handleDrop = (e) => {
     dragActive.value = false;
     uploadFile(e.dataTransfer.files[0]);
+};
+
+const handleVerifyFileSelect = (e) => verifyUploadFile(e.target.files[0]);
+const handleVerifyDrop = (e) => {
+    verifyDragActive.value = false;
+    verifyUploadFile(e.dataTransfer.files[0]);
 };
 
 const uploadFile = async (file) => {
