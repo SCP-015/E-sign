@@ -2,27 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\ApiResponse;
+use App\Services\TokenService;
 use Illuminate\Http\Request;
 
 class TokenController extends Controller
 {
+    public function __construct(private readonly TokenService $tokenService)
+    {
+    }
+
     public function getToken(Request $request)
     {
-        $token = session('auth_token');
-
-        if (!$token) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'No token found in session'
-            ], 401);
-        }
-
-        // Clear token from session after retrieving (one-time use)
-        session()->forget('auth_token');
-
-        return response()->json([
-            'status' => 'success',
-            'token' => $token
-        ]);
+        return ApiResponse::fromService($this->tokenService->getToken());
     }
 }

@@ -170,7 +170,7 @@
                                 <span v-else>📄</span>
                             </div>
                             <div class="doc-meta">
-                                <h4 class="doc-name">{{ getFileName(doc.file_path) }}</h4>
+                                <h4 class="doc-name">{{ getFileName(doc) }}</h4>
                                 <p class="doc-date">{{ formatDate(doc.created_at) }}</p>
                             </div>
                             <span :class="['status-badge', doc.status]">{{ doc.status }}</span>
@@ -258,7 +258,7 @@ const verifyUploadFile = async (file) => {
 
     try {
         const res = await axios.post('/api/verify/upload', formData);
-        verifyUploadResult.value = res.data;
+        verifyUploadResult.value = res.data?.data ?? res.data;
     } catch (e) {
         const msg = e.response?.data?.message || e.message;
         verifyUploadResult.value = {
@@ -276,7 +276,10 @@ const goToSignatureSetup = () => {
     router.push('/signature-setup');
 };
 
-const getFileName = (path) => path ? path.split('/').pop() : 'document.pdf';
+const getFileName = (doc) => {
+    if (!doc) return 'document.pdf';
+    return doc.title || doc.original_filename || (doc.file_path ? doc.file_path.split('/').pop() : 'document.pdf');
+};
 const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -331,22 +334,26 @@ const verifyDocument = async (id) => {
     try {
         // Get document to get verify token
         const docRes = await axios.get(`/api/documents/${id}`);
-        const verifyToken = docRes.data.verify_token;
+        const verifyToken = docRes.data?.data?.verify_token;
         
         if (!verifyToken) {
-            alert('❌ No verify token found for this document');
+            // Fallback: internal verification by document_id
+            const fallback = await axios.post('/api/documents/verify', { document_id: id });
+            const payload = fallback.data?.data ?? fallback.data;
+            alert(`❌ No verify token found for this document\n\nInternal verification: ${payload?.message || 'N/A'}`);
             return;
         }
         
         // Call public verify endpoint
         const res = await axios.get(`/api/verify/${verifyToken}`);
+        const verifyData = res.data?.data ?? res.data;
         
         // Show verification details
-        const signers = res.data.signers.map(s => 
+        const signers = (verifyData.signers || []).map(s => 
             `${s.name}: ${s.status} (${s.signedAt || 'pending'})`
         ).join('\n');
         
-        alert(`✅ Document Verified!\n\nStatus: ${res.data.status}\nSigners:\n${signers}`);
+        alert(`✅ Document Verified!\n\nStatus: ${verifyData.status}\nSigners:\n${signers}`);
     } catch (e) {
         alert('Verification Error: ' + (e.response?.data?.message || e.message));
     }
@@ -355,8 +362,8 @@ const verifyDocument = async (id) => {
 const fetchDocuments = async () => {
     try {
         const res = await axios.get('/api/documents');
-        // Response is direct array, not wrapped in data key
-        documents.value = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        const list = res.data?.data ?? res.data;
+        documents.value = Array.isArray(list) ? list : [];
     } catch (e) {
         console.error('Failed to fetch documents:', e);
         documents.value = [];

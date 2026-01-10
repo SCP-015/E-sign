@@ -125,4 +125,16 @@ class VerificationService
             'file_name' => $document->title ?? basename($document->file_path),
         ];
     }
+
+    public function verifyResult(int $documentId): array
+    {
+        $result = $this->verify($documentId);
+
+        return [
+            'status' => 'success',
+            'code' => 200,
+            'message' => $result['message'] ?? 'OK',
+            'data' => $result,
+        ];
+    }
 }

@@ -337,12 +337,14 @@ const signatureOverlayStyle = computed(() => {
 async function loadSignatures() {
   try {
     const res = await axios.get('/api/signatures');
-    console.log('Signatures loaded:', res.data);
-    signatures.value = Array.isArray(res.data) ? res.data : [];
+    const list = res.data?.data ?? res.data;
+    signatures.value = Array.isArray(list) ? list : [];
+
     if (signatures.value.length > 0) {
-      selectedSignatureId.value = signatures.value[0].id;
+      const defaultSig = signatures.value.find((s) => s.is_default) || signatures.value[0];
+      selectedSignatureId.value = defaultSig?.id ?? null;
     } else {
-      console.warn('No signatures found for user');
+      selectedSignatureId.value = null;
     }
   } catch (e) {
     console.error('Failed to load signatures:', e);
@@ -353,6 +355,12 @@ async function loadSignatures() {
 async function saveSignature() {
   if (!selectedSignatureId.value) {
     showMessage('Please select a signature', 'error');
+    return;
+  }
+
+  const signerUserId = authStore.user?.id;
+  if (!signerUserId) {
+    showMessage('Unauthenticated', 'error');
     return;
   }
 
@@ -373,7 +381,7 @@ async function saveSignature() {
   saving.value = true;
   try {
     const response = await axios.post(`/api/documents/${props.documentId}/placements`, {
-      signerUserId: authStore.user.id,
+      signerUserId,
       placements: [
         {
           page: placementPage.value,
@@ -385,6 +393,10 @@ async function saveSignature() {
         }
       ]
     });
+
+    if (response?.data?.status && response.data.status !== 'success') {
+      throw new Error(response.data.message || 'Failed to save signature');
+    }
 
     showMessage('✅ Signature placed successfully!', 'success');
     setTimeout(() => {

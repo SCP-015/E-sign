@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use App\Http\Resources\DocumentResource;
+use App\Models\Certificate;
 use App\Models\Document;
 use App\Models\Signature;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 use setasign\Fpdi\Tcpdf\Fpdi;
@@ -29,6 +32,7 @@ class DocumentService
         file_put_contents($tempPath, $plaintext);
         return $tempPath;
     }
+
     public function upload($file, $user)
     {
         // Use email-based folder structure: private/{email}/documents/
@@ -75,6 +79,263 @@ class DocumentService
             'page_count' => $pageCount,
             'status' => 'pending',
         ]);
+    }
+
+    public function indexResult(int $userId): array
+    {
+        $documents = Document::where('user_id', $userId)->latest()->get();
+
+        return [
+            'status' => 'success',
+            'code' => 200,
+            'message' => 'OK',
+            'data' => DocumentResource::collection($documents)->resolve(),
+        ];
+    }
+
+    public function uploadWithMetadataResult(int $userId, UploadedFile $file, ?string $title = null): array
+    {
+        $cert = Certificate::where('user_id', $userId)->where('status', 'active')->first();
+        if (!$cert) {
+            return [
+                'status' => 'error',
+                'code' => 400,
+                'message' => 'No active certificate found. Please complete KYC verification first.',
+                'data' => null,
+            ];
+        }
+
+        $user = \App\Models\User::findOrFail($userId);
+        $doc = $this->uploadWithMetadata($file, $user, $title ?? $file->getClientOriginalName());
+
+        return [
+            'status' => 'success',
+            'code' => 201,
+            'message' => 'OK',
+            'data' => [
+                'documentId' => $doc->id,
+                'fileName' => basename($doc->file_path),
+                'fileType' => $doc->file_type,
+                'fileSizeBytes' => $doc->file_size_bytes,
+                'pageCount' => $doc->page_count,
+                'status' => $doc->status,
+                'createdAt' => $doc->created_at->toIso8601String(),
+            ],
+        ];
+    }
+
+    public function showResult(int $documentId, int $userId): array
+    {
+        $document = Document::with(['signers'])
+            ->where('id', $documentId)
+            ->where('user_id', $userId)
+            ->firstOrFail();
+
+        return [
+            'status' => 'success',
+            'code' => 200,
+            'message' => 'OK',
+            'data' => [
+                'documentId' => $document->id,
+                'status' => $document->status,
+                'pageCount' => $document->page_count,
+                'verify_token' => $document->verify_token,
+            ],
+        ];
+    }
+
+    public function resolveViewUrlResult(int $documentId, int $userId): array
+    {
+        $document = Document::where('id', $documentId)
+            ->where('user_id', $userId)
+            ->firstOrFail();
+
+        $filePath = Storage::disk('private')->path($document->file_path);
+        if (!file_exists($filePath)) {
+            return [
+                'status' => 'error',
+                'code' => 404,
+                'message' => 'File not found',
+                'data' => null,
+            ];
+        }
+
+        return [
+            'status' => 'success',
+            'code' => 200,
+            'message' => 'OK',
+            'data' => [
+                'filePath' => $filePath,
+                'fileName' => basename($document->file_path),
+            ],
+        ];
+    }
+
+    public function finalizeResult(int $documentId, int $userId, array $qrPlacement): array
+    {
+        $document = Document::where('id', $documentId)->where('user_id', $userId)->firstOrFail();
+
+        if (!$document->isAllSigned()) {
+            return [
+                'status' => 'error',
+                'code' => 400,
+                'message' => 'Cannot finalize: Some signers have not signed yet',
+                'data' => null,
+            ];
+        }
+
+        $verifyToken = bin2hex(random_bytes(16));
+        $document->update(['verify_token' => $verifyToken]);
+
+        $qrConfig = $qrPlacement ?: [
+            'page' => 'LAST',
+            'position' => 'BOTTOM_RIGHT',
+            'marginBottom' => 15,
+            'marginRight' => 15,
+            'size' => 35,
+        ];
+
+        try {
+            $finalPdfPath = $this->finalizePdf($document, $verifyToken, $qrConfig);
+
+            $document->update([
+                'status' => 'COMPLETED',
+                'final_pdf_path' => $finalPdfPath,
+                'completed_at' => now(),
+            ]);
+
+            $verifyUrl = url('/api/verify/' . $verifyToken);
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'OK',
+                'data' => [
+                    'documentId' => $document->id,
+                    'status' => 'COMPLETED',
+                    'verifyUrl' => $verifyUrl,
+                    'qrValue' => $verifyUrl,
+                    'finalPdfUrl' => url('/api/documents/' . $document->id . '/download'),
+                    'completedAt' => $document->completed_at->toIso8601String(),
+                ],
+            ];
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Finalize Failed: ' . $e->getMessage());
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => 'Finalization failed: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
+    public function signLegacyResult(int $documentId, int $userId, array $validated): array
+    {
+        $document = Document::where('id', $documentId)->where('user_id', $userId)->firstOrFail();
+
+        $signature = Signature::where('id', $validated['signature_id'])
+            ->where('user_id', $userId)
+            ->firstOrFail();
+
+        $cert = Certificate::where('user_id', $userId)->where('status', 'active')->latest()->first();
+        if (!$cert) {
+            return [
+                'status' => 'error',
+                'code' => 400,
+                'message' => 'No active certificate found',
+                'data' => null,
+            ];
+        }
+
+        try {
+            $this->signPdf($document, $cert, $signature, $validated['signature_position']);
+
+            $document->update([
+                'status' => 'signed',
+            ]);
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'Document signed successfully',
+                'data' => [
+                    'document' => (new DocumentResource($document->fresh()))->resolve(),
+                ],
+            ];
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Signing Failed: ' . $e->getMessage());
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => 'Signing failed: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
+    public function resolveDownloadResult(int $documentId, int $userId): array
+    {
+        $document = Document::where('id', $documentId)->where('user_id', $userId)->firstOrFail();
+
+        if (!in_array($document->status, ['signed', 'COMPLETED'], true)) {
+            return [
+                'status' => 'error',
+                'code' => 400,
+                'message' => 'Document is not signed yet',
+                'data' => null,
+            ];
+        }
+
+        $filePath = null;
+        if ($document->final_pdf_path && file_exists(storage_path('app/' . $document->final_pdf_path))) {
+            $filePath = storage_path('app/' . $document->final_pdf_path);
+        } elseif ($document->signed_path) {
+            $relativePath = str_replace('private/', '', $document->signed_path);
+            $filePath = Storage::disk('private')->path($relativePath);
+        }
+
+        if (!$filePath || !file_exists($filePath)) {
+            try {
+                $verifyToken = $document->verify_token ?? bin2hex(random_bytes(16));
+                $qrConfig = [
+                    'page' => 'LAST',
+                    'position' => 'BOTTOM_RIGHT',
+                    'marginBottom' => 15,
+                    'marginRight' => 15,
+                    'size' => 35,
+                ];
+
+                $finalPdfPath = $this->finalizePdf($document, $verifyToken, $qrConfig);
+                $document->update([
+                    'final_pdf_path' => $finalPdfPath,
+                    'verify_token' => $verifyToken,
+                ]);
+
+                $filePath = storage_path('app/' . $finalPdfPath);
+            } catch (\Exception $e) {
+                return [
+                    'status' => 'error',
+                    'code' => 500,
+                    'message' => 'Failed to generate PDF: ' . $e->getMessage(),
+                    'data' => null,
+                ];
+            }
+        }
+
+        $filename = $document->title
+            ? str_replace('.pdf', '', $document->title) . '_signed.pdf'
+            : 'signed_document_' . $document->id . '.pdf';
+
+        return [
+            'status' => 'success',
+            'code' => 200,
+            'message' => 'OK',
+            'data' => [
+                'filePath' => $filePath,
+                'fileName' => $filename,
+            ],
+        ];
     }
 
     /**
