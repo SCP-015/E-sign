@@ -104,11 +104,6 @@
           </div>
         </div>
 
-        <div v-if="message" class="mt-6">
-          <div :class="['alert shadow-sm', messageClass]">
-            <span>{{ message }}</span>
-          </div>
-        </div>
       </div>
 
       <div class="flex flex-col gap-3 border-t border-base-200 bg-base-100/90 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
@@ -130,8 +125,10 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
+import { useToastStore } from '../stores/toast';
 import { VuePDF, usePDF } from '@tato30/vue-pdf';
 import '@tato30/vue-pdf/style.css';
+import { formatApiError } from '../utils/errors';
 
 const props = defineProps({
   isOpen: Boolean,
@@ -142,6 +139,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'signed']);
 
 const authStore = useAuthStore();
+const toastStore = useToastStore();
 const pdfLoading = ref(false);
 const pdfViewer = ref(null);
 const pageWrap = ref(null);
@@ -149,7 +147,7 @@ const pageWrap = ref(null);
 const pdfSource = ref(null);
 function onPdfError(reason) {
   console.error('PDF viewer error:', reason);
-  showMessage('PDF viewer error: ' + (reason?.message || String(reason)), 'error');
+  toastStore.error('PDF viewer error: ' + (reason?.message || String(reason)));
 }
 
 const { pdf, pages } = usePDF(pdfSource, { onError: onPdfError });
@@ -160,8 +158,6 @@ const signatureImageUrl = ref('');
 const signatureImageObjectUrl = ref('');
 const placementPage = ref(1);
 const saving = ref(false);
-const message = ref('');
-const messageType = ref('info');
 
 const sigX = ref(24);
 const sigY = ref(24);
@@ -170,12 +166,6 @@ const sigH = ref(60);
 const isDragging = ref(false);
 const dragOffsetX = ref(0);
 const dragOffsetY = ref(0);
-
-const messageClass = computed(() => {
-  if (messageType.value === 'success') return 'alert-success';
-  if (messageType.value === 'error') return 'alert-error';
-  return 'alert-info';
-});
 
 onMounted(async () => {
   await loadSignatures();
@@ -220,7 +210,7 @@ async function loadPdf() {
     placementPage.value = 1;
   } catch (e) {
     console.error('Failed to load PDF:', e);
-    showMessage('Failed to load PDF: ' + (e.response?.data?.message || e.message), 'error');
+    toastStore.error(formatApiError('Failed to load PDF', e));
   } finally {
     pdfLoading.value = false;
   }
@@ -271,7 +261,7 @@ async function loadSignatureImage(signatureId) {
     });
   } catch (e) {
     console.error('Failed to load signature image:', e);
-    showMessage('Failed to load signature image', 'error');
+    toastStore.error(formatApiError('Failed to load signature image', e));
   }
 }
 
@@ -386,19 +376,19 @@ async function loadSignatures() {
     }
   } catch (e) {
     console.error('Failed to load signatures:', e);
-    showMessage('Failed to load signatures: ' + (e.response?.data?.message || e.message), 'error');
+    toastStore.error(formatApiError('Failed to load signatures', e));
   }
 }
 
 async function saveSignature() {
   if (!selectedSignatureId.value) {
-    showMessage('Please select a signature', 'error');
+    toastStore.error('Please select a signature.');
     return;
   }
 
   const bounds = getPdfBounds();
   if (!bounds) {
-    showMessage('PDF is not ready yet', 'error');
+    toastStore.error('PDF is not ready yet.');
     return;
   }
 
@@ -426,24 +416,16 @@ async function saveSignature() {
       ]
     });
 
-    showMessage('✅ Signature placed successfully!', 'success');
+    toastStore.success('Signature placement saved.');
     setTimeout(() => {
       emit('signed');
       close();
     }, 1500);
   } catch (e) {
-    showMessage('Failed to save signature: ' + (e.response?.data?.message || e.message), 'error');
+    toastStore.error(formatApiError('Failed to save signature placement', e));
   } finally {
     saving.value = false;
   }
-}
-
-function showMessage(msg, type = 'info') {
-  message.value = msg;
-  messageType.value = type;
-  setTimeout(() => {
-    message.value = '';
-  }, 3000);
 }
 
 function goToSignatureSetup() {

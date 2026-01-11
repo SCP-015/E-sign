@@ -10,10 +10,6 @@
         <button @click="goToDashboard" class="btn btn-outline btn-sm">Back to Dashboard</button>
       </div>
 
-      <div v-if="message" :class="['alert shadow-sm', alertClass]">
-        <span>{{ message }}</span>
-      </div>
-
       <div class="grid gap-6 lg:grid-cols-[1.2fr,1fr]">
         <div class="card border border-base-200 bg-base-100/90 shadow-sm">
           <div class="card-body gap-4">
@@ -92,26 +88,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
+import { useToastStore } from '../stores/toast';
+import { formatApiError } from '../utils/errors';
 
 const signatureCanvas = ref(null);
 const signatures = ref([]);
-const message = ref('');
-const messageType = ref('info');
 const isDrawing = ref(false);
 const isDrawn = ref(false);
+const toastStore = useToastStore();
 
 let ctx = null;
 let lastX = 0;
 let lastY = 0;
-
-const alertClass = computed(() => {
-  if (messageType.value === 'success') return 'alert-success';
-  if (messageType.value === 'error') return 'alert-error';
-  return 'alert-info';
-});
 
 function getTrimBounds(imageData, alphaThreshold = 1) {
   const { data, width, height } = imageData;
@@ -222,12 +213,12 @@ function stopDrawing() {
 function clearCanvas() {
   ctx.clearRect(0, 0, signatureCanvas.value.width, signatureCanvas.value.height);
   isDrawn.value = false;
-  showMessage('Canvas cleared', 'info');
+  toastStore.info('Canvas cleared.');
 }
 
 async function saveSignature() {
   if (!isDrawn.value) {
-    showMessage('Please draw a signature first', 'error');
+    toastStore.error('Please draw a signature first.');
     return;
   }
 
@@ -235,7 +226,7 @@ async function saveSignature() {
     const blob = await canvasToCroppedPngBlob(signatureCanvas.value, { padding: 8, alphaThreshold: 1 });
 
     if (!blob) {
-      showMessage('Failed to create image from canvas', 'error');
+      toastStore.error('Failed to create image from canvas.');
       return;
     }
 
@@ -246,23 +237,13 @@ async function saveSignature() {
     
     await axios.post('/api/signatures', formData);
     
-    showMessage('✅ Signature saved successfully!', 'success');
+    toastStore.success('Signature saved successfully.');
     clearCanvas();
     await loadSignatures();
   } catch (e) {
     console.error('Failed to save signature:', e);
     console.error('Response data:', e.response?.data);
-    
-    let errorMsg = e.message;
-    if (e.response?.data?.message) {
-      errorMsg = e.response.data.message;
-    }
-    if (e.response?.data?.errors) {
-      const errors = e.response.data.errors;
-      errorMsg = Object.keys(errors).map(key => `${key}: ${errors[key].join(', ')}`).join('; ');
-    }
-    
-    showMessage('❌ Failed to save: ' + errorMsg, 'error');
+    toastStore.error(formatApiError('Failed to save signature', e));
   }
 }
 
@@ -272,17 +253,17 @@ async function loadSignatures() {
     signatures.value = response.data;
   } catch (e) {
     console.error('Failed to load signatures:', e);
-    showMessage('Failed to load signatures', 'error');
+    toastStore.error(formatApiError('Failed to load signatures', e));
   }
 }
 
 async function setDefault(id) {
   try {
     await axios.put(`/api/signatures/${id}/default`);
-    showMessage('✅ Signature set as default', 'success');
+    toastStore.success('Signature set as default.');
     await loadSignatures();
   } catch (e) {
-    showMessage('Failed to set default: ' + (e.response?.data?.message || e.message), 'error');
+    toastStore.error(formatApiError('Failed to set default signature', e));
   }
 }
 
@@ -291,20 +272,11 @@ async function deleteSignature(id) {
   
   try {
     await axios.delete(`/api/signatures/${id}`);
-    showMessage('✅ Signature deleted', 'success');
+    toastStore.success('Signature deleted.');
     await loadSignatures();
   } catch (e) {
-    showMessage('Failed to delete: ' + (e.response?.data?.message || e.message), 'error');
+    toastStore.error(formatApiError('Failed to delete signature', e));
   }
-}
-
-function showMessage(msg, type = 'info') {
-  message.value = msg;
-  messageType.value = type;
-  
-  setTimeout(() => {
-    message.value = '';
-  }, 3000);
 }
 
 function formatDate(dateString) {

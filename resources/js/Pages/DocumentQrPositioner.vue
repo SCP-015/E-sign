@@ -58,10 +58,6 @@
                   <button @click="testPresets" class="btn btn-ghost btn-sm">Try Presets</button>
                 </div>
 
-                <div v-if="message" :class="['alert shadow-sm', alertClass]">
-                  <span>{{ message }}</span>
-                </div>
-
                 <div class="flex flex-wrap gap-2">
                   <button @click="setPreset('top-left')" class="btn btn-xs btn-outline">Top Left</button>
                   <button @click="setPreset('top-right')" class="btn btn-xs btn-outline">Top Right</button>
@@ -81,6 +77,8 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
 import axios from 'axios';
+import { useToastStore } from '../stores/toast';
+import { formatApiError } from '../utils/errors';
 
 const props = defineProps({
   documentId: {
@@ -93,9 +91,8 @@ const qrBox = ref(null);
 const pdfPage = ref(null);
 const isDragging = ref(false);
 const dragOffset = reactive({ x: 0, y: 0 });
-const message = ref('');
-const messageType = ref('info');
 const hasChanges = ref(false);
+const toastStore = useToastStore();
 
 const qrPosition = reactive({
   x: 0.5,
@@ -119,12 +116,6 @@ const qrBoxStyle = computed(() => {
   };
 });
 
-const alertClass = computed(() => {
-  if (messageType.value === 'success') return 'alert-success';
-  if (messageType.value === 'error') return 'alert-error';
-  return 'alert-info';
-});
-
 onMounted(async () => {
   await loadPosition();
 });
@@ -141,11 +132,9 @@ async function loadPosition() {
     qrPosition.page = pos.page;
     
     hasChanges.value = false;
-    
-    showMessage('Position loaded from backend', 'success');
   } catch (error) {
     console.error('Failed to load position:', error);
-    showMessage('Failed to load position: ' + (error.response?.data?.message || error.message), 'error');
+    toastStore.error(formatApiError('Failed to load QR position', error));
   }
 }
 
@@ -202,13 +191,12 @@ async function savePosition() {
       page: qrPosition.page
     });
     
-    initialPosition.value = { ...qrPosition };
     hasChanges.value = false;
     
-    showMessage('✅ Position saved successfully!', 'success');
+    toastStore.success('QR position saved.');
   } catch (error) {
     console.error('Failed to save position:', error);
-    showMessage('❌ Failed to save: ' + (error.response?.data?.message || error.message), 'error');
+    toastStore.error(formatApiError('Failed to save QR position', error));
   }
 }
 
@@ -219,10 +207,10 @@ function resetPosition() {
   qrPosition.height = 0.15;
   qrPosition.page = 1;
   hasChanges.value = true;
-  showMessage('Position reset to center', 'info');
+  toastStore.info('QR position reset to center.');
 }
 
-function setPreset(preset) {
+function setPreset(preset, showToast = true) {
   const presets = {
     'top-left': { x: 0.05, y: 0.05 },
     'top-right': { x: 0.80, y: 0.05 },
@@ -236,32 +224,28 @@ function setPreset(preset) {
     qrPosition.x = pos.x;
     qrPosition.y = pos.y;
     hasChanges.value = true;
-    showMessage(`Moved to ${preset}`, 'info');
+    if (showToast) {
+      const label = preset.replace('-', ' ');
+      toastStore.info(`Moved to ${label}.`);
+    }
   }
 }
 
 function testPresets() {
   const presets = ['top-left', 'top-right', 'bottom-right', 'bottom-left', 'center'];
   let index = 0;
+
+  toastStore.info('Preset tour started.');
   
   const interval = setInterval(() => {
     if (index >= presets.length) {
       clearInterval(interval);
-      showMessage('Preset tour complete!', 'success');
+      toastStore.success('Preset tour complete.');
       return;
     }
     
-    setPreset(presets[index]);
+    setPreset(presets[index], false);
     index++;
   }, 1000);
-}
-
-function showMessage(msg, type = 'info') {
-  message.value = msg;
-  messageType.value = type;
-  
-  setTimeout(() => {
-    message.value = '';
-  }, 3000);
 }
 </script>

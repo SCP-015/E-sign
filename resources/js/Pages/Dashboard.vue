@@ -86,13 +86,16 @@
 import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
+import { useToastStore } from '../stores/toast';
 import SigningModal from '../components/SigningModal.vue';
 import KycBanner from '../components/dashboard/KycBanner.vue';
 import StatsGrid from '../components/dashboard/StatsGrid.vue';
 import CertificateStatusCard from '../components/dashboard/CertificateStatusCard.vue';
 import DocumentHistory from '../components/dashboard/DocumentHistory.vue';
+import { formatApiError } from '../utils/errors';
 
 const authStore = useAuthStore();
+const toastStore = useToastStore();
 const user = computed(() => authStore.user || {});
 const isVerified = computed(() => user.value?.kyc_status === 'verified');
 
@@ -117,6 +120,8 @@ const stats = computed(() => [
     { label: 'Signed', value: signedCount.value, valueClass: 'text-success' },
     { label: 'Pending', value: pendingCount.value, valueClass: 'text-warning' },
 ]);
+
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const quickTips = [
     {
@@ -153,14 +158,19 @@ const handleDrop = (e) => {
 
 const uploadFile = async (file) => {
     if (!file) return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+        toastStore.error('File size exceeds 10MB.');
+        return;
+    }
     const formData = new FormData();
     formData.append('file', file);
     
     try {
         await axios.post('/api/documents', formData);
         await fetchDocuments();
+        toastStore.success('Document uploaded successfully.');
     } catch (e) {
-        alert('Upload Failed: ' + (e.response?.data?.message || e.message));
+        toastStore.error(formatApiError('Upload failed', e));
     }
 };
 
@@ -180,19 +190,21 @@ const verifyDocument = async (id) => {
         const verifyToken = docRes.data.verify_token;
         
         if (!verifyToken) {
-            alert('❌ No verify token found for this document');
+            toastStore.error('No verify token found for this document.');
             return;
         }
         
         const res = await axios.get(`/api/verify/${verifyToken}`);
         
-        const signers = res.data.signers.map(s => 
+        const signers = (res.data.signers || []).map(s => 
             `${s.name}: ${s.status} (${s.signedAt || 'pending'})`
         ).join('\n');
-        
-        alert(`✅ Document Verified!\n\nStatus: ${res.data.status}\nSigners:\n${signers}`);
+
+        const status = res.data.status || 'unknown';
+        const details = signers ? `Status: ${status}\nSigners:\n${signers}` : `Status: ${status}\nSigners: none`;
+        toastStore.success(`Document verified.\n${details}`, 8000);
     } catch (e) {
-        alert('Verification Error: ' + (e.response?.data?.message || e.message));
+        toastStore.error(formatApiError('Verification failed', e));
     }
 };
 
@@ -203,6 +215,7 @@ const fetchDocuments = async () => {
     } catch (e) {
         console.error('Failed to fetch documents:', e);
         documents.value = [];
+        toastStore.error(formatApiError('Failed to fetch documents', e));
     }
 };
 
@@ -231,8 +244,9 @@ const downloadDocument = async (id) => {
         
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
+        toastStore.success('Download started.');
     } catch (e) {
-        alert('Download Failed: ' + (e.response?.data?.message || e.message));
+        toastStore.error(formatApiError('Download failed', e));
     }
 };
 

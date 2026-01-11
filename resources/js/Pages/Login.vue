@@ -154,9 +154,12 @@
 import { ref, onMounted } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { useAuthStore } from '../stores/auth';
+import { useToastStore } from '../stores/toast';
+import { formatApiError } from '../utils/errors';
 
 const loading = ref(false);
 const authStore = useAuthStore();
+const toastStore = useToastStore();
 
 onMounted(async () => {
     const token = new URLSearchParams(window.location.search).get('token');
@@ -169,7 +172,7 @@ onMounted(async () => {
         } catch (error) {
             console.error('Login Error', error);
             authStore.logout();
-            alert('Authentication Failed. Please try again.');
+            toastStore.error(formatApiError('Authentication failed', error));
         } finally {
             loading.value = false;
         }

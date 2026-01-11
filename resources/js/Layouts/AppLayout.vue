@@ -1,5 +1,6 @@
 <template>
     <div class="flex min-h-screen flex-col">
+        <ToastContainer />
         <header v-if="showHeader" class="sticky top-0 z-40 border-b border-base-200 bg-base-100/90 shadow-sm backdrop-blur">
             <div class="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3">
                 <Link href="/dashboard" class="flex items-center gap-3 text-base font-semibold">
@@ -138,6 +139,8 @@ import { computed } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
+import ToastContainer from '../components/ToastContainer.vue';
+import { useToastStore } from '../stores/toast';
 
 const props = defineProps({
     showHeader: {
@@ -156,12 +159,15 @@ const userName = computed(() => authStore.user?.name || 'User');
 const userEmail = computed(() => authStore.user?.email || '');
 const userAvatar = computed(() => authStore.user?.avatar || '');
 const userInitial = computed(() => authStore.user?.name?.charAt(0)?.toUpperCase() || 'U');
+const toastStore = useToastStore();
 
 const logout = async () => {
     try {
         await axios.post('/api/auth/logout');
+        toastStore.success('Logged out successfully.');
     } catch (e) {
         console.error('Logout error:', e);
+        toastStore.error('Logout failed. Please try again.');
     }
     authStore.logout();
     router.visit('/');
