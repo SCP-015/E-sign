@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia';
 
-let toastId = 0;
+const createToastId = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
 
 export const useToastStore = defineStore('toast', {
     state: () => ({
@@ -8,7 +13,7 @@ export const useToastStore = defineStore('toast', {
     }),
     actions: {
         push({ message, type = 'info', duration = 4000 }) {
-            const id = `${Date.now()}-${toastId++}`;
+            const id = createToastId();
             this.toasts.push({ id, message, type, duration });
 
             if (duration > 0) {
