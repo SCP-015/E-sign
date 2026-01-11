@@ -1,6 +1,6 @@
 <template>
   <div v-if="isOpen" class="modal modal-open" @click.self="close">
-    <div class="modal-box w-11/12 max-w-5xl p-0">
+    <div class="modal-box w-11/12 max-w-5xl p-0 max-h-[90vh] overflow-hidden">
       <div class="flex items-center justify-between border-b border-base-200 px-6 py-4">
         <div>
           <h2 class="text-lg font-semibold">Sign Document</h2>
@@ -9,7 +9,7 @@
         <button @click="close" class="btn btn-ghost btn-sm">✕</button>
       </div>
 
-      <div class="grid gap-6 px-6 py-6 lg:grid-cols-[1.6fr,1fr]">
+      <div class="grid gap-6 px-6 py-6 lg:grid-cols-[2fr_1fr]">
         <div class="space-y-3">
           <div class="items-center justify-between">
             <h3 class="text-sm font-semibold">Document Preview</h3>
