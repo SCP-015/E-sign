@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Certificate;
 use App\Models\Document;
 use Illuminate\Support\Facades\Storage;
 use App\Services\CertificateService;
@@ -19,30 +20,58 @@ class VerificationService
     {
         $document = Document::findOrFail($documentId);
 
-        $cert = $document->user?->certificate;
-        if (!$cert) {
+        $evidence = $document->signingEvidence;
+        if (!$evidence || !$evidence->signed_at || !$evidence->certificate_not_before || !$evidence->certificate_not_after) {
+            $signedAtFallback = $document->completed_at ?? $document->updated_at;
+            $cert = Certificate::where('user_id', (int) $document->user_id)
+                ->where(function ($q) use ($signedAtFallback) {
+                    $q->whereNull('issued_at')->orWhere('issued_at', '<=', $signedAtFallback);
+                })
+                ->where(function ($q) use ($signedAtFallback) {
+                    $q->whereNull('expires_at')->orWhere('expires_at', '>=', $signedAtFallback);
+                })
+                ->orderByDesc('issued_at')
+                ->orderByDesc('created_at')
+                ->first();
+
+            if (!$cert) {
+                $cert = Certificate::where('user_id', (int) $document->user_id)
+                    ->orderByDesc('issued_at')
+                    ->orderByDesc('created_at')
+                    ->first();
+            }
+
+            if ($cert) {
+                app(\App\Services\DocumentService::class)->upsertSigningEvidence($document->fresh(), $cert, $document->final_pdf_path);
+                $document->load('signingEvidence');
+                $evidence = $document->signingEvidence;
+            }
+        }
+
+        if (!$evidence || !$evidence->signed_at || !$evidence->certificate_not_before || !$evidence->certificate_not_after) {
             return [
                 'is_valid' => false,
-                'message' => 'No certificate found for document owner',
+                'message' => 'No signing evidence found for document (LTV data missing)',
                 'signed_by' => $document->user?->name,
-                'signed_at' => $document->updated_at?->toIso8601String(),
+                'signed_at' => $document->completed_at?->toIso8601String() ?? $document->updated_at?->toIso8601String(),
                 'document_id' => $document->id,
             ];
         }
 
-        $isCertActive = $cert->status === 'active' && (!$cert->expires_at || $cert->expires_at->isFuture());
-        if (!$isCertActive) {
+        $signedAt = $evidence->signed_at;
+        $wasCertValidAtSigning = $signedAt->between($evidence->certificate_not_before, $evidence->certificate_not_after);
+        if (!$wasCertValidAtSigning) {
             return [
                 'is_valid' => false,
-                'message' => 'Certificate is not active or has expired',
+                'message' => 'Certificate was not valid at signing time',
                 'signed_by' => $document->user?->name,
-                'signed_at' => $document->updated_at?->toIso8601String(),
+                'signed_at' => $signedAt->toIso8601String(),
                 'document_id' => $document->id,
-                'certificate' => [
-                    'id' => $cert->id,
-                    'status' => $cert->status,
-                    'issued_at' => $cert->issued_at?->toIso8601String(),
-                    'expires_at' => $cert->expires_at?->toIso8601String(),
+                'evidence' => [
+                    'certificate_number' => $evidence->certificate_number,
+                    'certificate_fingerprint_sha256' => $evidence->certificate_fingerprint_sha256,
+                    'certificate_not_before' => $evidence->certificate_not_before?->toIso8601String(),
+                    'certificate_not_after' => $evidence->certificate_not_after?->toIso8601String(),
                 ],
             ];
         }
@@ -120,9 +149,18 @@ class VerificationService
             'is_valid' => true,
             'message' => 'Signature is valid',
             'signed_by' => $document->user->name,
-            'signed_at' => $document->updated_at->toIso8601String(),
+            'signed_at' => $evidence->signed_at?->toIso8601String() ?? $document->updated_at->toIso8601String(),
             'document_id' => $document->id,
             'file_name' => $document->title ?? basename($document->file_path),
+            'ltv' => [
+                'certificate_number' => $evidence->certificate_number,
+                'certificate_fingerprint_sha256' => $evidence->certificate_fingerprint_sha256,
+                'certificate_not_before' => $evidence->certificate_not_before?->toIso8601String(),
+                'certificate_not_after' => $evidence->certificate_not_after?->toIso8601String(),
+                'tsa_url' => $evidence->tsa_url,
+                'tsa_at' => $evidence->tsa_at?->toIso8601String(),
+                'has_tsa_token' => (bool) $evidence->tsa_token,
+            ],
         ];
     }
 

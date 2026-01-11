@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Http\Resources\DocumentResource;
 use App\Models\Certificate;
 use App\Models\Document;
+use App\Models\DocumentSigningEvidence;
 use App\Models\Signature;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
@@ -184,6 +185,16 @@ class DocumentService
             ];
         }
 
+        $cert = Certificate::where('user_id', $userId)->where('status', 'active')->latest()->first();
+        if (!$cert || ($cert->expires_at && $cert->expires_at->isPast())) {
+            return [
+                'status' => 'error',
+                'code' => 400,
+                'message' => 'Certificate is not active or has expired. Please renew your certificate before finalizing.',
+                'data' => null,
+            ];
+        }
+
         $verifyToken = bin2hex(random_bytes(16));
         $document->update(['verify_token' => $verifyToken]);
 
@@ -203,6 +214,8 @@ class DocumentService
                 'final_pdf_path' => $finalPdfPath,
                 'completed_at' => now(),
             ]);
+
+            $this->upsertSigningEvidence($document->fresh(), $cert, $finalPdfPath);
 
             $verifyUrl = url('/api/verify/' . $verifyToken);
 
@@ -227,6 +240,136 @@ class DocumentService
                 'message' => 'Finalization failed: ' . $e->getMessage(),
                 'data' => null,
             ];
+        }
+    }
+
+    protected function resolveSigningTimestamp(Document $document): \Carbon\Carbon
+    {
+        $dt = $document->completed_at ?? $document->signed_at;
+
+        if (!$dt) {
+            $maxSignerSignedAt = $document->signers()->max('signed_at');
+            if ($maxSignerSignedAt) {
+                $dt = \Carbon\Carbon::parse($maxSignerSignedAt);
+            }
+        }
+
+        if (!$dt) {
+            $dt = $document->updated_at ?? now();
+        }
+
+        return $dt instanceof \Carbon\Carbon ? $dt : \Carbon\Carbon::parse($dt);
+    }
+
+    public function upsertSigningEvidence(Document $document, Certificate $certificate, ?string $finalPdfPath = null): void
+    {
+        try {
+            $signedAt = $this->resolveSigningTimestamp($document);
+
+            $pem = null;
+            if ($certificate->certificate_path && file_exists($certificate->certificate_path)) {
+                $pem = file_get_contents($certificate->certificate_path) ?: null;
+            }
+
+            $parsed = null;
+            if ($pem) {
+                $parsed = @openssl_x509_parse($pem) ?: null;
+            }
+
+            $fingerprint = null;
+            if ($pem && function_exists('openssl_x509_fingerprint')) {
+                $fingerprint = @openssl_x509_fingerprint($pem, 'sha256') ?: null;
+                if (is_string($fingerprint)) {
+                    $fingerprint = strtolower(str_replace(':', '', $fingerprint));
+                }
+            }
+
+            $tsaUrl = env('TSA_URL');
+            $tsaToken = null;
+            $tsaAt = null;
+            if ($tsaUrl && $finalPdfPath) {
+                $fullPdfPath = storage_path('app/' . $finalPdfPath);
+                $tsaToken = $this->tryRequestTsaToken($tsaUrl, $fullPdfPath);
+                if ($tsaToken) {
+                    $tsaAt = now();
+                }
+            }
+
+            $certNotBefore = null;
+            $certNotAfter = null;
+            if (isset($parsed['validFrom_time_t'])) {
+                $certNotBefore = \Carbon\Carbon::createFromTimestamp((int) $parsed['validFrom_time_t'])->toDateTimeString();
+            } elseif ($certificate->issued_at) {
+                $certNotBefore = $certificate->issued_at->toDateTimeString();
+            }
+
+            if (isset($parsed['validTo_time_t'])) {
+                $certNotAfter = \Carbon\Carbon::createFromTimestamp((int) $parsed['validTo_time_t'])->toDateTimeString();
+            } elseif ($certificate->expires_at) {
+                $certNotAfter = $certificate->expires_at->toDateTimeString();
+            }
+
+            $data = [
+                'certificate_id' => $certificate->id,
+                'certificate_number' => $certificate->certificate_number,
+                'certificate_fingerprint_sha256' => $fingerprint,
+                'certificate_serial' => $parsed['serialNumberHex'] ?? ($parsed['serialNumber'] ?? null),
+                'certificate_subject' => isset($parsed['subject']) ? json_encode($parsed['subject']) : null,
+                'certificate_issuer' => isset($parsed['issuer']) ? json_encode($parsed['issuer']) : null,
+                'certificate_not_before' => $certNotBefore,
+                'certificate_not_after' => $certNotAfter,
+                'certificate_pem' => $pem,
+                'signed_at' => $signedAt,
+                'tsa_url' => $tsaUrl,
+                'tsa_at' => $tsaAt,
+                'tsa_token' => $tsaToken,
+            ];
+
+            DocumentSigningEvidence::updateOrCreate(
+                ['document_id' => $document->id],
+                $data
+            );
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed to store signing evidence: ' . $e->getMessage());
+        }
+    }
+
+    protected function tryRequestTsaToken(string $tsaUrl, string $pdfPath): ?string
+    {
+        try {
+            if (!file_exists($pdfPath)) {
+                return null;
+            }
+
+            $tmpReq = sys_get_temp_dir() . '/tsa_req_' . uniqid() . '.tsq';
+            $tmpResp = sys_get_temp_dir() . '/tsa_resp_' . uniqid() . '.tsr';
+
+            $queryCmd = 'openssl ts -query -data ' . escapeshellarg($pdfPath) . ' -sha256 -cert -out ' . escapeshellarg($tmpReq);
+            exec($queryCmd, $o1, $r1);
+            if ($r1 !== 0 || !file_exists($tmpReq)) {
+                @unlink($tmpReq);
+                return null;
+            }
+
+            $curlCmd = 'curl -s -H "Content-Type: application/timestamp-query" --data-binary @' . escapeshellarg($tmpReq) . ' ' . escapeshellarg($tsaUrl) . ' -o ' . escapeshellarg($tmpResp);
+            exec($curlCmd, $o2, $r2);
+            if ($r2 !== 0 || !file_exists($tmpResp) || filesize($tmpResp) === 0) {
+                @unlink($tmpReq);
+                @unlink($tmpResp);
+                return null;
+            }
+
+            $raw = file_get_contents($tmpResp);
+            @unlink($tmpReq);
+            @unlink($tmpResp);
+
+            if ($raw === false) {
+                return null;
+            }
+
+            return base64_encode($raw);
+        } catch (\Exception $e) {
+            return null;
         }
     }
 
@@ -312,6 +455,11 @@ class DocumentService
                     'verify_token' => $verifyToken,
                 ]);
 
+                $cert = Certificate::where('user_id', $userId)->where('status', 'active')->latest()->first();
+                if ($cert) {
+                    $this->upsertSigningEvidence($document->fresh(), $cert, $finalPdfPath);
+                }
+
                 $filePath = storage_path('app/' . $finalPdfPath);
             } catch (\Exception $e) {
                 return [
@@ -320,6 +468,31 @@ class DocumentService
                     'message' => 'Failed to generate PDF: ' . $e->getMessage(),
                     'data' => null,
                 ];
+            }
+        }
+
+        if (!$document->signingEvidence || !$document->signingEvidence->certificate_not_before || !$document->signingEvidence->certificate_not_after) {
+            $signedAtFallback = $document->completed_at ?? $document->updated_at;
+            $cert = Certificate::where('user_id', $userId)
+                ->where(function ($q) use ($signedAtFallback) {
+                    $q->whereNull('issued_at')->orWhere('issued_at', '<=', $signedAtFallback);
+                })
+                ->where(function ($q) use ($signedAtFallback) {
+                    $q->whereNull('expires_at')->orWhere('expires_at', '>=', $signedAtFallback);
+                })
+                ->orderByDesc('issued_at')
+                ->orderByDesc('created_at')
+                ->first();
+
+            if (!$cert) {
+                $cert = Certificate::where('user_id', $userId)
+                    ->orderByDesc('issued_at')
+                    ->orderByDesc('created_at')
+                    ->first();
+            }
+
+            if ($cert) {
+                $this->upsertSigningEvidence($document->fresh(), $cert, $document->final_pdf_path);
             }
         }
 
