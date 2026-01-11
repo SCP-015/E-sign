@@ -71,4 +71,49 @@ class KycService
             'user' => $user,
         ];
     }
+
+    public function submitKycResult(int $userId, array $validated, UploadedFile $idPhoto, UploadedFile $selfiePhoto): array
+    {
+        try {
+            $user = User::findOrFail($userId);
+
+            $result = $this->submitKyc($user, $validated, $idPhoto, $selfiePhoto);
+
+            $data = [
+                'id' => $result['user']->id,
+                'full_name' => $validated['full_name'] ?? null,
+                'id_type' => $validated['id_type'] ?? null,
+                'id_number' => $validated['id_number'] ?? null,
+                'date_of_birth' => $validated['date_of_birth'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'city' => $validated['city'] ?? null,
+                'province' => $validated['province'] ?? null,
+                'postal_code' => $validated['postal_code'] ?? null,
+                'id_photo_path' => $result['kyc_data']->id_photo_path,
+                'selfie_photo_path' => $result['kyc_data']->selfie_photo_path,
+                'kyc_status' => 'verified',
+                'certificate' => [
+                    'id' => $result['certificate']->id,
+                    'certificate_number' => $result['certificate']->certificate_number,
+                    'status' => $result['certificate']->status,
+                    'issued_at' => $result['certificate']->issued_at,
+                    'expires_at' => $result['certificate']->expires_at,
+                ],
+            ];
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'KYC data submitted successfully',
+                'data' => $data,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => 'KYC submission failed: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
 }

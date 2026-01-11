@@ -2,90 +2,40 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Signature;
+use App\Helpers\ApiResponse;
+use App\Http\Requests\SignatureStoreRequest;
+use App\Services\SignatureService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\Storage;
 
 class SignatureController extends Controller
 {
+    public function __construct(private readonly SignatureService $signatureService)
+    {
+    }
+
     /**
      * Get all signatures for authenticated user
      */
     public function index(Request $request)
     {
-        $signatures = Signature::where('user_id', $request->user()->id)
-            ->orderBy('is_default', 'desc')
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($signature) {
-                return [
-                    'id' => $signature->id,
-                    'name' => $signature->name,
-                    'image_type' => $signature->image_type,
-                    'is_default' => $signature->is_default,
-                    'created_at' => $signature->created_at,
-                ];
-            });
-
-        return response()->json($signatures);
+        return ApiResponse::fromService($this->signatureService->index((int) $request->user()->id));
     }
 
     /**
      * Upload/create a new signature
      */
-    public function store(Request $request)
+    public function store(SignatureStoreRequest $request)
     {
-        $request->validate([
-            'name' => 'nullable|string|max:255',
-            'image' => 'required|file|mimes:png,svg|max:2048', // Max 2MB
-            'is_default' => 'nullable|boolean',
-        ]);
-
         $user = $request->user();
-        $file = $request->file('image');
-        
-        // Determine image type
-        $extension = strtolower($file->getClientOriginalExtension());
-        $imageType = $extension === 'svg' ? 'svg' : 'png';
-        
-        // Store file in private storage with email-based folder
-        $email = strtolower($user->email);
-        $filename = 'signature_' . uniqid() . '.' . $extension . '.enc';
-        $path = "{$email}/signatures/{$filename}";
+        $result = $this->signatureService->store(
+            (int) $user->id,
+            (string) $user->email,
+            $request->file('image'),
+            $request->input('name'),
+            $request->boolean('is_default')
+        );
 
-        $plaintext = file_get_contents($file->getRealPath());
-        if ($plaintext === false) {
-            return response()->json(['message' => 'Failed to read uploaded signature file'], 400);
-        }
-
-        $ciphertext = Crypt::encrypt($plaintext);
-        Storage::disk('private')->put($path, $ciphertext);
-
-        // If this is set as default, unset other defaults
-        if ($request->boolean('is_default')) {
-            Signature::where('user_id', $user->id)->update(['is_default' => false]);
-        }
-
-        // Create signature record
-        $signature = Signature::create([
-            'user_id' => $user->id,
-            'name' => $request->input('name', 'My Signature'),
-            'image_path' => "private/{$path}",
-            'image_type' => $imageType,
-            'is_default' => $request->boolean('is_default', false),
-        ]);
-
-        return response()->json([
-            'message' => 'Signature uploaded successfully',
-            'signature' => [
-                'id' => $signature->id,
-                'name' => $signature->name,
-                'image_type' => $signature->image_type,
-                'is_default' => $signature->is_default,
-                'created_at' => $signature->created_at,
-            ],
-        ], 201);
+        return ApiResponse::fromService($result);
     }
 
     /**
@@ -94,27 +44,15 @@ class SignatureController extends Controller
     public function getImage(Request $request, $id)
     {
         $user = $request->user();
-        $signature = Signature::where('id', $id)
-            ->where('user_id', $user->id)
-            ->firstOrFail();
-
-        // Remove 'private/' prefix if present
-        $relativePath = str_replace('private/', '', $signature->image_path);
-        if (!Storage::disk('private')->exists($relativePath)) {
-            return response()->json(['message' => 'Signature image not found'], 404);
+        $result = $this->signatureService->getImage((int) $user->id, (int) $id);
+        if (($result['status'] ?? 'error') !== 'success') {
+            return ApiResponse::fromService($result);
         }
 
-        $ciphertext = Storage::disk('private')->get($relativePath);
-        try {
-            $plaintext = Crypt::decrypt($ciphertext);
-        } catch (\Exception $e) {
-            // Backward compatibility: old signatures may be stored as plaintext.
-            $plaintext = $ciphertext;
-        }
+        $content = $result['data']['content'] ?? '';
+        $mimeType = $result['data']['mimeType'] ?? 'application/octet-stream';
 
-        $mimeType = $signature->image_type === 'svg' ? 'image/svg+xml' : 'image/png';
-
-        return response($plaintext, 200, [
+        return response($content, 200, [
             'Content-Type' => $mimeType,
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
         ]);
@@ -126,24 +64,7 @@ class SignatureController extends Controller
     public function setDefault(Request $request, $id)
     {
         $user = $request->user();
-        $signature = Signature::where('id', $id)
-            ->where('user_id', $user->id)
-            ->firstOrFail();
-
-        // Unset all other defaults
-        Signature::where('user_id', $user->id)->update(['is_default' => false]);
-        
-        // Set this one as default
-        $signature->update(['is_default' => true]);
-
-        return response()->json([
-            'message' => 'Signature set as default',
-            'signature' => [
-                'id' => $signature->id,
-                'name' => $signature->name,
-                'is_default' => true,
-            ],
-        ]);
+        return ApiResponse::fromService($this->signatureService->setDefault((int) $user->id, (int) $id));
     }
 
     /**
@@ -152,21 +73,6 @@ class SignatureController extends Controller
     public function destroy(Request $request, $id)
     {
         $user = $request->user();
-        $signature = Signature::where('id', $id)
-            ->where('user_id', $user->id)
-            ->firstOrFail();
-
-        // Delete the file
-        $relativePath = str_replace('private/', '', $signature->image_path);
-        if (Storage::disk('private')->exists($relativePath)) {
-            Storage::disk('private')->delete($relativePath);
-        }
-
-        // Delete the record
-        $signature->delete();
-
-        return response()->json([
-            'message' => 'Signature deleted successfully',
-        ]);
+        return ApiResponse::fromService($this->signatureService->destroy((int) $user->id, (int) $id));
     }
 }

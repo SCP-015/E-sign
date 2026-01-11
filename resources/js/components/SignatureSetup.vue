@@ -41,7 +41,8 @@
         <div v-else class="signatures-list">
           <div v-for="sig in signatures" :key="sig.id" class="signature-card">
             <div class="sig-preview">
-              <img :src="`/api/signatures/${sig.id}/image`" :alt="sig.name" class="sig-image">
+              <img v-if="sig.imageUrl" :src="sig.imageUrl" :alt="sig.name" class="sig-image">
+              <div v-else class="sig-image-missing">Preview unavailable</div>
             </div>
             <div class="sig-info">
               <h4>{{ sig.name }}</h4>
@@ -237,6 +238,9 @@ async function saveSignature() {
     formData.append('is_default', signatures.value.length === 0 ? '1' : '0'); // First signature is default (1 or 0)
     
     const response = await axios.post('/api/signatures', formData);
+    if (response?.data?.status && response.data.status !== 'success') {
+      throw new Error(response.data.message || 'Failed to save signature');
+    }
     
     showMessage('✅ Signature saved successfully!', 'success');
     clearCanvas();
@@ -250,7 +254,10 @@ async function saveSignature() {
     if (e.response?.data?.message) {
       errorMsg = e.response.data.message;
     }
-    if (e.response?.data?.errors) {
+    if (e.response?.data?.data && e.response?.data?.data?.errors) {
+      const errors = e.response.data.data.errors;
+      errorMsg = Object.keys(errors).map(key => `${key}: ${errors[key].join(', ')}`).join('; ');
+    } else if (e.response?.data?.errors) {
       const errors = e.response.data.errors;
       errorMsg = Object.keys(errors).map(key => `${key}: ${errors[key].join(', ')}`).join('; ');
     }
@@ -262,17 +269,31 @@ async function saveSignature() {
 async function loadSignatures() {
   try {
     const response = await axios.get('/api/signatures');
-    signatures.value = response.data;
+    const list = response.data?.data ?? response.data;
+    signatures.value = Array.isArray(list) ? list : [];
+
+    // Load protected images via Authorization header (img tag does not send Bearer token)
+    await Promise.all(
+      signatures.value.map(async (sig) => {
+        try {
+          const imgRes = await axios.get(`/api/signatures/${sig.id}/image`, { responseType: 'blob' });
+          sig.imageUrl = URL.createObjectURL(imgRes.data);
+        } catch (e) {
+          sig.imageUrl = null;
+        }
+      })
+    );
   } catch (e) {
     console.error('Failed to load signatures:', e);
-    showMessage('Failed to load signatures', 'error');
+    showMessage(e.response?.data?.message || 'Failed to load signatures', 'error');
   }
 }
 
 async function setDefault(id) {
   try {
-    await axios.put(`/api/signatures/${id}/default`);
-    showMessage('✅ Signature set as default', 'success');
+    const res = await axios.put(`/api/signatures/${id}/default`);
+    const msg = res?.data?.message || '✅ Signature set as default';
+    showMessage(msg, 'success');
     await loadSignatures();
   } catch (e) {
     showMessage('Failed to set default: ' + (e.response?.data?.message || e.message), 'error');
@@ -283,8 +304,9 @@ async function deleteSignature(id) {
   if (!confirm('Are you sure you want to delete this signature?')) return;
   
   try {
-    await axios.delete(`/api/signatures/${id}`);
-    showMessage('✅ Signature deleted', 'success');
+    const res = await axios.delete(`/api/signatures/${id}`);
+    const msg = res?.data?.message || '✅ Signature deleted';
+    showMessage(msg, 'success');
     await loadSignatures();
   } catch (e) {
     showMessage('Failed to delete: ' + (e.response?.data?.message || e.message), 'error');

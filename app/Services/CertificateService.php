@@ -116,6 +116,48 @@ class CertificateService
         throw new \Exception("Failed to generate certificate files.");
     }
     
+    public function issueCertificateResult(int $userId): array
+    {
+        try {
+            $user = \App\Models\User::findOrFail($userId);
+
+            if ($user->kyc_status !== 'verified') {
+                return [
+                    'status' => 'error',
+                    'code' => 400,
+                    'message' => 'KYC not verified. Please submit KYC before issuing/renewing certificate.',
+                    'data' => null,
+                ];
+            }
+
+            \App\Models\Certificate::where('user_id', $user->id)->delete();
+
+            $cert = $this->generateUserCertificate($user);
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'Certificate issued successfully',
+                'data' => [
+                    'certificate' => [
+                        'id' => $cert->id,
+                        'certificate_number' => $cert->certificate_number,
+                        'status' => $cert->status,
+                        'issued_at' => $cert->issued_at?->toIso8601String(),
+                        'expires_at' => $cert->expires_at?->toIso8601String(),
+                    ],
+                ],
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => 'Failed to issue certificate: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
     public function getRootCertPath()
     {
         return $this->caCertPath;
