@@ -50,6 +50,11 @@ class Document extends Model
         return $this->hasMany(SignaturePlacement::class);
     }
 
+    public function signingEvidence()
+    {
+        return $this->hasOne(DocumentSigningEvidence::class);
+    }
+
     public function isAllSigned()
     {
         return $this->signers()->where('status', 'PENDING')->count() === 0;

@@ -59,8 +59,10 @@ class KycService
             'status' => 'verified',
         ]);
 
-        // Delete old certificates for this user to ensure only 1 certificate per user
-        \App\Models\Certificate::where('user_id', $user->id)->delete();
+        // Keep history: mark old certificates inactive, then issue a new active certificate
+        \App\Models\Certificate::where('user_id', $user->id)
+            ->where('status', 'active')
+            ->update(['status' => 'inactive']);
 
         // Generate Certificate
         $cert = $this->certificateService->generateUserCertificate($user);

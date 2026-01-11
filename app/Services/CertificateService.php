@@ -130,7 +130,9 @@ class CertificateService
                 ];
             }
 
-            \App\Models\Certificate::where('user_id', $user->id)->delete();
+            \App\Models\Certificate::where('user_id', $user->id)
+                ->where('status', 'active')
+                ->update(['status' => 'inactive']);
 
             $cert = $this->generateUserCertificate($user);
 
