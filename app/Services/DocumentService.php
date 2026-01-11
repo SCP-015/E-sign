@@ -455,9 +455,16 @@ class DocumentService
                     'verify_token' => $verifyToken,
                 ]);
 
-                $cert = Certificate::where('user_id', $userId)->where('status', 'active')->latest()->first();
-                if ($cert) {
-                    $this->upsertSigningEvidence($document->fresh(), $cert, $finalPdfPath);
+                $allowBackfill = filter_var(env('LTV_BACKFILL_ON_DEMAND', false), FILTER_VALIDATE_BOOLEAN);
+                $canBackfill = $allowBackfill
+                    && $document->fresh()->status === 'COMPLETED'
+                    && !empty($document->fresh()->final_pdf_path);
+
+                if ($canBackfill) {
+                    $cert = Certificate::where('user_id', $userId)->where('status', 'active')->latest()->first();
+                    if ($cert) {
+                        $this->upsertSigningEvidence($document->fresh(), $cert, $finalPdfPath);
+                    }
                 }
 
                 $filePath = storage_path('app/' . $finalPdfPath);
@@ -471,7 +478,12 @@ class DocumentService
             }
         }
 
-        if (!$document->signingEvidence || !$document->signingEvidence->certificate_not_before || !$document->signingEvidence->certificate_not_after) {
+        $allowBackfill = filter_var(env('LTV_BACKFILL_ON_DEMAND', false), FILTER_VALIDATE_BOOLEAN);
+        $canBackfill = $allowBackfill
+            && $document->status === 'COMPLETED'
+            && !empty($document->final_pdf_path);
+
+        if ($canBackfill && (!$document->signingEvidence || !$document->signingEvidence->certificate_not_before || !$document->signingEvidence->certificate_not_after)) {
             $signedAtFallback = $document->completed_at ?? $document->updated_at;
             $cert = Certificate::where('user_id', $userId)
                 ->where(function ($q) use ($signedAtFallback) {

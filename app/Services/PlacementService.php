@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Certificate;
 use App\Models\Document;
 use App\Models\DocumentSigner;
 use App\Models\Signature;
@@ -30,6 +31,7 @@ class PlacementService
             $document->update(['status' => 'IN_PROGRESS']);
         }
 
+        $shouldAutoFinalize = false;
         DB::beginTransaction();
         try {
             SignaturePlacement::where('document_id', $documentId)
@@ -71,9 +73,51 @@ class PlacementService
                     'status' => 'signed',
                     'verify_token' => $verifyToken,
                 ]);
+
+                $shouldAutoFinalize = ((int) $signerUserId === (int) $document->user_id);
+                if ($shouldAutoFinalize) {
+                    $cert = Certificate::where('user_id', (int) $document->user_id)
+                        ->where('status', 'active')
+                        ->latest()
+                        ->first();
+
+                    if (!$cert || ($cert->expires_at && $cert->expires_at->isPast())) {
+                        DB::rollBack();
+                        return [
+                            'status' => 'error',
+                            'code' => 400,
+                            'message' => 'Certificate is not active or has expired. Please renew your certificate before finalizing.',
+                            'data' => null,
+                        ];
+                    }
+                }
             }
 
             DB::commit();
+
+            $autoFinalize = [
+                'attempted' => false,
+                'status' => null,
+                'message' => null,
+            ];
+
+            $documentStatus = $document->fresh()->status;
+            $verifyUrl = null;
+            if ($shouldAutoFinalize) {
+                $autoFinalize['attempted'] = true;
+                $finalizeResult = app(\App\Services\DocumentService::class)
+                    ->finalizeResult((int) $documentId, (int) $document->user_id, []);
+
+                $autoFinalize['status'] = $finalizeResult['status'] ?? 'error';
+                $autoFinalize['message'] = $finalizeResult['message'] ?? null;
+
+                if (($finalizeResult['status'] ?? 'error') === 'success') {
+                    $documentStatus = $finalizeResult['data']['status'] ?? 'COMPLETED';
+                    $verifyUrl = $finalizeResult['data']['verifyUrl'] ?? null;
+                } else {
+                    $documentStatus = $document->fresh()->status;
+                }
+            }
 
             return [
                 'status' => 'success',
@@ -82,6 +126,9 @@ class PlacementService
                 'data' => [
                     'documentId' => $document->id,
                     'signerUserId' => $signerUserId,
+                    'documentStatus' => $documentStatus,
+                    'verifyUrl' => $verifyUrl,
+                    'autoFinalize' => $autoFinalize,
                     'placements' => collect($placements)->map(fn ($p) => [
                         'placementId' => $p->id,
                         'page' => $p->page,

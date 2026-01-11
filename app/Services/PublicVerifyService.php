@@ -64,7 +64,12 @@ class PublicVerifyService
                 $document = Document::where('verify_token', $token)->first();
                 if ($document) {
                     $evidence = $document->signingEvidence;
-                    if (!$evidence || !$evidence->signed_at || !$evidence->certificate_not_before || !$evidence->certificate_not_after) {
+                    $allowBackfill = filter_var(env('LTV_BACKFILL_ON_DEMAND', false), FILTER_VALIDATE_BOOLEAN);
+                    $canBackfill = $allowBackfill
+                        && $document->status === 'COMPLETED'
+                        && !empty($document->final_pdf_path);
+
+                    if ($canBackfill && (!$evidence || !$evidence->signed_at || !$evidence->certificate_not_before || !$evidence->certificate_not_after)) {
                         $signedAtFallback = $document->completed_at ?? $document->updated_at;
                         $cert = Certificate::where('user_id', (int) $document->user_id)
                             ->where(function ($q) use ($signedAtFallback) {
@@ -184,7 +189,12 @@ class PublicVerifyService
         }
 
         $evidence = $document->signingEvidence;
-        if (!$evidence || !$evidence->signed_at || !$evidence->certificate_not_before || !$evidence->certificate_not_after) {
+        $allowBackfill = filter_var(env('LTV_BACKFILL_ON_DEMAND', false), FILTER_VALIDATE_BOOLEAN);
+        $canBackfill = $allowBackfill
+            && $document->status === 'COMPLETED'
+            && !empty($document->final_pdf_path);
+
+        if ($canBackfill && (!$evidence || !$evidence->signed_at || !$evidence->certificate_not_before || !$evidence->certificate_not_after)) {
             $signedAtFallback = $document->completed_at ?? $document->updated_at;
             $cert = Certificate::where('user_id', (int) $document->user_id)
                 ->where(function ($q) use ($signedAtFallback) {
