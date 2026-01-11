@@ -70,7 +70,7 @@
                       Set Default
                     </button>
                     <button
-                      @click="deleteSignature(sig.id)"
+                      @click="openDeleteModal(sig)"
                       class="btn btn-error btn-outline btn-xs"
                       title="Delete signature"
                     >
@@ -85,10 +85,56 @@
       </div>
     </div>
   </div>
+
+  <Teleport to="body">
+    <transition name="confirm">
+      <div
+        v-if="showDeleteModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-base-100/60 px-4 backdrop-blur-sm"
+        @click.self="closeDeleteModal"
+      >
+        <div class="w-full max-w-md rounded-3xl border border-base-200 bg-base-100 shadow-2xl">
+          <div class="flex items-start gap-3 border-b border-base-200 px-6 py-5">
+            <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-error/10 text-error">
+              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 9v4"></path>
+                <path d="M12 17h.01"></path>
+                <path d="M10.3 4.6l-7 12.1a1 1 0 0 0 .9 1.5h15.6a1 1 0 0 0 .9-1.5l-7-12.1a1 1 0 0 0-1.7 0z"></path>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-semibold">Delete signature?</h3>
+              <p class="text-sm text-base-content/70">This action cannot be undone.</p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-xs" @click="closeDeleteModal">
+              <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="px-6 py-5 text-sm text-base-content/70">
+            Are you sure you want to delete
+            <span class="font-semibold text-base-content">{{ pendingDeleteName }}</span>?
+            If you proceed, this signature will be removed permanently.
+          </div>
+
+          <div class="flex gap-3 border-t border-base-200 px-6 py-4">
+            <button type="button" class="btn btn-ghost flex-1" @click="closeDeleteModal">
+              Cancel
+            </button>
+            <button type="button" class="btn btn-error flex-1" :disabled="deleting" @click="confirmDelete">
+              {{ deleting ? 'Deleting...' : 'Delete Signature' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </Teleport>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useToastStore } from '../stores/toast';
@@ -99,6 +145,9 @@ const signatures = ref([]);
 const isDrawing = ref(false);
 const isDrawn = ref(false);
 const toastStore = useToastStore();
+const showDeleteModal = ref(false);
+const pendingDelete = ref(null);
+const deleting = ref(false);
 
 let ctx = null;
 let lastX = 0;
@@ -267,18 +316,6 @@ async function setDefault(id) {
   }
 }
 
-async function deleteSignature(id) {
-  if (!confirm('Are you sure you want to delete this signature?')) return;
-  
-  try {
-    await axios.delete(`/api/signatures/${id}`);
-    toastStore.success('Signature deleted.');
-    await loadSignatures();
-  } catch (e) {
-    toastStore.error(formatApiError('Failed to delete signature', e));
-  }
-}
-
 function formatDate(dateString) {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -288,4 +325,44 @@ function formatDate(dateString) {
 function goToDashboard() {
   router.visit('/dashboard');
 }
+
+const pendingDeleteName = computed(() => pendingDelete.value?.name || 'this signature');
+
+function openDeleteModal(signature) {
+  pendingDelete.value = signature;
+  showDeleteModal.value = true;
+}
+
+function closeDeleteModal() {
+  showDeleteModal.value = false;
+  pendingDelete.value = null;
+}
+
+async function confirmDelete() {
+  if (!pendingDelete.value) return;
+  deleting.value = true;
+  try {
+    await axios.delete(`/api/signatures/${pendingDelete.value.id}`);
+    toastStore.success('Signature deleted.');
+    await loadSignatures();
+    closeDeleteModal();
+  } catch (e) {
+    toastStore.error(formatApiError('Failed to delete signature', e));
+  } finally {
+    deleting.value = false;
+  }
+}
 </script>
+
+<style scoped>
+.confirm-enter-active,
+.confirm-leave-active {
+  transition: all 0.2s ease;
+}
+
+.confirm-enter-from,
+.confirm-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+</style>

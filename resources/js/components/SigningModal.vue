@@ -1,7 +1,7 @@
 <template>
   <div v-if="isOpen" class="modal modal-open" @click.self="close">
-    <div class="modal-box w-11/12 max-w-5xl p-0 flex max-h-[92vh] flex-col overflow-hidden">
-      <div class="flex items-start justify-between gap-4 border-b border-base-200 bg-base-100/90 px-6 py-4">
+    <div class="modal-box w-11/12 max-w-5xl p-0">
+      <div class="flex items-center justify-between border-b border-base-200 px-6 py-4">
         <div>
           <h2 class="text-lg font-semibold">Sign Document</h2>
           <p class="text-xs text-base-content/60">Place your signature on the PDF.</p>
@@ -9,104 +9,90 @@
         <button @click="close" class="btn btn-ghost btn-sm">✕</button>
       </div>
 
-      <div class="flex-1 overflow-y-auto px-6 py-6">
-        <div class="grid gap-6 lg:grid-cols-[1.6fr,1fr]">
-          <div class="card border border-base-200 bg-base-100 shadow-sm">
-            <div class="card-body gap-4">
-              <div class="flex items-center justify-between">
-                <h3 class="text-sm font-semibold">Document Preview</h3>
-                <div class="flex items-center gap-2">
-                  <button class="btn btn-outline btn-xs" @click="prevPage" :disabled="placementPage <= 1 || pdfLoading">Prev</button>
-                  <span class="badge badge-outline text-xs">{{ placementPage }} / {{ pages || '-' }}</span>
-                  <button class="btn btn-outline btn-xs" @click="nextPage" :disabled="!pages || placementPage >= pages || pdfLoading">Next</button>
-                </div>
-              </div>
-
-              <div class="rounded-2xl border border-base-200 bg-base-200/40 p-3 sm:p-4">
-                <div class="relative h-[52vh] max-h-[520px] overflow-auto rounded-xl bg-white shadow-inner" ref="pdfViewer">
-                  <div v-if="pdfLoading" class="flex h-full items-center justify-center text-sm text-base-content/60">
-                    Loading PDF...
-                  </div>
-                  <div v-else class="relative p-3">
-                    <div class="flex min-w-max justify-center">
-                      <div class="relative inline-block overflow-hidden" ref="pageWrap">
-                        <VuePDF
-                          v-if="pdf"
-                          :pdf="pdf"
-                          :page="placementPage"
-                          @loaded="onPdfLoaded"
-                        />
-
-                        <div
-                          v-if="selectedSignatureId && signatureImageUrl"
-                          class="absolute left-0 top-0 cursor-grab select-none drop-shadow-md"
-                          :style="signatureOverlayStyle"
-                          @pointerdown.prevent="onSigPointerDown"
-                        >
-                          <img :src="signatureImageUrl" class="h-full w-full rounded-lg object-contain" alt="Signature" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+      <div class="grid gap-6 px-6 py-6 lg:grid-cols-[1.6fr,1fr]">
+        <div class="space-y-3">
+          <div class="items-center justify-between">
+            <h3 class="text-sm font-semibold">Document Preview</h3>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-outline btn-xs" @click="prevPage" :disabled="placementPage <= 1 || pdfLoading">Prev</button>
+              <span class="badge badge-outline text-xs">{{ placementPage }} / {{ pages || '-' }}</span>
+              <button class="btn btn-outline btn-xs" @click="nextPage" :disabled="!pages || placementPage >= pages || pdfLoading">Next</button>
             </div>
           </div>
 
-          <div class="space-y-4">
-            <div>
-              <h3 class="text-sm font-semibold">Place Your Signature</h3>
-              <p class="text-xs text-base-content/60">Choose a signature and position it on the preview.</p>
-            </div>
-
-            <div class="card border border-base-200 bg-base-100 shadow-sm">
-              <div class="card-body gap-4">
-                <div>
-                  <label class="text-xs font-semibold">Select Signature</label>
-                  <select v-model="selectedSignatureId" class="select select-bordered select-sm mt-2 w-full">
-                    <option :value="null">-- Choose a signature --</option>
-                    <option v-for="sig in signatures" :key="sig.id" :value="sig.id">
-                      {{ sig.name }}
-                    </option>
-                  </select>
-                </div>
-
-                <div v-if="selectedSignatureId && signatureImageUrl" class="flex h-20 items-center justify-center rounded-xl border border-base-200 bg-base-100">
-                  <img :src="signatureImageUrl" alt="Selected signature" class="max-h-16 max-w-full object-contain" />
-                </div>
-
-                <button @click="goToSignatureSetup" class="btn btn-outline btn-sm w-full">
-                  Create New Signature
-                </button>
+          <div class="rounded-2xl border border-base-200 bg-base-200/40 p-3">
+            <div class="relative h-130 overflow-auto rounded-xl bg-white" ref="pdfViewer">
+              <div v-if="pdfLoading" class="flex h-full items-center justify-center text-sm text-base-content/60">
+                Loading PDF...
               </div>
-            </div>
+              <div v-else class="relative p-3">
+                <div class="relative" ref="pageWrap">
+                  <VuePDF
+                    v-if="pdf"
+                    class="w-full"
+                    :pdf="pdf"
+                    :page="placementPage"
+                    @loaded="onPdfLoaded"
+                  />
 
-            <div v-if="selectedSignatureId" class="card border border-base-200 bg-base-100 shadow-sm">
-              <div class="card-body gap-3">
-                <div>
-                  <label class="text-xs font-semibold">Page</label>
-                  <div class="mt-2 flex items-center gap-2">
-                    <input
-                      v-model.number="placementPage"
-                      type="number"
-                      min="1"
-                      :max="pageCount"
-                      class="input input-bordered input-sm w-24"
-                    >
-                    <span class="text-xs text-base-content/60">of {{ pageCount }}</span>
+                  <div
+                    v-if="selectedSignatureId && signatureImageUrl"
+                    class="absolute left-0 top-0 cursor-grab select-none"
+                    :style="signatureOverlayStyle"
+                    @pointerdown.prevent="onSigPointerDown"
+                  >
+                    <img :src="signatureImageUrl" class="h-full w-full rounded-lg object-contain" alt="Signature" />
                   </div>
                 </div>
-                <p class="text-xs text-base-content/60">
-                  Drag the signature on the preview. Position and size will be saved automatically.
-                </p>
               </div>
             </div>
           </div>
         </div>
 
+        <div class="space-y-4">
+          <div>
+            <h3 class="text-sm font-semibold">Place Your Signature</h3>
+            <p class="text-xs text-base-content/60">Choose a signature and position it on the preview.</p>
+          </div>
+
+          <div class="rounded-2xl border border-base-200 bg-base-100 p-4">
+            <label class="text-xs font-semibold">Select Signature</label>
+            <select v-model="selectedSignatureId" class="select select-bordered select-sm mt-2 w-full">
+              <option :value="null">-- Choose a signature --</option>
+              <option v-for="sig in signatures" :key="sig.id" :value="sig.id">
+                {{ sig.name }}
+              </option>
+            </select>
+
+            <div v-if="selectedSignatureId && signatureImageUrl" class="mt-4 flex h-20 items-center justify-center rounded-xl border border-base-200 bg-base-100">
+              <img :src="signatureImageUrl" alt="Selected signature" class="max-h-16 max-w-full object-contain" />
+            </div>
+
+            <button @click="goToSignatureSetup" class="btn btn-outline btn-sm mt-4 w-full">
+              Create New Signature
+            </button>
+          </div>
+
+          <div v-if="selectedSignatureId" class="rounded-2xl border border-base-200 bg-base-100 p-4">
+            <label class="text-xs font-semibold">Page</label>
+            <div class="mt-2 flex items-center gap-2">
+              <input
+                v-model.number="placementPage"
+                type="number"
+                min="1"
+                :max="pageCount"
+                class="input input-bordered input-sm w-24"
+              >
+              <span class="text-xs text-base-content/60">of {{ pageCount }}</span>
+            </div>
+            <p class="mt-3 text-xs text-base-content/60">
+              Drag the signature on the preview. Position and size will be saved automatically.
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div class="flex flex-col gap-3 border-t border-base-200 bg-base-100/90 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
+      <div class="modal-action border-t border-base-200 px-6 py-4">
         <button @click="close" class="btn btn-ghost">Cancel</button>
         <button
           @click="saveSignature"
@@ -116,6 +102,7 @@
           {{ saving ? 'Saving...' : 'Save Signature' }}
         </button>
       </div>
+
     </div>
   </div>
 </template>
@@ -126,9 +113,9 @@ import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
 import { useToastStore } from '../stores/toast';
+import { formatApiError } from '../utils/errors';
 import { VuePDF, usePDF } from '@tato30/vue-pdf';
 import '@tato30/vue-pdf/style.css';
-import { formatApiError } from '../utils/errors';
 
 const props = defineProps({
   isOpen: Boolean,
@@ -228,6 +215,33 @@ function nextPage() {
   if (pages.value && placementPage.value < pages.value) placementPage.value += 1;
 }
 
+function getPdfBounds() {
+  const wrapEl = pageWrap.value;
+  if (!wrapEl) return null;
+  const wrapRect = wrapEl.getBoundingClientRect();
+  const pageEl =
+    wrapEl.querySelector('.vue-pdf__page') ||
+    wrapEl.querySelector('.page') ||
+    wrapEl.querySelector('canvas');
+  if (!pageEl) {
+    return { x: 0, y: 0, width: wrapRect.width, height: wrapRect.height };
+  }
+
+  const pageRect = pageEl.getBoundingClientRect();
+  return {
+    x: pageRect.left - wrapRect.left,
+    y: pageRect.top - wrapRect.top,
+    width: pageRect.width,
+    height: pageRect.height,
+  };
+}
+
+function onPdfLoaded() {
+  nextTick(() => {
+    clampSignature();
+  });
+}
+
 async function loadSignatureImage(signatureId) {
   try {
     const res = await axios.get(`/api/signatures/${signatureId}/image`, {
@@ -271,24 +285,6 @@ function cleanupSignatureImageUrl() {
     signatureImageObjectUrl.value = '';
   }
   signatureImageUrl.value = '';
-}
-
-function getPdfBounds() {
-  const wrapEl = pageWrap.value;
-  if (!wrapEl) return null;
-  const wrapRect = wrapEl.getBoundingClientRect();
-  const pageEl = wrapEl.querySelector('.page') || wrapEl.querySelector('canvas');
-  if (!pageEl) {
-    return { x: 0, y: 0, width: wrapRect.width, height: wrapRect.height };
-  }
-
-  const pageRect = pageEl.getBoundingClientRect();
-  return {
-    x: pageRect.left - wrapRect.left,
-    y: pageRect.top - wrapRect.top,
-    width: pageRect.width,
-    height: pageRect.height,
-  };
 }
 
 function resetSignaturePosition() {
@@ -340,13 +336,6 @@ function onPointerUp() {
   if (!isDragging.value) return;
   isDragging.value = false;
   detachDragListeners();
-}
-
-function onPdfLoaded() {
-  if (!selectedSignatureId.value) return;
-  nextTick(() => {
-    clampSignature();
-  });
 }
 
 function attachDragListeners() {
