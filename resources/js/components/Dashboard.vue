@@ -166,7 +166,7 @@
                         <div class="doc-header">
                             <div class="doc-icon">
                                 <span v-if="doc.status === 'pending'">⏳</span>
-                                <span v-else-if="doc.status === 'signed'">✅</span>
+                                <span v-else-if="doc.status === 'signed' || doc.status === 'COMPLETED'">✅</span>
                                 <span v-else>📄</span>
                             </div>
                             <div class="doc-meta">
@@ -179,10 +179,10 @@
                             <button v-if="doc.status === 'pending'" @click="openSigningModal(doc.id, doc.page_count)" class="btn-primary btn-sm">
                                 ✍️ Sign Now
                             </button>
-                            <button v-if="doc.status === 'signed'" @click="verifyDocument(doc.id)" class="btn-secondary btn-sm">
+                            <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="verifyDocument(doc.id)" class="btn-secondary btn-sm">
                                 Verify Signature
                             </button>
-                            <button v-if="doc.status === 'signed'" @click="downloadDocument(doc.id)" class="btn-link btn-sm">
+                            <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="downloadDocument(doc.id)" class="btn-link btn-sm">
                                 📥 Download
                             </button>
                         </div>
@@ -231,7 +231,7 @@ const selectedDocPageCount = ref(0);
 
 const verifyUploadResult = ref(null);
 
-const signedCount = computed(() => documents.value.filter(d => d.status === 'signed').length);
+const signedCount = computed(() => documents.value.filter(d => d.status === 'signed' || d.status === 'COMPLETED').length);
 const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending').length);
 const certificateExpiry = computed(() => {
     const expiresAt = user.value?.certificate?.expires_at;
