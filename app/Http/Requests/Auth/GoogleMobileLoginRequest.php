@@ -25,6 +25,8 @@ class GoogleMobileLoginRequest extends FormRequest
             'id_token' => 'nullable|string',
             'access_token' => 'nullable|string',
             'code' => 'nullable|string',
+            'invite_email' => 'nullable|email',
+            'invite_token' => 'nullable|string',
         ];
     }
 
@@ -54,6 +56,8 @@ class GoogleMobileLoginRequest extends FormRequest
             'id_token.string' => 'The id_token must be a valid string.',
             'access_token.string' => 'The access_token must be a valid string.',
             'code.string' => 'The authorization code must be a valid string.',
+            'invite_email.email' => 'The invite_email must be a valid email address.',
+            'invite_token.string' => 'The invite_token must be a valid string.',
         ];
     }
 }

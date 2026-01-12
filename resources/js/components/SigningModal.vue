@@ -30,43 +30,84 @@
                 />
 
                 <div
-                  v-if="selectedSignatureId && signatureImageUrl"
+                  v-if="(selectedSignatureId || assignMode) && signatureImageUrl"
                   class="signature-overlay"
                   :style="signatureOverlayStyle"
                   @pointerdown.prevent="onSigPointerDown"
                 >
-                  <img :src="signatureImageUrl" class="signature-img" alt="Signature" />
+                  <img :src="signatureImageUrl" class="signature-img" alt="Signature Placeholder" />
+                  <div v-if="assignMode" class="assign-badge">Assigned to: {{ assignEmail }}</div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Signature Placement -->
+        <!-- Signature Placement / Assignment -->
         <div class="signature-section">
-          <h3>Place Your Signature</h3>
-          
-          <!-- Signature Selection -->
-          <div class="signature-select">
-            <label>Select Signature:</label>
-            <select v-model="selectedSignatureId" class="form-control">
-              <option :value="null">-- Choose a signature --</option>
-              <option v-for="sig in signatures" :key="sig.id" :value="sig.id">
-                {{ sig.name }}
-              </option>
-            </select>
-
-            <div v-if="selectedSignatureId && signatureImageUrl" class="selected-sig-preview">
-              <img :src="signatureImageUrl" alt="Selected signature" />
-            </div>
-
-            <button @click="goToSignatureSetup" class="btn-secondary btn-sm">
-              + Create New Signature
+          <div class="mode-switch">
+            <button 
+              @click="assignMode = false" 
+              :class="['btn-mode', { active: !assignMode }]"
+            >
+              Sign Myself
+            </button>
+            <button 
+              v-if="isDocumentOwner"
+              @click="assignMode = true" 
+              :class="['btn-mode', { active: assignMode }]"
+            >
+              Assign to Other
             </button>
           </div>
 
+          <div v-if="!assignMode">
+            <h3>Place Your Signature</h3>
+            
+            <!-- Signature Selection -->
+            <div class="signature-select">
+              <label>Select Signature:</label>
+              <select v-model="selectedSignatureId" class="form-control">
+                <option :value="null">-- Choose a signature --</option>
+                <option v-for="sig in signatures" :key="sig.id" :value="sig.id">
+                  {{ sig.name }}
+                </option>
+              </select>
+
+              <div v-if="selectedSignatureId && signatureImageUrl" class="selected-sig-preview">
+                <img :src="signatureImageUrl" alt="Selected signature" />
+              </div>
+
+              <button @click="goToSignatureSetup" class="btn-secondary btn-sm">
+                + Create New Signature
+              </button>
+            </div>
+          </div>
+
+          <div v-else class="assign-section">
+            <h3>Assign to Another User</h3>
+            <div class="form-group">
+              <label>Email Address:</label>
+              <input 
+                v-model="assignEmail" 
+                type="email" 
+                placeholder="Enter signer's email"
+                class="form-control"
+              >
+            </div>
+            <div class="form-group">
+              <label>Full Name:</label>
+              <input 
+                v-model="assignName" 
+                type="text" 
+                placeholder="Enter signer's name"
+                class="form-control"
+              >
+            </div>
+          </div>
+
           <!-- Page & Position Selection -->
-          <div v-if="selectedSignatureId" class="placement-controls">
+          <div v-if="selectedSignatureId || assignMode" class="placement-controls">
             <div class="control-group">
               <label>Page:</label>
               <input 
@@ -80,7 +121,7 @@
             </div>
 
             <p class="help-text">
-              Drag the signature on the document preview. Position and size will be saved automatically.
+              Drag the {{ assignMode ? 'placeholder' : 'signature' }} on the document preview. Position and size will be saved automatically.
             </p>
           </div>
         </div>
@@ -90,11 +131,20 @@
       <div class="modal-footer">
         <button @click="close" class="btn-secondary">Cancel</button>
         <button 
+          v-if="!assignMode"
           @click="saveSignature" 
           class="btn-primary"
           :disabled="!selectedSignatureId || saving"
         >
           {{ saving ? 'Saving...' : '✓ Save Signature' }}
+        </button>
+        <button 
+          v-else
+          @click="assignToOther" 
+          class="btn-primary"
+          :disabled="!assignEmail || !assignName || saving"
+        >
+          {{ saving ? 'Assigning...' : '📧 Send Invitation' }}
         </button>
       </div>
 
@@ -119,6 +169,8 @@ const props = defineProps({
   documentId: Number,
   pageCount: Number,
 });
+
+const documentOwnerId = ref(null);
 
 const emit = defineEmits(['close', 'signed']);
 
@@ -145,6 +197,15 @@ const placementPage = ref(1);
 const saving = ref(false);
 const message = ref('');
 const messageType = ref('info');
+
+const assignMode = ref(false);
+const assignEmail = ref('');
+const assignName = ref('');
+
+const isDocumentOwner = computed(() => {
+  if (!documentOwnerId.value || !authStore.user?.id) return false;
+  return Number(documentOwnerId.value) === Number(authStore.user.id);
+});
 
 const sigX = ref(24);
 const sigY = ref(24);
@@ -188,9 +249,24 @@ watch(() => selectedSignatureId.value, async (newVal) => {
   }
 });
 
+watch(() => assignMode.value, (newVal) => {
+  if (newVal) {
+    selectedSignatureId.value = null;
+    // Set a placeholder for assignment if needed
+    signatureImageUrl.value = 'https://placehold.co/400x200?text=Signer+Placeholder';
+  } else {
+    loadSignatures();
+  }
+});
+
 async function loadPdf() {
   pdfLoading.value = true;
   try {
+    // Fetch document details to get owner_id
+    const docRes = await axios.get(`/api/documents/${props.documentId}`);
+    const doc = docRes.data?.data ?? docRes.data;
+    documentOwnerId.value = doc.user_id;
+    
     const res = await axios.get(`/api/documents/${props.documentId}/view-url`, {
       responseType: 'arraybuffer',
     });
@@ -339,7 +415,6 @@ async function loadSignatures() {
     const res = await axios.get('/api/signatures');
     const list = res.data?.data ?? res.data;
     signatures.value = Array.isArray(list) ? list : [];
-
     if (signatures.value.length > 0) {
       const defaultSig = signatures.value.find((s) => s.is_default) || signatures.value[0];
       selectedSignatureId.value = defaultSig?.id ?? null;
@@ -369,14 +444,7 @@ async function saveSignature() {
     return;
   }
 
-  const wrapRect = pageWrap.value.getBoundingClientRect();
-  const w = Math.max(1, wrapRect.width);
-  const h = Math.max(1, wrapRect.height);
-
-  const xNorm = (sigX.value) / w;
-  const yNorm = (sigY.value) / h;
-  const wNorm = sigW.value / w;
-  const hNorm = sigH.value / h;
+  const { xNorm, yNorm, wNorm, hNorm } = getNormalizedCoordinates();
 
   saving.value = true;
   try {
@@ -408,6 +476,72 @@ async function saveSignature() {
   } finally {
     saving.value = false;
   }
+}
+
+async function assignToOther() {
+  if (!assignEmail.value || !assignName.value) {
+    showMessage('Please fill in email and name', 'error');
+    return;
+  }
+
+  const { xNorm, yNorm, wNorm, hNorm } = getNormalizedCoordinates();
+
+  saving.value = true;
+  try {
+    // 1. Add signer and send email
+    const signerRes = await axios.post(`/api/documents/${props.documentId}/signers`, {
+      signers: [
+        {
+          email: assignEmail.value,
+          name: assignName.value,
+          order: 1
+        }
+      ]
+    });
+
+    // Handle ApiResponse format
+    const signerData = signerRes.data?.data ?? signerRes.data;
+    const signerId = signerData.signers?.[0]?.id;
+
+    // 2. Add placement for this signer
+    await axios.post(`/api/documents/${props.documentId}/placements`, {
+      email: assignEmail.value,
+      placements: [
+        {
+          page: placementPage.value,
+          x: xNorm,
+          y: yNorm,
+          w: wNorm,
+          h: hNorm,
+        }
+      ]
+    });
+
+    showMessage('✅ Invitation sent successfully!', 'success');
+    setTimeout(() => {
+      emit('signed');
+      close();
+    }, 1500);
+  } catch (e) {
+    showMessage('Failed to assign: ' + (e.response?.data?.message || e.message), 'error');
+  } finally {
+    saving.value = false;
+  }
+}
+
+function getNormalizedCoordinates() {
+  if (!pageWrap.value) return { xNorm: 0, yNorm: 0, wNorm: 0, hNorm: 0 };
+  
+  const wrapRect = pageWrap.value.getBoundingClientRect();
+  const w = Math.max(1, wrapRect.width);
+  const h = Math.max(1, wrapRect.height);
+
+  return {
+    xNorm: sigX.value / w,
+    yNorm: sigY.value / h,
+    wNorm: sigW.value / w,
+    hNorm: sigH.value / h
+  };
 }
 
 function showMessage(msg, type = 'info') {
@@ -576,6 +710,57 @@ function close() {
 
 .signature-overlay:active {
   cursor: grabbing;
+}
+
+.assign-badge {
+  position: absolute;
+  top: -20px;
+  left: 0;
+  background: #667eea;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.mode-switch {
+  display: flex;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.btn-mode {
+  flex: 1;
+  border: none;
+  background: none;
+  padding: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.btn-mode.active {
+  background: white;
+  color: #0f172a;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
 }
 
 .signature-img {

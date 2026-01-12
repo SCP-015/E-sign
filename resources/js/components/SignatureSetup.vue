@@ -41,7 +41,14 @@
         <div v-else class="signatures-list">
           <div v-for="sig in signatures" :key="sig.id" class="signature-card">
             <div class="sig-preview">
-              <img v-if="sig.imageUrl" :src="sig.imageUrl" :alt="sig.name" class="sig-image">
+              <img 
+                v-if="signatureImageUrls[sig.id]"
+                :src="signatureImageUrls[sig.id]" 
+                :alt="sig.name" 
+                class="sig-image"
+                @error="handleImageError($event, sig.id)"
+                :key="sig.id"
+              >
               <div v-else class="sig-image-missing">Preview unavailable</div>
             </div>
             <div class="sig-info">
@@ -82,13 +89,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 
 const router = useRouter();
 const signatureCanvas = ref(null);
 const signatures = ref([]);
+const signatureImageUrls = ref({});
 const message = ref('');
 const messageType = ref('info');
 const isDrawing = ref(false);
@@ -169,6 +177,10 @@ onMounted(() => {
   });
 });
 
+onBeforeUnmount(() => {
+  cleanupSignatureImageUrls();
+});
+
 function initCanvas() {
   const canvas = signatureCanvas.value;
   canvas.width = canvas.offsetWidth;
@@ -238,6 +250,7 @@ async function saveSignature() {
     formData.append('is_default', signatures.value.length === 0 ? '1' : '0'); // First signature is default (1 or 0)
     
     const response = await axios.post('/api/signatures', formData);
+    // Check for error in ApiResponse format
     if (response?.data?.status && response.data.status !== 'success') {
       throw new Error(response.data.message || 'Failed to save signature');
     }
@@ -254,6 +267,7 @@ async function saveSignature() {
     if (e.response?.data?.message) {
       errorMsg = e.response.data.message;
     }
+    // Handle both Laravel validation errors and ApiResponse format
     if (e.response?.data?.data && e.response?.data?.data?.errors) {
       const errors = e.response.data.data.errors;
       errorMsg = Object.keys(errors).map(key => `${key}: ${errors[key].join(', ')}`).join('; ');
@@ -269,24 +283,42 @@ async function saveSignature() {
 async function loadSignatures() {
   try {
     const response = await axios.get('/api/signatures');
+    // Handle both direct array and ApiResponse format
     const list = response.data?.data ?? response.data;
     signatures.value = Array.isArray(list) ? list : [];
-
-    // Load protected images via Authorization header (img tag does not send Bearer token)
-    await Promise.all(
-      signatures.value.map(async (sig) => {
-        try {
-          const imgRes = await axios.get(`/api/signatures/${sig.id}/image`, { responseType: 'blob' });
-          sig.imageUrl = URL.createObjectURL(imgRes.data);
-        } catch (e) {
-          sig.imageUrl = null;
-        }
-      })
-    );
+    await loadSignatureImages();
   } catch (e) {
     console.error('Failed to load signatures:', e);
     showMessage(e.response?.data?.message || 'Failed to load signatures', 'error');
   }
+}
+
+function cleanupSignatureImageUrls() {
+  const urls = signatureImageUrls.value;
+  Object.keys(urls).forEach((id) => {
+    try {
+      URL.revokeObjectURL(urls[id]);
+    } catch (e) {
+      // ignore
+    }
+  });
+  signatureImageUrls.value = {};
+}
+
+async function loadSignatureImages() {
+  cleanupSignatureImageUrls();
+  const urls = {};
+  for (const sig of signatures.value) {
+    try {
+      const res = await axios.get(`/api/signatures/${sig.id}/image`, {
+        responseType: 'blob',
+      });
+      urls[sig.id] = URL.createObjectURL(res.data);
+    } catch (e) {
+      console.error('Failed to fetch signature image:', sig.id, e);
+    }
+  }
+  signatureImageUrls.value = urls;
 }
 
 async function setDefault(id) {

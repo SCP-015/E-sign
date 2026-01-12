@@ -19,7 +19,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'kyc.verified' => \App\Http\Middleware\RestrictIfNoKyc::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $isApiRequest = function (Request $request): bool {

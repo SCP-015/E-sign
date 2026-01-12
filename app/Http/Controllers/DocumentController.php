@@ -3,9 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\ApiResponse;
-use App\Http\Requests\DocumentFinalizeRequest;
-use App\Http\Requests\DocumentSignRequest;
 use App\Http\Requests\DocumentUploadRequest;
+use App\Models\Document;
 use App\Services\DocumentService;
 use Illuminate\Http\Request;
 
@@ -20,7 +19,8 @@ class DocumentController extends Controller
 
     public function index(Request $request)
     {
-        return ApiResponse::fromService($this->documentService->indexResult((int) $request->user()->id));
+        $result = $this->documentService->indexResult((int) $request->user()->id);
+        return ApiResponse::fromService($result);
     }
 
     public function upload(DocumentUploadRequest $request)
@@ -29,63 +29,224 @@ class DocumentController extends Controller
         $file = $request->file('file');
         $title = $request->input('title', $file->getClientOriginalName());
 
-        return ApiResponse::fromService(
-            $this->documentService->uploadWithMetadataResult((int) $user->id, $file, (string) $title)
+        $result = $this->documentService->uploadWithMetadataResult(
+            (int) $user->id,
+            $file,
+            $title
         );
+
+        return ApiResponse::fromService($result);
     }
 
     public function show(Request $request, $id)
     {
-        return ApiResponse::fromService(
-            $this->documentService->showResult((int) $id, (int) $request->user()->id)
+        $result = $this->documentService->showResult(
+            (int) $id,
+            (int) $request->user()->id
         );
+
+        return ApiResponse::fromService($result);
     }
 
     public function viewUrl(Request $request, $id)
     {
-        $result = $this->documentService->resolveViewUrlResult((int) $id, (int) $request->user()->id);
-        if (($result['status'] ?? 'error') !== 'success') {
-            return ApiResponse::fromService($result);
+        try {
+            $user = $request->user();
+            
+            $document = Document::where('id', $id)
+                ->where(function($query) use ($user) {
+                    $query->where('user_id', $user->id)
+                          ->orWhereHas('signers', function($q) use ($user) {
+                              $q->where('user_id', $user->id)
+                                ->orWhere('email', $user->email);
+                          });
+                })
+                ->firstOrFail();
+
+            $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($document->file_path);
+
+            if (!file_exists($filePath)) {
+                \Illuminate\Support\Facades\Log::error('File not found: ' . $filePath);
+                return response()->json(['message' => 'File not found on server'], 404);
+            }
+
+            return response()->file($filePath, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . basename($document->file_path) . '"',
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            \Illuminate\Support\Facades\Log::error('Document not found or access denied: ' . $id);
+            return response()->json(['message' => 'Document not found or access denied'], 404);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('ViewUrl error: ' . $e->getMessage());
+            return response()->json(['message' => 'Failed to load PDF: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function finalize(Request $request, $id)
+    {
+        $request->validate([
+            'qrPlacement.page' => 'nullable|string',
+            'qrPlacement.position' => 'nullable|string',
+            'qrPlacement.marginBottom' => 'nullable|integer',
+            'qrPlacement.size' => 'nullable|integer',
+        ]);
+
+        $user = $request->user();
+        $document = Document::where('id', $id)->where('user_id', $user->id)->firstOrFail();
+
+        // Check if all signers have signed
+        if (!$document->isAllSigned()) {
+            return response()->json([
+                'message' => 'Cannot finalize: Some signers have not signed yet',
+            ], 400);
         }
 
-        $filePath = $result['data']['filePath'] ?? '';
-        $fileName = $result['data']['fileName'] ?? 'document.pdf';
+        // Generate verify token
+        $verifyToken = bin2hex(random_bytes(16));
+        $document->update(['verify_token' => $verifyToken]);
 
-        return response()->file($filePath, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+        // Generate final PDF with all placements and QR code
+        $qrConfig = $request->input('qrPlacement', [
+            'page' => 'LAST',
+            'position' => 'BOTTOM_RIGHT',
+            'marginBottom' => 15,
+            'marginRight' => 15,
+            'size' => 35,
         ]);
+
+        try {
+            $finalPdfPath = $this->documentService->finalizePdf($document, $verifyToken, $qrConfig);
+
+            // Update document status
+            $document->update([
+                'status' => 'COMPLETED',
+                'final_pdf_path' => $finalPdfPath,
+                'completed_at' => now(),
+            ]);
+
+            $verifyUrl = url('/api/verify/' . $verifyToken);
+
+            return response()->json([
+                'documentId' => $document->id,
+                'status' => 'COMPLETED',
+                'verifyUrl' => $verifyUrl,
+                'qrValue' => $verifyUrl,
+                'finalPdfUrl' => url('/api/documents/' . $document->id . '/download'),
+                'completedAt' => $document->completed_at->toIso8601String(),
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Finalize Failed: ' . $e->getMessage());
+            return response()->json(['message' => 'Finalization failed: ' . $e->getMessage()], 500);
+        }
     }
 
-    public function finalize(DocumentFinalizeRequest $request, $id)
+    public function sign(Request $request, $id)
     {
+        // Legacy method for backward compatibility
+        // In MVP flow, use PlacementController instead
         $user = $request->user();
-        $qrPlacement = (array) $request->input('qrPlacement', []);
+        $document = Document::where('id', $id)->where('user_id', $user->id)->firstOrFail();
 
-        return ApiResponse::fromService(
-            $this->documentService->finalizeResult((int) $id, (int) $user->id, $qrPlacement)
-        );
-    }
+        $validated = $request->validate([
+            'signature_id' => 'required|integer|exists:signatures,id',
+            'signature_position' => 'required|array',
+            'signature_position.x' => 'required|numeric|min:0|max:1',
+            'signature_position.y' => 'required|numeric|min:0|max:1',
+            'signature_position.width' => 'required|numeric|min:0.01|max:0.5',
+            'signature_position.height' => 'required|numeric|min:0.01|max:0.5',
+            'signature_position.page' => 'required|integer|min:1',
+        ]);
 
-    public function sign(DocumentSignRequest $request, $id)
-    {
-        $user = $request->user();
-        return ApiResponse::fromService(
-            $this->documentService->signLegacyResult((int) $id, (int) $user->id, $request->validated())
-        );
+        $signature = Signature::where('id', $validated['signature_id'])
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $cert = Certificate::where('user_id', $user->id)->where('status', 'active')->latest()->first();
+
+        if (!$cert) {
+            return response()->json(['message' => 'No active certificate found'], 400);
+        }
+
+        try {
+            $signedPath = $this->documentService->signPdf(
+                $document, 
+                $cert, 
+                $signature, 
+                $validated['signature_position']
+            );
+            
+            $document->update([
+                'status' => 'signed',
+            ]);
+            
+            return response()->json([
+                'message' => 'Document signed successfully',
+                'document' => new DocumentResource($document->fresh()),
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Signing Failed: ' . $e->getMessage());
+            return response()->json(['message' => 'Signing failed: ' . $e->getMessage()], 500);
+        }
     }
 
     public function download(Request $request, $id)
     {
         $user = $request->user();
-        $result = $this->documentService->resolveDownloadResult((int) $id, (int) $user->id);
-        if (($result['status'] ?? 'error') !== 'success') {
-            return ApiResponse::fromService($result);
+        $document = Document::where('id', $id)
+            ->where(function($query) use ($user) {
+                $query->where('user_id', $user->id)
+                      ->orWhereHas('signers', function($q) use ($user) {
+                          $q->where('user_id', $user->id)
+                            ->orWhere('email', $user->email);
+                      });
+            })
+            ->firstOrFail();
+
+        if (!in_array($document->status, ['signed', 'COMPLETED'], true)) {
+            return response()->json(['message' => 'Document is not signed yet'], 400);
         }
 
-        $filePath = $result['data']['filePath'] ?? '';
-        $filename = $result['data']['fileName'] ?? ('signed_document_' . $id . '.pdf');
+        // Check if final PDF exists (from finalize), otherwise use signed_path (legacy)
+        $filePath = null;
+        
+        if ($document->final_pdf_path && file_exists(storage_path('app/' . $document->final_pdf_path))) {
+            $filePath = storage_path('app/' . $document->final_pdf_path);
+        } elseif ($document->signed_path) {
+            $relativePath = str_replace('private/', '', $document->signed_path);
+            $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($relativePath);
+        }
 
+        if (!$filePath || !file_exists($filePath)) {
+            // Generate final PDF on-the-fly if doesn't exist
+            try {
+                $verifyToken = $document->verify_token ?? bin2hex(random_bytes(16));
+                $qrConfig = [
+                    'page' => 'LAST',
+                    'position' => 'BOTTOM_RIGHT',
+                    'marginBottom' => 15,
+                    'marginRight' => 15,
+                    'size' => 35,
+                ];
+                
+                $finalPdfPath = $this->documentService->finalizePdf($document, $verifyToken, $qrConfig);
+                $document->update([
+                    'final_pdf_path' => $finalPdfPath,
+                    'verify_token' => $verifyToken,
+                ]);
+                
+                $filePath = storage_path('app/' . $finalPdfPath);
+            } catch (\Exception $e) {
+                return response()->json(['message' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
+            }
+        }
+
+        // Get original filename or generate one
+        $filename = $document->title 
+            ? str_replace('.pdf', '', $document->title) . '_signed.pdf'
+            : 'signed_document_' . $document->id . '.pdf';
+
+        // Return file as download with proper headers
         return response()->download($filePath, $filename, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',

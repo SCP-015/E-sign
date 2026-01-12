@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import Login from '../components/Login.vue';
 import Dashboard from '../components/Dashboard.vue';
+import SignatureSetup from '../components/SignatureSetup.vue';
 
 const routes = [
     {
@@ -11,14 +12,35 @@ const routes = [
         meta: { guest: true }
     },
     {
+        path: '/invite',
+        name: 'Invite',
+        component: Login,
+        meta: { guest: true }
+    },
+    {
         path: '/dashboard',
         name: 'Dashboard',
         component: Dashboard,
         meta: { requiresAuth: true }
     },
-    // Google Auth Callback Handler (Frontend-side processing)
-    // We can use the Login component or a dedicated Callback component
-    // Login component has onMounted logic to handle ?token=... so we can map it there or just let it be /
+    {
+        path: '/signature-setup',
+        name: 'SignatureSetup',
+        component: SignatureSetup,
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/register',
+        name: 'Register',
+        component: Login,
+        meta: { guest: true }
+    },
+    {
+        path: '/:pathMatch(.*)*',
+        name: 'NotFound',
+        component: Login,
+        meta: { guest: true }
+    },
 ];
 
 const router = createRouter({
@@ -29,9 +51,16 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
     const authStore = useAuthStore();
 
-    // Check if URL has token (Google Login Redirect)
-    // We allow access if token is present so Login.vue can process it
-    if (to.query.token) {
+    const isInviteRoute = to.name === 'Invite' || to.path === '/invite';
+    const hasInviteParams = !!to.query.code || (!!to.query.email && !!to.query.token);
+
+    // Allow access if auth_code is present so Login.vue can exchange it
+    if (to.query.auth_code) {
+        return next();
+    }
+
+    // Always allow invitation landing, even if already authenticated
+    if (isInviteRoute || hasInviteParams) {
         return next();
     }
 
