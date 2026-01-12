@@ -31,26 +31,29 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/certificates/issue', [\App\Http\Controllers\CertificateController::class, 'issue']);
     
     // Documents
+    Route::middleware('kyc.verified')->group(function () {
+        Route::post('/documents', [\App\Http\Controllers\DocumentController::class, 'upload']);
+        Route::post('/documents/{document}/sign', [\App\Http\Controllers\DocumentController::class, 'sign']);
+        Route::post('/documents/{document}/finalize', [\App\Http\Controllers\DocumentController::class, 'finalize']);
+        Route::post('/documents/{document}/signers', [\App\Http\Controllers\SignerController::class, 'store']);
+        Route::post('/documents/{document}/placements', [\App\Http\Controllers\PlacementController::class, 'store']);
+        Route::put('/documents/{document}/placements/{placement}', [\App\Http\Controllers\PlacementController::class, 'update']);
+        Route::post('/signatures', [\App\Http\Controllers\SignatureController::class, 'store']);
+    });
+
     Route::get('/documents', [\App\Http\Controllers\DocumentController::class, 'index']);
-    Route::post('/documents', [\App\Http\Controllers\DocumentController::class, 'upload']);
     Route::get('/documents/{document}', [\App\Http\Controllers\DocumentController::class, 'show']);
     Route::get('/documents/{document}/view-url', [\App\Http\Controllers\DocumentController::class, 'viewUrl']);
-    Route::post('/documents/{document}/sign', [\App\Http\Controllers\DocumentController::class, 'sign']);
-    Route::post('/documents/{document}/finalize', [\App\Http\Controllers\DocumentController::class, 'finalize']);
     Route::get('/documents/{document}/download', [\App\Http\Controllers\DocumentController::class, 'download']);
     
     // Document Signers
-    Route::post('/documents/{document}/signers', [\App\Http\Controllers\SignerController::class, 'store']);
     Route::get('/documents/{document}/signers', [\App\Http\Controllers\SignerController::class, 'index']);
     
     // Signature Placements
-    Route::post('/documents/{document}/placements', [\App\Http\Controllers\PlacementController::class, 'store']);
     Route::get('/documents/{document}/placements', [\App\Http\Controllers\PlacementController::class, 'index']);
-    Route::put('/documents/{document}/placements/{placement}', [\App\Http\Controllers\PlacementController::class, 'update']);
     
     // User Signatures
     Route::get('/signatures', [\App\Http\Controllers\SignatureController::class, 'index']);
-    Route::post('/signatures', [\App\Http\Controllers\SignatureController::class, 'store']);
     Route::get('/signatures/{signature}/image', [\App\Http\Controllers\SignatureController::class, 'getImage']);
     Route::put('/signatures/{signature}/default', [\App\Http\Controllers\SignatureController::class, 'setDefault']);
     Route::delete('/signatures/{signature}', [\App\Http\Controllers\SignatureController::class, 'destroy']);

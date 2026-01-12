@@ -5,8 +5,11 @@
                 <div class="logo-circle">
                     <span class="icon">✍️</span>
                 </div>
-                <h1>E-Sign Secure</h1>
-                <p class="tagline">The most secure way to sign and manage your documents digitally.</p>
+                <h1>{{ isInvite ? 'Join E-Sign' : 'E-Sign Secure' }}</h1>
+                <p v-if="isInvite" class="invite-msg">
+                    You've been invited to sign a document. Please continue with Google to access it.
+                </p>
+                <p v-else class="tagline">The most secure way to sign and manage your documents digitally.</p>
             </div>
 
             <div class="action-section">
@@ -50,14 +53,38 @@ const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 
+const isInvite = ref(false);
+const inviteEmail = ref('');
+const inviteToken = ref('');
+
 onMounted(async () => {
-    // Check for token in URL (from Google Callback)
-    const token = route.query.token;
-    if (token) {
+    // Check for invitation details (email + token from invitation link)
+    if (route.query.email && route.query.token) {
+        isInvite.value = true;
+        inviteEmail.value = route.query.email;
+        inviteToken.value = route.query.token;
+        // Store in sessionStorage so we can use it after Google OAuth redirect
+        sessionStorage.setItem('invite_email', route.query.email);
+        sessionStorage.setItem('invite_token', route.query.token);
+    }
+
+    // Check for OAuth token in URL (from Google Callback)
+    // Note: This is different from invite_token
+    const authToken = route.query.token;
+    if (authToken && !route.query.email) {
         loading.value = true;
         try {
-            await authStore.setAuth(token, {}); 
+            await authStore.setAuth(authToken, {}); 
             await authStore.fetchUser();
+            
+            // Check if there was an invitation in sessionStorage
+            const storedInviteEmail = sessionStorage.getItem('invite_email');
+            const storedInviteToken = sessionStorage.getItem('invite_token');
+            if (storedInviteEmail && storedInviteToken) {
+                sessionStorage.removeItem('invite_email');
+                sessionStorage.removeItem('invite_token');
+            }
+            
             router.push('/dashboard');
         } catch (error) {
             console.error('Login Error', error);
@@ -70,6 +97,7 @@ onMounted(async () => {
 });
 
 const googleLogin = () => {
+    // If this is an invitation flow, the invite details are already in sessionStorage
     window.location.href = '/api/auth/google/redirect';
 };
 </script>
@@ -121,6 +149,17 @@ h1 {
     margin-bottom: 0.5rem;
     color: white;
     letter-spacing: -0.5px;
+}
+
+.invite-msg {
+    color: #fbbf24;
+    font-size: 1rem;
+    line-height: 1.5;
+    margin-bottom: 2rem;
+    background: rgba(251, 191, 36, 0.1);
+    padding: 1rem;
+    border-radius: 12px;
+    border: 1px solid rgba(251, 191, 36, 0.2);
 }
 
 .tagline {

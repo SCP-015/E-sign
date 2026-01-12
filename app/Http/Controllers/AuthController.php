@@ -33,6 +33,11 @@ class AuthController extends Controller
                 'password' => Hash::make($request->password ?? 'password'),
                 'kyc_status' => 'unverified',
             ]);
+
+            // Associate any existing document signers with this user
+            \App\Models\DocumentSigner::where('email', $user->email)
+                ->whereNull('user_id')
+                ->update(['user_id' => $user->id]);
         } else {
             if ($request->password && !Hash::check($request->password, $user->password)) {
                 return response()->json(['message' => 'Invalid credentials'], 401);
@@ -68,6 +73,11 @@ class AuthController extends Controller
                     'kyc_status' => 'unverified'
                 ]
             );
+
+            // Associate any existing document signers with this user
+            \App\Models\DocumentSigner::where('email', $user->email)
+                ->whereNull('user_id')
+                ->update(['user_id' => $user->id]);
 
             // Always update name and avatar from Google profile on every login
             $user->update([

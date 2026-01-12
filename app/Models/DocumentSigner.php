@@ -10,6 +10,8 @@ class DocumentSigner extends Model
         'document_id',
         'user_id',
         'name',
+        'email',
+        'invite_token',
         'order',
         'status',
         'signed_at',

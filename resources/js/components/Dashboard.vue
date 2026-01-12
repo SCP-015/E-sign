@@ -19,7 +19,7 @@
                 <div class="header-right">
                     <div class="user-info">
                         <span>{{ user.name }}</span>
-                        <button @click="goToSignatureSetup" class="btn-secondary btn-sm">
+                        <button v-if="user.kyc_status?.toLowerCase() === 'verified'" @click="goToSignatureSetup" class="btn-secondary btn-sm">
                             ✍️ Setup Signature
                         </button>
                         <button @click="logout" class="btn-logout">Logout</button>
@@ -94,7 +94,7 @@
             </section>
 
             <!-- Upload Section (Only if Verified) -->
-            <section v-if="user.kyc_status === 'verified'" class="upload-section">
+            <section v-if="user.kyc_status?.toLowerCase() === 'verified'" class="upload-section">
                 <div class="section-header">
                     <h3>📤 Upload Document</h3>
                 </div>
@@ -113,7 +113,7 @@
             </section>
 
             <!-- Verify Uploaded Signed PDF (Public Verify via Upload) -->
-            <section v-if="user.kyc_status === 'verified'" class="upload-section">
+            <section v-if="user.kyc_status?.toLowerCase() === 'verified'" class="upload-section">
                 <div class="section-header">
                     <h3>🧾 Verify Signed PDF (Upload)</h3>
                 </div>
@@ -154,11 +154,16 @@
                 </div>
             </section>
 
-            <!-- Documents Section -->
-            <section v-if="user.kyc_status === 'verified'" class="documents-section">
+            <!-- Documents Section (Always show, but actions are restricted) -->
+            <section class="documents-section">
                 <div class="section-header">
                     <h3>📋 Document History</h3>
-                    <span class="doc-count">{{ documents.length }} documents</span>
+                    <div class="header-actions-group">
+                        <div v-if="!user.has_signature" class="warning-banner-inline">
+                            ⚠️ Setup your signature to start signing
+                        </div>
+                        <span class="doc-count">{{ documents.length }} documents</span>
+                    </div>
                 </div>
 
                 <div v-if="documents.length > 0" class="documents-grid">
@@ -167,18 +172,29 @@
                             <div class="doc-icon">
                                 <span v-if="doc.status === 'pending'">⏳</span>
                                 <span v-else-if="doc.status === 'signed'">✅</span>
+                                <span v-else-if="doc.status === 'IN_PROGRESS'">🔄</span>
                                 <span v-else>📄</span>
                             </div>
                             <div class="doc-meta">
-                                <h4 class="doc-name">{{ getFileName(doc.file_path) }}</h4>
+                                <h4 class="doc-name">{{ doc.original_filename || doc.title || getFileName(doc.file_path) }}</h4>
                                 <p class="doc-date">{{ formatDate(doc.created_at) }}</p>
                             </div>
                             <span :class="['status-badge', doc.status]">{{ doc.status }}</span>
                         </div>
                         <div class="doc-actions">
-                            <button v-if="doc.status === 'pending'" @click="openSigningModal(doc.id, doc.page_count)" class="btn-primary btn-sm">
-                                ✍️ Sign Now
-                            </button>
+                            <template v-if="canSign(doc)">
+                                <button @click="openSigningModal(doc.id, doc.page_count)" class="btn-primary btn-sm">
+                                    ✍️ Sign Now
+                                </button>
+                            </template>
+                            <template v-else-if="isAssignedToMe(doc) && !hasISigned(doc)">
+                                <button v-if="user.kyc_status?.toLowerCase() !== 'verified'" class="btn-disabled btn-sm" title="Complete KYC to sign">
+                                    🔒 Verify KYC to Sign
+                                </button>
+                                <button v-else-if="!user.has_signature" @click="goToSignatureSetup" class="btn-warning btn-sm">
+                                    ✍️ Setup Signature First
+                                </button>
+                            </template>
                             <button v-if="doc.status === 'signed'" @click="verifyDocument(doc.id)" class="btn-secondary btn-sm">
                                 Verify Signature
                             </button>
@@ -228,6 +244,36 @@ const verifyFileInput = ref(null);
 const showSigningModal = ref(false);
 const selectedDocId = ref(null);
 const selectedDocPageCount = ref(0);
+
+const canSign = (doc) => {
+    const status = doc.status?.toLowerCase();
+    if (status === 'signed' || status === 'completed') return false;
+    
+    const kycStatus = user.value.kyc_status?.toLowerCase();
+    if (kycStatus !== 'verified' || !user.value.has_signature) return false;
+    
+    // Check if user is one of the signers who hasn't signed yet
+    return isAssignedToMe(doc) && !hasISigned(doc);
+};
+
+const isAssignedToMe = (doc) => {
+    if (!doc.signers || doc.signers.length === 0) {
+        return Number(doc.user_id) === Number(user.value.id);
+    }
+    return doc.signers.some(s => 
+        (s.userId && Number(s.userId) === Number(user.value.id)) || 
+        (s.email && s.email.toLowerCase() === user.value.email?.toLowerCase())
+    );
+};
+
+const hasISigned = (doc) => {
+    if (!doc.signers) return false;
+    const mySigner = doc.signers.find(s => 
+        (s.userId && Number(s.userId) === Number(user.value.id)) || 
+        (s.email && s.email.toLowerCase() === user.value.email?.toLowerCase())
+    );
+    return !!(mySigner && mySigner.signedAt);
+};
 
 const verifyUploadResult = ref(null);
 
@@ -596,6 +642,50 @@ const downloadDocument = async (id) => {
     color: #38bdf8;
 }
 
+.header-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.warning-banner-inline {
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: #fbbf24;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.btn-warning {
+    background: #fbbf24;
+    color: #0f172a;
+    border: none;
+    padding: 0.625rem 1.25rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.3s;
+}
+
+.btn-warning:hover {
+    background: #f59e0b;
+    transform: translateY(-2px);
+}
+
+.btn-disabled {
+    background: #334155;
+    color: #94a3b8;
+    border: 1px solid #475569;
+    padding: 0.625rem 1.25rem;
+    border-radius: 6px;
+    cursor: not-allowed;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
 /* Identity Section */
 .identity-section {
     margin-bottom: 3rem;
@@ -808,6 +898,11 @@ const downloadDocument = async (id) => {
 .status-badge.signed {
     background: rgba(52, 211, 153, 0.2);
     color: #34d399;
+}
+
+.status-badge.IN_PROGRESS {
+    background: rgba(56, 189, 248, 0.2);
+    color: #38bdf8;
 }
 
 .doc-actions {

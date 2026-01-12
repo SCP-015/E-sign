@@ -16,6 +16,12 @@ const routes = [
         component: Dashboard,
         meta: { requiresAuth: true }
     },
+    {
+        path: '/register',
+        name: 'Register',
+        component: Login,
+        meta: { guest: true }
+    },
     // Google Auth Callback Handler (Frontend-side processing)
     // We can use the Login component or a dedicated Callback component
     // Login component has onMounted logic to handle ?token=... so we can map it there or just let it be /

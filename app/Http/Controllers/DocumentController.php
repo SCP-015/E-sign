@@ -21,7 +21,20 @@ class DocumentController extends Controller
 
     public function index(Request $request)
     {
-        return DocumentResource::collection($request->user()->documents()->latest()->get());
+        $user = $request->user();
+        
+        $documents = Document::with(['signers'])
+            ->where(function($query) use ($user) {
+                $query->where('user_id', $user->id)
+                      ->orWhereHas('signers', function($q) use ($user) {
+                          $q->where('user_id', $user->id)
+                            ->orWhere('email', $user->email);
+                      });
+            })
+            ->latest()
+            ->get();
+
+        return DocumentResource::collection($documents);
     }
 
     public function upload(DocumentUploadRequest $request)
@@ -54,23 +67,46 @@ class DocumentController extends Controller
 
     public function show(Request $request, $id)
     {
+        $user = $request->user();
         $document = Document::with(['signers'])
             ->where('id', $id)
-            ->where('user_id', $request->user()->id)
+            ->where(function($query) use ($user) {
+                $query->where('user_id', $user->id)
+                      ->orWhereHas('signers', function($q) use ($user) {
+                          $q->where('user_id', $user->id)
+                            ->orWhere('email', $user->email);
+                      });
+            })
             ->firstOrFail();
         
         return response()->json([
             'documentId' => $document->id,
+            'user_id' => $document->user_id,
             'status' => $document->status,
             'pageCount' => $document->page_count,
             'verify_token' => $document->verify_token,
+            'signers' => $document->signers->map(fn($s) => [
+                'id' => $s->id,
+                'userId' => $s->user_id,
+                'email' => $s->email,
+                'name' => $s->name,
+                'status' => $s->status,
+                'signedAt' => $s->signed_at,
+            ]),
         ]);
     }
 
     public function viewUrl(Request $request, $id)
     {
+        $user = $request->user();
         $document = Document::where('id', $id)
-            ->where('user_id', $request->user()->id)
+            ->where(function($query) use ($user) {
+                $query->where('user_id', $user->id)
+                      ->orWhereHas('signers', function($q) use ($user) {
+                          $q->where('user_id', $user->id)
+                            ->orWhere('email', $user->email);
+                      });
+            })
             ->firstOrFail();
 
         // File is stored on the "private" disk, so resolve using Storage disk path
@@ -198,7 +234,15 @@ class DocumentController extends Controller
     public function download(Request $request, $id)
     {
         $user = $request->user();
-        $document = Document::where('id', $id)->where('user_id', $user->id)->firstOrFail();
+        $document = Document::where('id', $id)
+            ->where(function($query) use ($user) {
+                $query->where('user_id', $user->id)
+                      ->orWhereHas('signers', function($q) use ($user) {
+                          $q->where('user_id', $user->id)
+                            ->orWhere('email', $user->email);
+                      });
+            })
+            ->firstOrFail();
 
         if (!in_array($document->status, ['signed', 'COMPLETED'], true)) {
             return response()->json(['message' => 'Document is not signed yet'], 400);

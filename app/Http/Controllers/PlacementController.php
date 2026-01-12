@@ -18,33 +18,52 @@ class PlacementController extends Controller
     public function store(Request $request, $documentId)
     {
         $request->validate([
-            'signerUserId' => 'required|exists:users,id',
+            'signerUserId' => 'nullable|exists:users,id',
+            'email' => 'nullable|email',
             'placements' => 'required|array|min:1',
             'placements.*.page' => 'required|integer|min:1',
             'placements.*.x' => 'required|numeric',
             'placements.*.y' => 'required|numeric',
             'placements.*.w' => 'required|numeric',
             'placements.*.h' => 'required|numeric',
-            'placements.*.signatureId' => 'required|exists:signatures,id',
+            'placements.*.signatureId' => 'nullable|exists:signatures,id',
         ]);
 
         $document = Document::findOrFail($documentId);
         $signerUserId = $request->input('signerUserId');
+        $email = $request->input('email');
         
-        // Find or create signer
-        $signer = DocumentSigner::where('document_id', $documentId)
-            ->where('user_id', $signerUserId)
-            ->first();
+        // Find signer by user_id or email
+        $signer = null;
+        if ($signerUserId) {
+            $signer = DocumentSigner::where('document_id', $documentId)
+                ->where('user_id', $signerUserId)
+                ->first();
+        } elseif ($email) {
+            $signer = DocumentSigner::where('document_id', $documentId)
+                ->where('email', $email)
+                ->first();
+        }
         
         if (!$signer) {
-            // Auto-create signer if doesn't exist
-            $signerUser = \App\Models\User::findOrFail($signerUserId);
-            $signer = DocumentSigner::create([
-                'document_id' => $documentId,
-                'user_id' => $signerUserId,
-                'name' => $signerUser->name,
-                'status' => 'PENDING',
-            ]);
+            if ($signerUserId) {
+                $signerUser = \App\Models\User::findOrFail($signerUserId);
+                $signer = DocumentSigner::create([
+                    'document_id' => $documentId,
+                    'user_id' => $signerUserId,
+                    'email' => $signerUser->email,
+                    'name' => $signerUser->name,
+                    'status' => 'PENDING',
+                ]);
+            } elseif ($email) {
+                // This case usually handled in SignerController, but as fallback:
+                $signer = DocumentSigner::create([
+                    'document_id' => $documentId,
+                    'email' => $email,
+                    'name' => 'Signer', // Placeholder name
+                    'status' => 'PENDING',
+                ]);
+            }
             
             // Update document status to IN_PROGRESS
             $document->update(['status' => 'IN_PROGRESS']);
@@ -58,16 +77,24 @@ class PlacementController extends Controller
                 ->delete();
 
             $placements = [];
+            $hasSignature = false;
             foreach ($request->input('placements') as $placementData) {
-                // Verify signature belongs to user
-                $signature = Signature::where('id', $placementData['signatureId'])
-                    ->where('user_id', $request->input('signerUserId'))
-                    ->firstOrFail();
+                $signatureId = $placementData['signatureId'] ?? null;
+                
+                if ($signatureId) {
+                    // Verify signature belongs to user (only if signer is a registered user)
+                    if ($signer->user_id) {
+                        $signature = Signature::where('id', $signatureId)
+                            ->where('user_id', $signer->user_id)
+                            ->firstOrFail();
+                        $hasSignature = true;
+                    }
+                }
 
                 $placement = SignaturePlacement::create([
                     'document_id' => $documentId,
                     'signer_id' => $signer->id,
-                    'signature_id' => $signature->id,
+                    'signature_id' => $signatureId,
                     'page' => $placementData['page'],
                     'x' => $placementData['x'],
                     'y' => $placementData['y'],
@@ -77,32 +104,32 @@ class PlacementController extends Controller
                 $placements[] = $placement;
             }
 
-            // Update signer status to SIGNED
-            $signer->update([
-                'status' => 'SIGNED',
-                'signed_at' => now(),
-            ]);
-
-            // Check if all signers are signed, update document status
-            $allSigned = $document->signers()
-                ->where('status', '!=', 'SIGNED')
-                ->count() === 0;
-            
-            if ($allSigned) {
-                // Generate verify token if not exists
-                $verifyToken = $document->verify_token ?? bin2hex(random_bytes(16));
-                
-                $document->update([
-                    'status' => 'signed',
-                    'verify_token' => $verifyToken,
+            // Update signer status to SIGNED only if a signature was actually placed
+            if ($hasSignature) {
+                $signer->update([
+                    'status' => 'SIGNED',
+                    'signed_at' => now(),
                 ]);
+
+                // Check if all signers are signed, update document status
+                $allSigned = $document->signers()
+                    ->where('status', '!=', 'SIGNED')
+                    ->count() === 0;
+                
+                if ($allSigned) {
+                    $verifyToken = $document->verify_token ?? bin2hex(random_bytes(16));
+                    $document->update([
+                        'status' => 'signed',
+                        'verify_token' => $verifyToken,
+                    ]);
+                }
             }
 
             DB::commit();
 
             return response()->json([
                 'documentId' => $document->id,
-                'signerUserId' => $request->input('signerUserId'),
+                'signerId' => $signer->id,
                 'placements' => collect($placements)->map(fn($p) => [
                     'placementId' => $p->id,
                     'page' => $p->page,
@@ -112,7 +139,7 @@ class PlacementController extends Controller
                     'h' => $p->h,
                     'signatureId' => $p->signature_id,
                 ])->toArray(),
-                'signerStatus' => 'SIGNED',
+                'signerStatus' => $signer->status,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();

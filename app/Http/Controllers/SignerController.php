@@ -4,8 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Document;
 use App\Models\DocumentSigner;
+use App\Models\User;
+use App\Mail\DocumentAssignmentInvitation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class SignerController extends Controller
 {
@@ -17,7 +21,7 @@ class SignerController extends Controller
     {
         $request->validate([
             'signers' => 'required|array|min:1',
-            'signers.*.userId' => 'required|exists:users,id',
+            'signers.*.email' => 'required|email',
             'signers.*.name' => 'required|string|max:255',
             'signers.*.order' => 'nullable|integer',
         ]);
@@ -30,14 +34,32 @@ class SignerController extends Controller
         try {
             $signers = [];
             foreach ($request->input('signers') as $signerData) {
+                $email = $signerData['email'];
+                $user = User::where('email', $email)->first();
+                
+                $inviteToken = null;
+                if (!$user) {
+                    $inviteToken = Str::random(40);
+                }
+
                 $signer = DocumentSigner::create([
                     'document_id' => $document->id,
-                    'user_id' => $signerData['userId'],
+                    'user_id' => $user?->id,
+                    'email' => $email,
                     'name' => $signerData['name'],
+                    'invite_token' => $inviteToken,
                     'order' => $signerData['order'] ?? null,
                     'status' => 'PENDING',
                 ]);
+                
                 $signers[] = $signer;
+
+                // Send invitation email
+                Mail::to($email)->send(new DocumentAssignmentInvitation(
+                    $document,
+                    $inviteToken,
+                    $request->user()->name
+                ));
             }
 
             // Update document status to IN_PROGRESS
@@ -49,7 +71,9 @@ class SignerController extends Controller
                 'documentId' => $document->id,
                 'status' => $document->status,
                 'signers' => collect($signers)->map(fn($s) => [
+                    'id' => $s->id,
                     'userId' => $s->user_id,
+                    'email' => $s->email,
                     'name' => $s->name,
                     'order' => $s->order,
                 ])->toArray(),
