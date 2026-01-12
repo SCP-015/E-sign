@@ -249,6 +249,10 @@ async function saveSignature() {
     formData.append('is_default', signatures.value.length === 0 ? '1' : '0'); // First signature is default (1 or 0)
     
     const response = await axios.post('/api/signatures', formData);
+    // Check for error in ApiResponse format
+    if (response?.data?.status && response.data.status !== 'success') {
+      throw new Error(response.data.message || 'Failed to save signature');
+    }
     
     showMessage('✅ Signature saved successfully!', 'success');
     clearCanvas();
@@ -262,7 +266,11 @@ async function saveSignature() {
     if (e.response?.data?.message) {
       errorMsg = e.response.data.message;
     }
-    if (e.response?.data?.errors) {
+    // Handle both Laravel validation errors and ApiResponse format
+    if (e.response?.data?.data && e.response?.data?.data?.errors) {
+      const errors = e.response.data.data.errors;
+      errorMsg = Object.keys(errors).map(key => `${key}: ${errors[key].join(', ')}`).join('; ');
+    } else if (e.response?.data?.errors) {
       const errors = e.response.data.errors;
       errorMsg = Object.keys(errors).map(key => `${key}: ${errors[key].join(', ')}`).join('; ');
     }
@@ -274,11 +282,13 @@ async function saveSignature() {
 async function loadSignatures() {
   try {
     const response = await axios.get('/api/signatures');
-    signatures.value = response.data;
+    // Handle both direct array and ApiResponse format
+    const list = response.data?.data ?? response.data;
+    signatures.value = Array.isArray(list) ? list : [];
     await loadSignatureImages();
   } catch (e) {
     console.error('Failed to load signatures:', e);
-    showMessage('Failed to load signatures', 'error');
+    showMessage(e.response?.data?.message || 'Failed to load signatures', 'error');
   }
 }
 
@@ -312,8 +322,9 @@ async function loadSignatureImages() {
 
 async function setDefault(id) {
   try {
-    await axios.put(`/api/signatures/${id}/default`);
-    showMessage('✅ Signature set as default', 'success');
+    const res = await axios.put(`/api/signatures/${id}/default`);
+    const msg = res?.data?.message || '✅ Signature set as default';
+    showMessage(msg, 'success');
     await loadSignatures();
   } catch (e) {
     showMessage('Failed to set default: ' + (e.response?.data?.message || e.message), 'error');
@@ -324,8 +335,9 @@ async function deleteSignature(id) {
   if (!confirm('Are you sure you want to delete this signature?')) return;
   
   try {
-    await axios.delete(`/api/signatures/${id}`);
-    showMessage('✅ Signature deleted', 'success');
+    const res = await axios.delete(`/api/signatures/${id}`);
+    const msg = res?.data?.message || '✅ Signature deleted';
+    showMessage(msg, 'success');
     await loadSignatures();
   } catch (e) {
     showMessage('Failed to delete: ' + (e.response?.data?.message || e.message), 'error');

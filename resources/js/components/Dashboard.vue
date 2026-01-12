@@ -277,8 +277,8 @@ const hasISigned = (doc) => {
 
 const verifyUploadResult = ref(null);
 
-const signedCount = computed(() => documents.value.filter(d => d.status === 'signed').length);
-const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending').length);
+const signedCount = computed(() => documents.value.filter(d => d.status === 'signed' || d.status === 'COMPLETED').length);
+const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending' || d.status === 'IN_PROGRESS').length);
 const certificateExpiry = computed(() => {
     const expiresAt = user.value?.certificate?.expires_at;
     if (!expiresAt) return '-';
@@ -296,24 +296,21 @@ const logout = async () => {
     router.push('/');
 };
 
-const verifyUploadFile = async (file) => {
+const verifyPdfFile = async (e) => {
+    const file = e.target.files[0];
     if (!file) return;
+
     const formData = new FormData();
     formData.append('file', file);
-    verifyUploadResult.value = null;
 
     try {
         const res = await axios.post('/api/verify/upload', formData);
-        verifyUploadResult.value = res.data;
+        verifyUploadResult.value = res.data?.data ?? res.data;
     } catch (e) {
         const msg = e.response?.data?.message || e.message;
         verifyUploadResult.value = {
-            is_valid: false,
+            valid: false,
             message: msg,
-            signed_by: null,
-            signed_at: null,
-            document_id: null,
-            file_name: file?.name,
         };
     }
 };
@@ -377,22 +374,24 @@ const verifyDocument = async (id) => {
     try {
         // Get document to get verify token
         const docRes = await axios.get(`/api/documents/${id}`);
-        const verifyToken = docRes.data.verify_token;
+        const doc = docRes.data?.data ?? docRes.data;
+        const verifyToken = doc.verify_token || doc.verifyToken;
         
         if (!verifyToken) {
             alert('❌ No verify token found for this document');
             return;
         }
         
-        // Call public verify endpoint
+        // Call verify endpoint
         const res = await axios.get(`/api/verify/${verifyToken}`);
+        const verifyData = res.data?.data ?? res.data;
         
         // Show verification details
-        const signers = res.data.signers.map(s => 
+        const signers = (verifyData.signers || []).map(s => 
             `${s.name}: ${s.status} (${s.signedAt || 'pending'})`
         ).join('\n');
         
-        alert(`✅ Document Verified!\n\nStatus: ${res.data.status}\nSigners:\n${signers}`);
+        alert(`✅ Document Verified!\n\nStatus: ${verifyData.status}\nSigners:\n${signers}`);
     } catch (e) {
         alert('Verification Error: ' + (e.response?.data?.message || e.message));
     }
@@ -401,8 +400,9 @@ const verifyDocument = async (id) => {
 const fetchDocuments = async () => {
     try {
         const res = await axios.get('/api/documents');
-        // Response is direct array, not wrapped in data key
-        documents.value = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        // Handle ApiResponse format: {status, data, message, code}
+        const list = res.data?.data ?? res.data;
+        documents.value = Array.isArray(list) ? list : [];
     } catch (e) {
         console.error('Failed to fetch documents:', e);
         documents.value = [];

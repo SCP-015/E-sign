@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\ApiResponse;
 use App\Http\Requests\DocumentUploadRequest;
 use App\Http\Resources\DocumentResource;
 use App\Models\Document;
@@ -21,79 +22,33 @@ class DocumentController extends Controller
 
     public function index(Request $request)
     {
-        $user = $request->user();
-        
-        $documents = Document::with(['signers'])
-            ->where(function($query) use ($user) {
-                $query->where('user_id', $user->id)
-                      ->orWhereHas('signers', function($q) use ($user) {
-                          $q->where('user_id', $user->id)
-                            ->orWhere('email', $user->email);
-                      });
-            })
-            ->latest()
-            ->get();
-
-        return DocumentResource::collection($documents);
+        $result = $this->documentService->indexResult((int) $request->user()->id);
+        return ApiResponse::fromService($result);
     }
 
     public function upload(DocumentUploadRequest $request)
     {
         $user = $request->user();
-
-        // Validate user has active certificate before allowing upload
-        $cert = Certificate::where('user_id', $user->id)->where('status', 'active')->first();
-        if (!$cert) {
-            return response()->json([
-                'message' => 'No active certificate found. Please complete KYC verification first.'
-            ], 400);
-        }
-
         $file = $request->file('file');
         $title = $request->input('title', $file->getClientOriginalName());
-        
-        $doc = $this->documentService->uploadWithMetadata($file, $user, $title);
 
-        return response()->json([
-            'documentId' => $doc->id,
-            'fileName' => basename($doc->file_path),
-            'fileType' => $doc->file_type,
-            'fileSizeBytes' => $doc->file_size_bytes,
-            'pageCount' => $doc->page_count,
-            'status' => $doc->status,
-            'createdAt' => $doc->created_at->toIso8601String(),
-        ], 201);
+        $result = $this->documentService->uploadWithMetadataResult(
+            (int) $user->id,
+            $file,
+            $title
+        );
+
+        return ApiResponse::fromService($result);
     }
 
     public function show(Request $request, $id)
     {
-        $user = $request->user();
-        $document = Document::with(['signers'])
-            ->where('id', $id)
-            ->where(function($query) use ($user) {
-                $query->where('user_id', $user->id)
-                      ->orWhereHas('signers', function($q) use ($user) {
-                          $q->where('user_id', $user->id)
-                            ->orWhere('email', $user->email);
-                      });
-            })
-            ->firstOrFail();
-        
-        return response()->json([
-            'documentId' => $document->id,
-            'user_id' => $document->user_id,
-            'status' => $document->status,
-            'pageCount' => $document->page_count,
-            'verify_token' => $document->verify_token,
-            'signers' => $document->signers->map(fn($s) => [
-                'id' => $s->id,
-                'userId' => $s->user_id,
-                'email' => $s->email,
-                'name' => $s->name,
-                'status' => $s->status,
-                'signedAt' => $s->signed_at,
-            ]),
-        ]);
+        $result = $this->documentService->showResult(
+            (int) $id,
+            (int) $request->user()->id
+        );
+
+        return ApiResponse::fromService($result);
     }
 
     public function viewUrl(Request $request, $id)

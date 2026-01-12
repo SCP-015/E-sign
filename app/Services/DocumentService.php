@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use App\Http\Resources\DocumentResource;
+use App\Models\Certificate;
 use App\Models\Document;
 use App\Models\Signature;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 use setasign\Fpdi\Tcpdf\Fpdi;
@@ -75,6 +78,124 @@ class DocumentService
             'page_count' => $pageCount,
             'status' => 'pending',
         ]);
+    }
+
+    public function indexResult(int $userId): array
+    {
+        try {
+            $documents = Document::with(['signers'])
+                ->where(function($query) use ($userId) {
+                    $query->where('user_id', $userId)
+                          ->orWhereHas('signers', function($q) use ($userId) {
+                              $q->where('user_id', $userId)
+                                ->orWhereExists(function($subQuery) use ($userId) {
+                                    $subQuery->selectRaw(1)
+                                        ->from('users')
+                                        ->whereColumn('users.id', '=', 'document_signers.user_id')
+                                        ->where('users.id', '=', $userId);
+                                });
+                          });
+                })
+                ->latest()
+                ->get();
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'OK',
+                'data' => DocumentResource::collection($documents)->resolve(),
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => 'Failed to fetch documents: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
+    public function uploadWithMetadataResult(int $userId, UploadedFile $file, ?string $title = null): array
+    {
+        try {
+            $cert = Certificate::where('user_id', $userId)->where('status', 'active')->first();
+            if (!$cert) {
+                return [
+                    'status' => 'error',
+                    'code' => 400,
+                    'message' => 'No active certificate found. Please complete KYC verification first.',
+                    'data' => null,
+                ];
+            }
+
+            $user = \App\Models\User::findOrFail($userId);
+            $doc = $this->uploadWithMetadata($file, $user, $title ?? $file->getClientOriginalName());
+
+            return [
+                'status' => 'success',
+                'code' => 201,
+                'message' => 'Document uploaded successfully',
+                'data' => [
+                    'documentId' => $doc->id,
+                    'fileName' => basename($doc->file_path),
+                    'fileType' => $doc->file_type,
+                    'fileSizeBytes' => $doc->file_size_bytes,
+                    'pageCount' => $doc->page_count,
+                    'status' => $doc->status,
+                    'createdAt' => $doc->created_at->toIso8601String(),
+                ],
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => 'Upload failed: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
+    public function showResult(int $documentId, int $userId): array
+    {
+        try {
+            $document = Document::with(['signers'])
+                ->where('id', $documentId)
+                ->where(function($query) use ($userId) {
+                    $query->where('user_id', $userId)
+                          ->orWhereHas('signers', function($q) use ($userId) {
+                              $q->where('user_id', $userId);
+                          });
+                })
+                ->firstOrFail();
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'OK',
+                'data' => [
+                    'documentId' => $document->id,
+                    'user_id' => $document->user_id,
+                    'status' => $document->status,
+                    'pageCount' => $document->page_count,
+                    'verify_token' => $document->verify_token,
+                    'signers' => $document->signers->map(fn($s) => [
+                        'id' => $s->id,
+                        'userId' => $s->user_id,
+                        'email' => $s->email,
+                        'name' => $s->name,
+                        'status' => $s->status,
+                        'signedAt' => $s->signed_at?->toIso8601String(),
+                    ])->toArray(),
+                ],
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'code' => 404,
+                'message' => 'Document not found: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
     }
 
     /**

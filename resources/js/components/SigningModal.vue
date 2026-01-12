@@ -264,7 +264,8 @@ async function loadPdf() {
   try {
     // Fetch document details to get owner_id
     const docRes = await axios.get(`/api/documents/${props.documentId}`);
-    documentOwnerId.value = docRes.data.user_id;
+    const doc = docRes.data?.data ?? docRes.data;
+    documentOwnerId.value = doc.user_id;
     
     const res = await axios.get(`/api/documents/${props.documentId}/view-url`, {
       responseType: 'arraybuffer',
@@ -412,8 +413,8 @@ const signatureOverlayStyle = computed(() => {
 async function loadSignatures() {
   try {
     const res = await axios.get('/api/signatures');
-    console.log('Signatures loaded:', res.data);
-    signatures.value = Array.isArray(res.data) ? res.data : [];
+    const list = res.data?.data ?? res.data;
+    signatures.value = Array.isArray(list) ? list : [];
     if (signatures.value.length > 0) {
       selectedSignatureId.value = signatures.value[0].id;
     } else {
@@ -487,11 +488,13 @@ async function assignToOther() {
       ]
     });
 
-    const signerId = signerRes.data.signers[0].id; // We need to return ID from backend
+    // Handle ApiResponse format
+    const signerData = signerRes.data?.data ?? signerRes.data;
+    const signerId = signerData.signers?.[0]?.id;
 
     // 2. Add placement for this signer
     await axios.post(`/api/documents/${props.documentId}/placements`, {
-      email: assignEmail.value, // We'll update PlacementController to handle email
+      email: assignEmail.value,
       placements: [
         {
           page: placementPage.value,
@@ -499,7 +502,6 @@ async function assignToOther() {
           y: yNorm,
           w: wNorm,
           h: hNorm,
-          // No signatureId yet as they will pick it
         }
       ]
     });
