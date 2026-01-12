@@ -7,6 +7,10 @@ use Inertia\Inertia;
 Route::get('/api-docs', [ApiDocumentationController::class, 'index'])->name('api.docs');
 
 Route::get('/', function () {
+    return Inertia::render('RootRedirect');
+})->name('root');
+
+Route::get('/login', function () {
     return Inertia::render('Login');
 })->name('login');
 

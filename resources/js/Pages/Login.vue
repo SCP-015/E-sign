@@ -180,6 +180,11 @@ onMounted(async () => {
         return;
     }
 
+    if (authStore.isAuthenticated) {
+        router.visit('/dashboard');
+        return;
+    }
+
 });
 
 const googleLogin = () => {

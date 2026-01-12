@@ -42,7 +42,7 @@
                     </div>
 
                     <div v-else class="flex items-center gap-2">
-                        <Link href="/" class="btn btn-primary btn-sm">Sign In</Link>
+                        <Link href="/login" class="btn btn-primary btn-sm">Sign In</Link>
                     </div>
 
                     <div class="dropdown dropdown-end md:hidden">
@@ -170,6 +170,6 @@ const logout = async () => {
         toastStore.error('Logout failed. Please try again.');
     }
     authStore.logout();
-    router.visit('/');
+    router.visit('/login');
 };
 </script>
