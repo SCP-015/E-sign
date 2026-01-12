@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\ApiResponse;
 use App\Models\DocumentSigner;
 use Illuminate\Http\Request;
 
@@ -30,32 +31,32 @@ class InvitationController extends Controller
         }
 
         if (!$signer) {
-            return response()->json(['message' => 'Invalid invitation'], 404);
+            return ApiResponse::error('Invalid invitation', 404);
         }
 
         if ($signer->invite_accepted_at) {
-            return response()->json(['message' => 'Invitation already accepted'], 410);
+            return ApiResponse::error('Invitation already accepted', 410);
         }
 
         if ($signer->invite_expires_at && $signer->invite_expires_at->isPast()) {
-            return response()->json(['message' => 'Invitation expired'], 410);
+            return ApiResponse::error('Invitation expired', 410);
         }
 
-        return response()->json([
+        return ApiResponse::success([
             'valid' => true,
             'email' => $signer->email,
-            'documentId' => $signer->document_id,
-            'documentTitle' => $signer->document?->title,
-            'signerId' => $signer->id,
-            'expiresAt' => $signer->invite_expires_at?->toIso8601String(),
-        ]);
+            'document_id' => $signer->document_id,
+            'document_title' => $signer->document?->title,
+            'signer_id' => $signer->id,
+            'expires_at' => $signer->invite_expires_at?->toIso8601String(),
+        ], 'OK', 200);
     }
 
     public function accept(Request $request)
     {
         $user = $request->user();
         if (!$user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
+            return ApiResponse::error('Unauthenticated', 401);
         }
 
         if ($request->filled('code')) {
@@ -68,7 +69,7 @@ class InvitationController extends Controller
                 ->first();
 
             if ($signer && strtolower($user->email) !== strtolower($signer->email)) {
-                return response()->json(['message' => 'Invitation email does not match logged-in user'], 403);
+                return ApiResponse::error('Invitation email does not match logged-in user', 403);
             }
         } else {
             $validated = $request->validate([
@@ -77,7 +78,7 @@ class InvitationController extends Controller
             ]);
 
             if (strtolower($user->email) !== strtolower($validated['email'])) {
-                return response()->json(['message' => 'Invitation email does not match logged-in user'], 403);
+                return ApiResponse::error('Invitation email does not match logged-in user', 403);
             }
 
             $signer = DocumentSigner::with('document')
@@ -87,28 +88,30 @@ class InvitationController extends Controller
         }
 
         if (!$signer) {
-            return response()->json(['message' => 'Invalid invitation'], 404);
+            return ApiResponse::error('Invalid invitation', 404);
         }
 
         if ($signer->invite_accepted_at) {
-            return response()->json(['message' => 'Invitation already accepted'], 410);
+            return ApiResponse::error('Invitation already accepted', 410);
         }
 
         if ($signer->invite_expires_at && $signer->invite_expires_at->isPast()) {
-            return response()->json(['message' => 'Invitation expired'], 410);
+            return ApiResponse::error('Invitation expired', 410);
         }
 
         $signer->update([
             'user_id' => $user->id,
+            'email' => strtolower($user->email),
+            'name' => $user->name,
             'invite_accepted_at' => now(),
             'invite_token' => null,
             'invite_expires_at' => null,
         ]);
 
-        return response()->json([
+        return ApiResponse::success([
             'status' => 'accepted',
-            'documentId' => $signer->document_id,
-            'signerId' => $signer->id,
-        ]);
+            'document_id' => $signer->document_id,
+            'signer_id' => $signer->id,
+        ], 'OK', 200);
     }
 }
