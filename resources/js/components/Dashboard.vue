@@ -261,7 +261,7 @@ const isAssignedToMe = (doc) => {
         return Number(doc.user_id) === Number(user.value.id);
     }
     return doc.signers.some(s => 
-        (s.userId && Number(s.userId) === Number(user.value.id)) || 
+        (s.user_id && Number(s.user_id) === Number(user.value.id)) || 
         (s.email && s.email.toLowerCase() === user.value.email?.toLowerCase())
     );
 };
@@ -269,10 +269,10 @@ const isAssignedToMe = (doc) => {
 const hasISigned = (doc) => {
     if (!doc.signers) return false;
     const mySigner = doc.signers.find(s => 
-        (s.userId && Number(s.userId) === Number(user.value.id)) || 
+        (s.user_id && Number(s.user_id) === Number(user.value.id)) || 
         (s.email && s.email.toLowerCase() === user.value.email?.toLowerCase())
     );
-    return !!(mySigner && mySigner.signedAt);
+    return !!(mySigner && mySigner.signed_at);
 };
 
 const verifyUploadResult = ref(null);
@@ -296,8 +296,7 @@ const logout = async () => {
     router.push('/');
 };
 
-const verifyPdfFile = async (e) => {
-    const file = e.target.files[0];
+const verifyUploadFile = async (file) => {
     if (!file) return;
 
     const formData = new FormData();
@@ -309,8 +308,12 @@ const verifyPdfFile = async (e) => {
     } catch (e) {
         const msg = e.response?.data?.message || e.message;
         verifyUploadResult.value = {
-            valid: false,
+            is_valid: false,
             message: msg,
+            signed_by: null,
+            signed_at: null,
+            document_id: null,
+            file_name: file?.name ?? null,
         };
     }
 };
@@ -378,7 +381,7 @@ const verifyDocument = async (id) => {
         // Get document to get verify token
         const docRes = await axios.get(`/api/documents/${id}`);
         const doc = docRes.data?.data ?? docRes.data;
-        const verifyToken = doc.verify_token || doc.verifyToken;
+        const verifyToken = doc.verify_token;
         
         if (!verifyToken) {
             // Fallback: internal verification by document_id
@@ -394,7 +397,7 @@ const verifyDocument = async (id) => {
         
         // Show verification details
         const signers = (verifyData.signers || []).map(s => 
-            `${s.name}: ${s.status} (${s.signedAt || 'pending'})`
+            `${s.name}: ${s.status} (${s.signed_at || 'pending'})`
         ).join('\n');
         
         alert(`✅ Document Verified!\n\nStatus: ${verifyData.status}\nSigners:\n${signers}`);

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Http\Resources\DocumentResource;
+use Carbon\Carbon;
 use App\Models\Certificate;
 use App\Models\Document;
 use App\Models\DocumentSigningEvidence;
@@ -32,6 +33,88 @@ class DocumentService
         $tempPath = sys_get_temp_dir() . '/dec_' . uniqid() . '.' . $extension;
         file_put_contents($tempPath, $plaintext);
         return $tempPath;
+    }
+
+    public function upsertSigningEvidence(Document $document, Certificate $certificate, ?string $finalPdfPath = null, $signedAt = null): DocumentSigningEvidence
+    {
+        $certPem = null;
+        $certPath = $certificate->certificate_path;
+
+        if (is_string($certPath) && $certPath !== '' && file_exists($certPath)) {
+            $pem = file_get_contents($certPath);
+            if ($pem !== false) {
+                $certPem = $pem;
+            }
+        }
+
+        $parsed = null;
+        if (is_string($certPem) && $certPem !== '' && function_exists('openssl_x509_parse')) {
+            $tmp = @openssl_x509_parse($certPem);
+            if (is_array($tmp)) {
+                $parsed = $tmp;
+            }
+        }
+
+        $notBefore = null;
+        $notAfter = null;
+        if (is_array($parsed)) {
+            $from = $parsed['validFrom_time_t'] ?? null;
+            $to = $parsed['validTo_time_t'] ?? null;
+            if (is_int($from)) {
+                $notBefore = Carbon::createFromTimestamp($from);
+            }
+            if (is_int($to)) {
+                $notAfter = Carbon::createFromTimestamp($to);
+            }
+        }
+
+        // Fallback: use DB issued_at / expires_at if cert parsing failed.
+        $notBefore = $notBefore ?? $certificate->issued_at;
+        $notAfter = $notAfter ?? $certificate->expires_at;
+
+        $fingerprint = null;
+        if (is_string($certPem) && $certPem !== '') {
+            if (function_exists('openssl_x509_fingerprint')) {
+                $fp = @openssl_x509_fingerprint($certPem, 'sha256');
+                $fingerprint = is_string($fp) ? $fp : null;
+            } else {
+                $fingerprint = hash('sha256', $certPem);
+            }
+        }
+
+        $serial = null;
+        $subject = null;
+        $issuer = null;
+        if (is_array($parsed)) {
+            $serial = $parsed['serialNumberHex'] ?? ($parsed['serialNumber'] ?? null);
+            $subjectArr = $parsed['subject'] ?? null;
+            $issuerArr = $parsed['issuer'] ?? null;
+            $subject = is_array($subjectArr) ? json_encode($subjectArr) : (is_string($subjectArr) ? $subjectArr : null);
+            $issuer = is_array($issuerArr) ? json_encode($issuerArr) : (is_string($issuerArr) ? $issuerArr : null);
+        }
+
+        $signedAtTs = $signedAt;
+        if ($signedAtTs === null) {
+            $signedAtTs = $document->completed_at ?? $document->signed_at ?? $document->updated_at ?? now();
+        }
+
+        $payload = [
+            'certificate_id' => $certificate->id,
+            'certificate_number' => $certificate->certificate_number,
+            'certificate_fingerprint_sha256' => $fingerprint,
+            'certificate_serial' => $serial,
+            'certificate_subject' => $subject,
+            'certificate_issuer' => $issuer,
+            'certificate_not_before' => $notBefore,
+            'certificate_not_after' => $notAfter,
+            'certificate_pem' => $certPem,
+            'signed_at' => $signedAtTs,
+        ];
+
+        return DocumentSigningEvidence::updateOrCreate(
+            ['document_id' => $document->id],
+            $payload
+        );
     }
 
     public function upload($file, $user)
@@ -174,21 +257,7 @@ class DocumentService
                 'status' => 'success',
                 'code' => 200,
                 'message' => 'OK',
-                'data' => [
-                    'documentId' => $document->id,
-                    'user_id' => $document->user_id,
-                    'status' => $document->status,
-                    'pageCount' => $document->page_count,
-                    'verify_token' => $document->verify_token,
-                    'signers' => $document->signers->map(fn($s) => [
-                        'id' => $s->id,
-                        'userId' => $s->user_id,
-                        'email' => $s->email,
-                        'name' => $s->name,
-                        'status' => $s->status,
-                        'signedAt' => $s->signed_at?->toIso8601String(),
-                    ])->toArray(),
-                ],
+                'data' => (new \App\Http\Resources\DocumentResource($document))->resolve(),
             ];
         } catch (\Exception $e) {
             return [

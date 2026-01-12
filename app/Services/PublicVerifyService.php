@@ -227,22 +227,22 @@ class PublicVerifyService
         }
 
         $payload = [
-            'documentId' => $document->id,
+            'document_id' => $document->id,
             'status' => $document->status,
             'is_valid' => (bool) $wasCertValidAtSigning,
             'message' => $wasCertValidAtSigning ? 'Document is valid' : 'Document cannot be validated (missing/invalid LTV evidence)',
-            'fileName' => $document->title ?? basename($document->file_path),
-            'completedAt' => $document->completed_at?->toIso8601String(),
+            'file_name' => $document->title ?? basename($document->file_path),
+            'completed_at' => $document->completed_at?->toIso8601String(),
             'signers' => $document->signers->map(fn ($s) => [
                 'name' => $s->name,
                 'status' => $s->status,
-                'signedAt' => $s->signed_at?->toIso8601String(),
+                'signed_at' => $s->signed_at?->toIso8601String(),
             ])->toArray(),
         ];
 
         if ($evidence) {
             $payload['ltv'] = [
-                'signedAt' => $signedAt?->toIso8601String(),
+                'signed_at' => $signedAt?->toIso8601String(),
                 'certificate_number' => $evidence->certificate_number,
                 'certificate_fingerprint_sha256' => $evidence->certificate_fingerprint_sha256,
                 'certificate_not_before' => $evidence->certificate_not_before?->toIso8601String(),
