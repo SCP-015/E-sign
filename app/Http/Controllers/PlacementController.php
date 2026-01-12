@@ -16,9 +16,16 @@ class PlacementController extends Controller
         $this->placementService = $placementService;
     }
 
+    protected $placementService;
+
+    public function __construct(PlacementService $placementService)
+    {
+        $this->placementService = $placementService;
+    }
+
     /**
      * Save signature placement for a signer
-     * POST /api/v1/documents/{documentId}/placements
+     * POST /api/documents/{documentId}/placements
      */
     public function store(StorePlacementsRequest $request, $documentId)
     {
@@ -34,9 +41,9 @@ class PlacementController extends Controller
 
     /**
      * Update placement position
-     * PUT /api/v1/documents/{documentId}/placements/{placementId}
+     * PUT /api/documents/{documentId}/placements/{placementId}
      */
-    public function update(Request $request, $documentId, $placementId)
+    public function update(UpdatePlacementRequest $request, $documentId, $placementId)
     {
         $request->validate([
             'x' => 'nullable|numeric',
@@ -56,7 +63,7 @@ class PlacementController extends Controller
 
     /**
      * Get all placements for a document
-     * GET /api/v1/documents/{documentId}/placements
+     * GET /api/documents/{documentId}/placements
      */
     public function index($documentId)
     {

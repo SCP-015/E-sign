@@ -2,51 +2,31 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\ApiResponse;
 use App\Models\User;
 use App\Http\Requests\LoginRequest;
-use App\Http\Resources\UserResource;
+use App\Http\Requests\GoogleMobileLoginCodeRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
-use App\Services\GoogleMobileLoginService;
+use App\Services\AuthService;
 use App\Http\Requests\Auth\GoogleMobileLoginRequest;
 use Illuminate\Support\Facades\URL;
 
 class AuthController extends Controller
 {
-    protected $googleMobileLoginService;
+    protected $authService;
 
-    public function __construct(GoogleMobileLoginService $googleMobileLoginService)
+    public function __construct(AuthService $authService)
     {
-        $this->googleMobileLoginService = $googleMobileLoginService;
+        $this->authService = $authService;
     }
 
     public function login(LoginRequest $request)
     {
-        $user = User::where('email', $request->email)->first();
-
-        if (!$user) {
-            $user = User::create([
-                'name' => $request->name ?? 'Test User',
-                'email' => $request->email,
-                'password' => Hash::make($request->password ?? 'password'),
-                'kyc_status' => 'unverified',
-            ]);
-        } else {
-            if ($request->password && !Hash::check($request->password, $user->password)) {
-                return response()->json(['message' => 'Invalid credentials'], 401);
-            }
-        }
-
-        $token = $user->createToken('auth_token')->accessToken;
-
-        return response()->json([
-            'message' => 'Login successful',
-            'token' => $token,
-            'user' => new UserResource($user)
-        ]);
+        return ApiResponse::fromService($this->authService->login($request->validated()));
     }
 
     // --- WEB GOOGLE LOGIN ---
@@ -84,7 +64,7 @@ class AuthController extends Controller
             return redirect(URL::to('/?auth_code=' . urlencode($exchangeCode)));
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Google Login Failed: ' . $e->getMessage()], 500);
+            return ApiResponse::error('Google Login Failed: ' . $e->getMessage(), 500);
         }
     }
 
@@ -110,38 +90,20 @@ class AuthController extends Controller
     public function googleMobileLogin(GoogleMobileLoginRequest $request)
     {
         try {
-            $result = $this->googleMobileLoginService->handleMobileLogin(
-                $request->id_token,
-                $request->access_token,
-                $request->code
+            return ApiResponse::fromService(
+                $this->authService->googleMobileLogin($request->id_token, $request->access_token, $request->code)
             );
-            return response()->json($result);
         } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage()
-            ], $e->getCode() ?: 500);
+            return ApiResponse::error($e->getMessage(), $e->getCode() ?: 500);
         }
     }
 
-    public function googleMobileLoginCode(Request $request)
+    public function googleMobileLoginCode(GoogleMobileLoginCodeRequest $request)
     {
-        $request->validate([
-            'code' => 'required|string',
-        ]);
-
         try {
-            $result = $this->googleMobileLoginService->handleMobileLogin(
-                null,
-                null,
-                $request->code
-            );
-            return response()->json($result);
+            return ApiResponse::fromService($this->authService->googleMobileLogin(null, null, $request->code));
         } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage()
-            ], $e->getCode() ?: 500);
+            return ApiResponse::error($e->getMessage(), $e->getCode() ?: 500);
         }
     }
 
@@ -152,25 +114,9 @@ class AuthController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Unauthenticated'
-            ], 401);
+            return ApiResponse::error('Unauthenticated', 401);
         }
 
-        try {
-            // Revoke all tokens for this user
-            $user->tokens()->delete();
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Logout successful'
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Logout failed: ' . $e->getMessage()
-            ], 500);
-        }
+        return ApiResponse::fromService($this->authService->logout((int) $user->id));
     }
 }

@@ -415,10 +415,15 @@ async function loadSignatures() {
     const res = await axios.get('/api/signatures');
     const list = res.data?.data ?? res.data;
     signatures.value = Array.isArray(list) ? list : [];
+<<<<<<< HEAD
+=======
+
+>>>>>>> 4c61e561ff70a37555eb66204cc456df1ac047ac
     if (signatures.value.length > 0) {
-      selectedSignatureId.value = signatures.value[0].id;
+      const defaultSig = signatures.value.find((s) => s.is_default) || signatures.value[0];
+      selectedSignatureId.value = defaultSig?.id ?? null;
     } else {
-      console.warn('No signatures found for user');
+      selectedSignatureId.value = null;
     }
   } catch (e) {
     console.error('Failed to load signatures:', e);
@@ -432,6 +437,12 @@ async function saveSignature() {
     return;
   }
 
+  const signerUserId = authStore.user?.id;
+  if (!signerUserId) {
+    showMessage('Unauthenticated', 'error');
+    return;
+  }
+
   if (!pageWrap.value) {
     showMessage('PDF is not ready yet', 'error');
     return;
@@ -442,7 +453,7 @@ async function saveSignature() {
   saving.value = true;
   try {
     const response = await axios.post(`/api/documents/${props.documentId}/placements`, {
-      signerUserId: authStore.user.id,
+      signerUserId,
       placements: [
         {
           page: placementPage.value,
@@ -454,6 +465,10 @@ async function saveSignature() {
         }
       ]
     });
+
+    if (response?.data?.status && response.data.status !== 'success') {
+      throw new Error(response.data.message || 'Failed to save signature');
+    }
 
     showMessage('✅ Signature placed successfully!', 'success');
     setTimeout(() => {

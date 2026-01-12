@@ -41,6 +41,7 @@
         <div v-else class="signatures-list">
           <div v-for="sig in signatures" :key="sig.id" class="signature-card">
             <div class="sig-preview">
+<<<<<<< HEAD
               <img 
                 v-if="signatureImageUrls[sig.id]"
                 :src="signatureImageUrls[sig.id]" 
@@ -49,6 +50,10 @@
                 @error="handleImageError($event, sig.id)"
                 :key="sig.id"
               >
+=======
+              <img v-if="sig.imageUrl" :src="sig.imageUrl" :alt="sig.name" class="sig-image">
+              <div v-else class="sig-image-missing">Preview unavailable</div>
+>>>>>>> 4c61e561ff70a37555eb66204cc456df1ac047ac
             </div>
             <div class="sig-info">
               <h4>{{ sig.name }}</h4>
@@ -249,7 +254,10 @@ async function saveSignature() {
     formData.append('is_default', signatures.value.length === 0 ? '1' : '0'); // First signature is default (1 or 0)
     
     const response = await axios.post('/api/signatures', formData);
+<<<<<<< HEAD
     // Check for error in ApiResponse format
+=======
+>>>>>>> 4c61e561ff70a37555eb66204cc456df1ac047ac
     if (response?.data?.status && response.data.status !== 'success') {
       throw new Error(response.data.message || 'Failed to save signature');
     }
@@ -266,7 +274,10 @@ async function saveSignature() {
     if (e.response?.data?.message) {
       errorMsg = e.response.data.message;
     }
+<<<<<<< HEAD
     // Handle both Laravel validation errors and ApiResponse format
+=======
+>>>>>>> 4c61e561ff70a37555eb66204cc456df1ac047ac
     if (e.response?.data?.data && e.response?.data?.data?.errors) {
       const errors = e.response.data.data.errors;
       errorMsg = Object.keys(errors).map(key => `${key}: ${errors[key].join(', ')}`).join('; ');
@@ -282,10 +293,27 @@ async function saveSignature() {
 async function loadSignatures() {
   try {
     const response = await axios.get('/api/signatures');
+<<<<<<< HEAD
     // Handle both direct array and ApiResponse format
     const list = response.data?.data ?? response.data;
     signatures.value = Array.isArray(list) ? list : [];
     await loadSignatureImages();
+=======
+    const list = response.data?.data ?? response.data;
+    signatures.value = Array.isArray(list) ? list : [];
+
+    // Load protected images via Authorization header (img tag does not send Bearer token)
+    await Promise.all(
+      signatures.value.map(async (sig) => {
+        try {
+          const imgRes = await axios.get(`/api/signatures/${sig.id}/image`, { responseType: 'blob' });
+          sig.imageUrl = URL.createObjectURL(imgRes.data);
+        } catch (e) {
+          sig.imageUrl = null;
+        }
+      })
+    );
+>>>>>>> 4c61e561ff70a37555eb66204cc456df1ac047ac
   } catch (e) {
     console.error('Failed to load signatures:', e);
     showMessage(e.response?.data?.message || 'Failed to load signatures', 'error');

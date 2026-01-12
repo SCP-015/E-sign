@@ -4,8 +4,12 @@ namespace App\Services;
 
 use App\Http\Resources\DocumentResource;
 use App\Models\Certificate;
+use App\Http\Resources\DocumentResource;
+use App\Models\Certificate;
 use App\Models\Document;
+use App\Models\DocumentSigningEvidence;
 use App\Models\Signature;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
@@ -32,6 +36,7 @@ class DocumentService
         file_put_contents($tempPath, $plaintext);
         return $tempPath;
     }
+
     public function upload($file, $user)
     {
         // Use email-based folder structure: private/{email}/documents/

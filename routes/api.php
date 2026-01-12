@@ -1,9 +1,12 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+<<<<<<< HEAD
 use App\Http\Controllers\InvitationController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
+=======
+>>>>>>> 4c61e561ff70a37555eb66204cc456df1ac047ac
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
@@ -27,13 +30,7 @@ Route::get('/invitations/validate', [InvitationController::class, 'validateInvit
 Route::middleware('auth:api')->post('/invitations/accept', [InvitationController::class, 'accept']);
 
 Route::middleware('auth:api')->group(function () {
-    Route::get('/user', function (Request $request) {
-        $user = $request->user();
-        if (!$user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-        return new UserResource($user->load('certificate'));
-    });
+    Route::get('/user', [\App\Http\Controllers\UserController::class, 'show']);
     Route::post('/certificates/issue', [\App\Http\Controllers\CertificateController::class, 'issue']);
     
     // Documents

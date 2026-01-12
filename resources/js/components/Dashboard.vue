@@ -171,17 +171,26 @@
                         <div class="doc-header">
                             <div class="doc-icon">
                                 <span v-if="doc.status === 'pending'">⏳</span>
+<<<<<<< HEAD
                                 <span v-else-if="doc.status === 'signed'">✅</span>
                                 <span v-else-if="doc.status === 'IN_PROGRESS'">🔄</span>
                                 <span v-else>📄</span>
                             </div>
                             <div class="doc-meta">
                                 <h4 class="doc-name">{{ doc.original_filename || doc.title || getFileName(doc.file_path) }}</h4>
+=======
+                                <span v-else-if="doc.status === 'signed' || doc.status === 'COMPLETED'">✅</span>
+                                <span v-else>📄</span>
+                            </div>
+                            <div class="doc-meta">
+                                <h4 class="doc-name">{{ getFileName(doc) }}</h4>
+>>>>>>> 4c61e561ff70a37555eb66204cc456df1ac047ac
                                 <p class="doc-date">{{ formatDate(doc.created_at) }}</p>
                             </div>
                             <span :class="['status-badge', doc.status]">{{ doc.status }}</span>
                         </div>
                         <div class="doc-actions">
+<<<<<<< HEAD
                             <template v-if="canSign(doc)">
                                 <button @click="openSigningModal(doc.id, doc.page_count)" class="btn-primary btn-sm">
                                     ✍️ Sign Now
@@ -196,9 +205,15 @@
                                 </button>
                             </template>
                             <button v-if="doc.status === 'signed'" @click="verifyDocument(doc.id)" class="btn-secondary btn-sm">
+=======
+                            <button v-if="doc.status === 'pending'" @click="openSigningModal(doc.id, doc.page_count)" class="btn-primary btn-sm">
+                                ✍️ Sign Now
+                            </button>
+                            <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="verifyDocument(doc.id)" class="btn-secondary btn-sm">
+>>>>>>> 4c61e561ff70a37555eb66204cc456df1ac047ac
                                 Verify Signature
                             </button>
-                            <button v-if="doc.status === 'signed'" @click="downloadDocument(doc.id)" class="btn-link btn-sm">
+                            <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="downloadDocument(doc.id)" class="btn-link btn-sm">
                                 📥 Download
                             </button>
                         </div>
@@ -278,7 +293,11 @@ const hasISigned = (doc) => {
 const verifyUploadResult = ref(null);
 
 const signedCount = computed(() => documents.value.filter(d => d.status === 'signed' || d.status === 'COMPLETED').length);
+<<<<<<< HEAD
 const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending' || d.status === 'IN_PROGRESS').length);
+=======
+const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending').length);
+>>>>>>> 4c61e561ff70a37555eb66204cc456df1ac047ac
 const certificateExpiry = computed(() => {
     const expiresAt = user.value?.certificate?.expires_at;
     if (!expiresAt) return '-';
@@ -319,7 +338,10 @@ const goToSignatureSetup = () => {
     router.push('/signature-setup');
 };
 
-const getFileName = (path) => path ? path.split('/').pop() : 'document.pdf';
+const getFileName = (doc) => {
+    if (!doc) return 'document.pdf';
+    return doc.title || doc.original_filename || (doc.file_path ? doc.file_path.split('/').pop() : 'document.pdf');
+};
 const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -374,11 +396,18 @@ const verifyDocument = async (id) => {
     try {
         // Get document to get verify token
         const docRes = await axios.get(`/api/documents/${id}`);
+<<<<<<< HEAD
         const doc = docRes.data?.data ?? docRes.data;
         const verifyToken = doc.verify_token || doc.verifyToken;
+=======
+        const verifyToken = docRes.data?.data?.verify_token;
+>>>>>>> 4c61e561ff70a37555eb66204cc456df1ac047ac
         
         if (!verifyToken) {
-            alert('❌ No verify token found for this document');
+            // Fallback: internal verification by document_id
+            const fallback = await axios.post('/api/documents/verify', { document_id: id });
+            const payload = fallback.data?.data ?? fallback.data;
+            alert(`❌ No verify token found for this document\n\nInternal verification: ${payload?.message || 'N/A'}`);
             return;
         }
         
@@ -400,7 +429,10 @@ const verifyDocument = async (id) => {
 const fetchDocuments = async () => {
     try {
         const res = await axios.get('/api/documents');
+<<<<<<< HEAD
         // Handle ApiResponse format: {status, data, message, code}
+=======
+>>>>>>> 4c61e561ff70a37555eb66204cc456df1ac047ac
         const list = res.data?.data ?? res.data;
         documents.value = Array.isArray(list) ? list : [];
     } catch (e) {

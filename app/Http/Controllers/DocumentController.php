@@ -4,10 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Helpers\ApiResponse;
 use App\Http\Requests\DocumentUploadRequest;
-use App\Http\Resources\DocumentResource;
-use App\Models\Document;
-use App\Models\Certificate;
-use App\Models\Signature;
 use App\Services\DocumentService;
 use Illuminate\Http\Request;
 

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\KycData;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -116,6 +117,82 @@ class CertificateService
         throw new \Exception("Failed to generate certificate files.");
     }
     
+    public function issueCertificateResult(int $userId): array
+    {
+        try {
+            $user = \App\Models\User::findOrFail($userId);
+
+            if ($user->kyc_status !== 'verified') {
+                return [
+                    'status' => 'error',
+                    'code' => 400,
+                    'message' => 'KYC not verified. Please submit KYC before issuing/renewing certificate.',
+                    'data' => null,
+                ];
+            }
+
+            $kyc = KycData::where('user_id', $user->id)->latest()->first();
+            if (!$kyc || ($kyc->status ?? null) !== 'verified') {
+                return [
+                    'status' => 'error',
+                    'code' => 400,
+                    'message' => 'KYC data is missing or not verified. Please submit KYC before issuing/renewing certificate.',
+                    'data' => null,
+                ];
+            }
+
+            $idPhotoPath = is_string($kyc->id_photo_path) ? $kyc->id_photo_path : null;
+            $selfiePhotoPath = is_string($kyc->selfie_photo_path) ? $kyc->selfie_photo_path : null;
+            if (!$idPhotoPath || !$selfiePhotoPath) {
+                return [
+                    'status' => 'error',
+                    'code' => 400,
+                    'message' => 'KYC documents are missing. Please re-submit KYC before issuing/renewing certificate.',
+                    'data' => null,
+                ];
+            }
+
+            $idRel = str_replace('private/', '', $idPhotoPath);
+            $selfieRel = str_replace('private/', '', $selfiePhotoPath);
+            if (!Storage::disk('private')->exists($idRel) || !Storage::disk('private')->exists($selfieRel)) {
+                return [
+                    'status' => 'error',
+                    'code' => 400,
+                    'message' => 'KYC documents are missing in storage. Please re-submit KYC before issuing/renewing certificate.',
+                    'data' => null,
+                ];
+            }
+
+            \App\Models\Certificate::where('user_id', $user->id)
+                ->where('status', 'active')
+                ->update(['status' => 'inactive']);
+
+            $cert = $this->generateUserCertificate($user);
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'Certificate issued successfully',
+                'data' => [
+                    'certificate' => [
+                        'id' => $cert->id,
+                        'certificate_number' => $cert->certificate_number,
+                        'status' => $cert->status,
+                        'issued_at' => $cert->issued_at?->toIso8601String(),
+                        'expires_at' => $cert->expires_at?->toIso8601String(),
+                    ],
+                ],
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => 'Failed to issue certificate: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
     public function getRootCertPath()
     {
         return $this->caCertPath;
