@@ -4,12 +4,9 @@ namespace App\Services;
 
 use App\Http\Resources\DocumentResource;
 use App\Models\Certificate;
-use App\Http\Resources\DocumentResource;
-use App\Models\Certificate;
 use App\Models\Document;
 use App\Models\DocumentSigningEvidence;
 use App\Models\Signature;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;

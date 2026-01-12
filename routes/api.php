@@ -1,12 +1,9 @@
 <?php
 
 use App\Http\Controllers\AuthController;
-<<<<<<< HEAD
 use App\Http\Controllers\InvitationController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
-=======
->>>>>>> 4c61e561ff70a37555eb66204cc456df1ac047ac
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Helpers\ApiResponse;
 use App\Http\Requests\DocumentUploadRequest;
+use App\Models\Document;
 use App\Services\DocumentService;
 use Illuminate\Http\Request;
 
@@ -49,30 +50,37 @@ class DocumentController extends Controller
 
     public function viewUrl(Request $request, $id)
     {
-        $user = $request->user();
-        $document = Document::where('id', $id)
-            ->where(function($query) use ($user) {
-                $query->where('user_id', $user->id)
-                      ->orWhereHas('signers', function($q) use ($user) {
-                          $q->where('user_id', $user->id)
-                            ->orWhere('email', $user->email);
-                      });
-            })
-            ->firstOrFail();
+        try {
+            $user = $request->user();
+            
+            $document = Document::where('id', $id)
+                ->where(function($query) use ($user) {
+                    $query->where('user_id', $user->id)
+                          ->orWhereHas('signers', function($q) use ($user) {
+                              $q->where('user_id', $user->id)
+                                ->orWhere('email', $user->email);
+                          });
+                })
+                ->firstOrFail();
 
-        // File is stored on the "private" disk, so resolve using Storage disk path
-        $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($document->file_path);
+            $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($document->file_path);
 
-        \Illuminate\Support\Facades\Log::info('ViewUrl - Document ID: ' . $id . ', File: ' . $document->file_path . ', Full path: ' . $filePath . ', Exists: ' . (file_exists($filePath) ? 'yes' : 'no'));
+            if (!file_exists($filePath)) {
+                \Illuminate\Support\Facades\Log::error('File not found: ' . $filePath);
+                return response()->json(['message' => 'File not found on server'], 404);
+            }
 
-        if (!file_exists($filePath)) {
-            return response()->json(['message' => 'File not found'], 404);
+            return response()->file($filePath, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . basename($document->file_path) . '"',
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            \Illuminate\Support\Facades\Log::error('Document not found or access denied: ' . $id);
+            return response()->json(['message' => 'Document not found or access denied'], 404);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('ViewUrl error: ' . $e->getMessage());
+            return response()->json(['message' => 'Failed to load PDF: ' . $e->getMessage()], 500);
         }
-
-        return response()->file($filePath, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="' . basename($document->file_path) . '"',
-        ]);
     }
 
     public function finalize(Request $request, $id)

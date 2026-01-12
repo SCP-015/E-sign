@@ -16,13 +16,6 @@ class PlacementController extends Controller
         $this->placementService = $placementService;
     }
 
-    protected $placementService;
-
-    public function __construct(PlacementService $placementService)
-    {
-        $this->placementService = $placementService;
-    }
-
     /**
      * Save signature placement for a signer
      * POST /api/documents/{documentId}/placements
@@ -52,7 +45,7 @@ class PlacementController extends Controller
             'h' => 'nullable|numeric',
         ]);
 
-        $result = $this->placementService->updatePlacement(
+                            $result = $this->placementService->updatePlacement(
             (int) $documentId,
             (int) $placementId,
             $request->only(['x', 'y', 'w', 'h'])

@@ -415,10 +415,6 @@ async function loadSignatures() {
     const res = await axios.get('/api/signatures');
     const list = res.data?.data ?? res.data;
     signatures.value = Array.isArray(list) ? list : [];
-<<<<<<< HEAD
-=======
-
->>>>>>> 4c61e561ff70a37555eb66204cc456df1ac047ac
     if (signatures.value.length > 0) {
       const defaultSig = signatures.value.find((s) => s.is_default) || signatures.value[0];
       selectedSignatureId.value = defaultSig?.id ?? null;
