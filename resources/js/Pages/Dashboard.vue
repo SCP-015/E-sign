@@ -79,6 +79,12 @@
             @close="showSigningModal = false"
             @signed="onDocumentSigned"
         />
+
+        <VerifyResultModal
+            :isOpen="verifyModalOpen"
+            :result="verifyModalResult"
+            @close="closeVerifyModal"
+        />
     </div>
 </template>
 
@@ -88,6 +94,7 @@ import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
 import { useToastStore } from '../stores/toast';
 import SigningModal from '../components/SigningModal.vue';
+import VerifyResultModal from '../components/VerifyResultModal.vue';
 import KycBanner from '../components/dashboard/KycBanner.vue';
 import StatsGrid from '../components/dashboard/StatsGrid.vue';
 import CertificateStatusCard from '../components/dashboard/CertificateStatusCard.vue';
@@ -105,6 +112,8 @@ const fileInput = ref(null);
 const showSigningModal = ref(false);
 const selectedDocId = ref(null);
 const selectedDocPageCount = ref(0);
+const verifyModalOpen = ref(false);
+const verifyModalResult = ref(null);
 
 const signedCount = computed(() => documents.value.filter(d => d.status === 'signed').length);
 const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending').length);
@@ -190,21 +199,49 @@ const verifyDocument = async (id) => {
         const verifyToken = docRes.data.verify_token;
         
         if (!verifyToken) {
-            toastStore.error('No verify token found for this document.');
+            verifyModalResult.value = {
+                title: 'Verification Failed',
+                tone: 'error',
+                summary: 'No verify token found for this document.',
+                fields: [
+                    { label: 'Document ID', value: id },
+                ],
+            };
+            verifyModalOpen.value = true;
             return;
         }
         
         const res = await axios.get(`/api/verify/${verifyToken}`);
-        
-        const signers = (res.data.signers || []).map(s => 
-            `${s.name}: ${s.status} (${s.signedAt || 'pending'})`
-        ).join('\n');
 
         const status = res.data.status || 'unknown';
-        const details = signers ? `Status: ${status}\nSigners:\n${signers}` : `Status: ${status}\nSigners: none`;
-        toastStore.success(`Document verified.\n${details}`, 8000);
+        const tone = status === 'COMPLETED' || status === 'signed' ? 'success' : 'warning';
+        verifyModalResult.value = {
+            title: 'Verification Result',
+            tone,
+            statusLabel: status,
+            summary: tone === 'success' ? 'Document signature verified successfully.' : 'Document is not completed yet.',
+            fields: [
+                { label: 'Document ID', value: res.data.documentId || id },
+                { label: 'File', value: res.data.fileName || 'Document' },
+                { label: 'Completed At', value: formatDateTime(res.data.completedAt) },
+            ],
+            signers: (res.data.signers || []).map((signer) => ({
+                name: signer.name,
+                status: signer.status,
+                signedAt: formatDateTime(signer.signedAt),
+            })),
+        };
+        verifyModalOpen.value = true;
     } catch (e) {
-        toastStore.error(formatApiError('Verification failed', e));
+        verifyModalResult.value = {
+            title: 'Verification Failed',
+            tone: 'error',
+            summary: formatApiError('Verification failed', e),
+            fields: [
+                { label: 'Document ID', value: id },
+            ],
+        };
+        verifyModalOpen.value = true;
     }
 };
 
@@ -255,5 +292,22 @@ const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
+const formatDateTime = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
+
+const closeVerifyModal = () => {
+    verifyModalOpen.value = false;
+    verifyModalResult.value = null;
 };
 </script>

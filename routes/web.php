@@ -18,6 +18,10 @@ Route::get('/signature-setup', function () {
     return Inertia::render('SignatureSetup');
 })->name('signature.setup');
 
+Route::get('/verify', function () {
+    return Inertia::render('Verify');
+})->name('verify');
+
 Route::get('/qr-positioner/{documentId}', function (int $documentId) {
     return Inertia::render('DocumentQrPositioner', [
         'documentId' => $documentId,
