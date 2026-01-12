@@ -3,15 +3,15 @@
         <h3 class="text-lg font-semibold">Certificate Status</h3>
         <div class="card mt-3 border border-base-200 bg-base-100 shadow-sm">
             <div class="card-body gap-0 p-0">
-                <div class="flex items-center justify-between border-b border-base-200 px-4 py-4">
-                    <div>
+                <div class="flex flex-col gap-2 border-b border-base-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
+                    <div class="min-w-0">
                         <p class="text-sm font-semibold">Digital ID</p>
                         <p class="text-xs text-base-content/60">{{ idStatusText }}</p>
                     </div>
                     <span :class="['badge', badgeClass]">{{ badgeText }}</span>
                 </div>
-                <div class="flex items-center justify-between px-4 py-4">
-                    <div>
+                <div class="flex flex-col gap-2 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
+                    <div class="min-w-0">
                         <p class="text-sm font-semibold">Certificate Expiry</p>
                         <p class="text-xs text-base-content/60">{{ expiryText }}</p>
                     </div>

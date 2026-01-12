@@ -1,4 +1,5 @@
 <template>
+  <Head title="QR Signature Position" />
   <div class="min-h-screen">
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-10">
       <div>
@@ -11,14 +12,14 @@
         <div class="card-body gap-6">
           <div class="flex flex-col gap-4 lg:flex-row">
             <div class="flex-1">
-              <div class="rounded-2xl border border-base-200 bg-base-200/40 p-4">
+              <div class="rounded-2xl border border-base-200 bg-base-200/40 p-3 sm:p-4">
                 <div class="relative mx-auto aspect-[210/297] w-full max-w-lg rounded-xl border border-base-200 bg-white shadow" ref="pdfPage">
                   <div class="absolute left-4 top-4 text-xs text-base-content/40">PDF Page Preview (A4)</div>
                   <div
                     ref="qrBox"
-                    class="absolute flex cursor-grab items-center justify-center rounded-xl border-2 border-dashed border-primary/60 bg-primary/10 text-primary transition"
+                    class="absolute flex cursor-grab items-center justify-center rounded-xl border-2 border-dashed border-primary/60 bg-primary/10 text-primary transition touch-none"
                     :style="qrBoxStyle"
-                    @mousedown="startDrag"
+                    @pointerdown="startDrag"
                   >
                     <div class="flex flex-col items-center gap-2">
                       <svg viewBox="0 0 100 100" class="h-10 w-10">
@@ -75,7 +76,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
+import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useToastStore } from '../stores/toast';
 import { formatApiError } from '../utils/errors';
@@ -120,6 +122,10 @@ onMounted(async () => {
   await loadPosition();
 });
 
+onBeforeUnmount(() => {
+  stopDrag();
+});
+
 async function loadPosition() {
   try {
     const response = await axios.get(`/api/documents/${props.documentId}/qr-position`);
@@ -140,17 +146,22 @@ async function loadPosition() {
 
 function startDrag(event) {
   event.preventDefault();
+  if (!pdfPage.value || !qrBox.value) return;
   isDragging.value = true;
-  
-  const pageRect = pdfPage.value.getBoundingClientRect();
+
   const qrRect = qrBox.value.getBoundingClientRect();
-  
+
   dragOffset.x = event.clientX - qrRect.left;
   dragOffset.y = event.clientY - qrRect.top;
-  
-  document.addEventListener('mousemove', onDrag);
-  document.addEventListener('mouseup', stopDrag);
-  
+
+  if (qrBox.value.setPointerCapture) {
+    qrBox.value.setPointerCapture(event.pointerId);
+  }
+
+  window.addEventListener('pointermove', onDrag);
+  window.addEventListener('pointerup', stopDrag);
+  window.addEventListener('pointercancel', stopDrag);
+
   qrBox.value.style.cursor = 'grabbing';
 }
 
@@ -174,11 +185,21 @@ function onDrag(event) {
   hasChanges.value = true;
 }
 
-function stopDrag() {
+function stopDrag(event) {
   isDragging.value = false;
-  document.removeEventListener('mousemove', onDrag);
-  document.removeEventListener('mouseup', stopDrag);
-  qrBox.value.style.cursor = 'grab';
+  window.removeEventListener('pointermove', onDrag);
+  window.removeEventListener('pointerup', stopDrag);
+  window.removeEventListener('pointercancel', stopDrag);
+  if (event?.pointerId != null && qrBox.value?.releasePointerCapture) {
+    try {
+      qrBox.value.releasePointerCapture(event.pointerId);
+    } catch (e) {
+      // No-op if the pointer is already released.
+    }
+  }
+  if (qrBox.value) {
+    qrBox.value.style.cursor = 'grab';
+  }
 }
 
 async function savePosition() {

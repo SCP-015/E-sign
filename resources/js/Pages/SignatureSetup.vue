@@ -1,4 +1,5 @@
 <template>
+  <Head title="Signature Setup" />
   <div class="min-h-screen">
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10">
       <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -7,7 +8,7 @@
           <h2 class="text-3xl font-bold">Setup Your Signature</h2>
           <p class="text-sm text-base-content/60">Create and manage your digital signatures.</p>
         </div>
-        <button @click="goToDashboard" class="btn btn-outline btn-sm">Back to Dashboard</button>
+        <button @click="goToDashboard" class="btn btn-outline btn-sm w-full sm:w-auto">Back to Dashboard</button>
       </div>
 
       <div class="grid gap-6 lg:grid-cols-[1.2fr,1fr]">
@@ -15,17 +16,18 @@
           <div class="card-body gap-4">
             <div>
               <h3 class="text-lg font-semibold">Draw Your Signature</h3>
-              <p class="text-sm text-base-content/60">Use your mouse or trackpad to sign.</p>
+              <p class="text-sm text-base-content/60">Use your mouse, trackpad, or touch to sign.</p>
             </div>
 
             <div class="rounded-2xl border border-base-200 bg-base-100 p-2">
               <canvas
                 ref="signatureCanvas"
-                class="h-72 w-full cursor-crosshair rounded-xl"
-                @mousedown="startDrawing"
-                @mousemove="draw"
-                @mouseup="stopDrawing"
-                @mouseout="stopDrawing"
+                class="h-56 w-full cursor-crosshair rounded-xl touch-none sm:h-72"
+                @pointerdown="startDrawing"
+                @pointermove="draw"
+                @pointerup="stopDrawing"
+                @pointerleave="stopDrawing"
+                @pointercancel="stopDrawing"
               ></canvas>
             </div>
 
@@ -56,8 +58,8 @@
                     <img v-if="sig.imageUrl" :src="sig.imageUrl" :alt="sig.name" class="max-h-20 w-full object-contain">
                     <div v-else class="text-xs text-base-content/40">Preview unavailable</div>
                   </div>
-                  <div class="flex-1">
-                    <h4 class="font-semibold">{{ sig.name }}</h4>
+                  <div class="flex-1 min-w-0">
+                    <h4 class="break-words font-semibold">{{ sig.name }}</h4>
                     <p class="text-xs text-base-content/60">{{ sig.image_type.toUpperCase() }} · {{ formatDate(sig.created_at) }}</p>
                     <span v-if="sig.is_default" class="badge badge-success badge-sm mt-2">Default</span>
                   </div>
@@ -136,7 +138,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useToastStore } from '../stores/toast';
 import { formatApiError } from '../utils/errors';
@@ -237,31 +239,46 @@ function initCanvas() {
 }
 
 function startDrawing(e) {
-  const rect = signatureCanvas.value.getBoundingClientRect();
+  e.preventDefault();
+  const canvas = signatureCanvas.value;
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
   lastX = e.clientX - rect.left;
   lastY = e.clientY - rect.top;
   isDrawing.value = true;
+  if (canvas.setPointerCapture) {
+    canvas.setPointerCapture(e.pointerId);
+  }
 }
 
 function draw(e) {
-  if (!isDrawing.value) return;
-  
+  if (!isDrawing.value || !ctx) return;
+
   const rect = signatureCanvas.value.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
-  
+
   ctx.beginPath();
   ctx.moveTo(lastX, lastY);
   ctx.lineTo(x, y);
   ctx.stroke();
-  
+
   lastX = x;
   lastY = y;
   isDrawn.value = true;
 }
 
-function stopDrawing() {
+function stopDrawing(e) {
+  if (!isDrawing.value) return;
   isDrawing.value = false;
+  const canvas = signatureCanvas.value;
+  if (canvas?.releasePointerCapture && e?.pointerId != null) {
+    try {
+      canvas.releasePointerCapture(e.pointerId);
+    } catch (error) {
+      // Ignore if already released.
+    }
+  }
 }
 
 function clearCanvas() {

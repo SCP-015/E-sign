@@ -1,7 +1,7 @@
 <template>
   <div v-if="isOpen" class="modal modal-open" @click.self="close">
-    <div class="modal-box w-11/12 max-w-5xl p-0 max-h-[90vh] overflow-y-auto">
-      <div class="flex items-center justify-between border-b border-base-200 px-6 py-4">
+    <div class="modal-box w-11/12 max-w-5xl p-0 max-h-[95vh] overflow-hidden flex flex-col sm:max-h-[90vh]">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-base-200 px-4 py-4 sm:px-6">
         <div>
           <h2 class="text-lg font-semibold">Sign Document</h2>
           <p class="text-xs text-base-content/60">Place your signature on the PDF.</p>
@@ -9,23 +9,23 @@
         <button @click="close" class="btn btn-ghost btn-sm">✕</button>
       </div>
 
-      <div class="grid gap-6 px-6 py-6 lg:grid-cols-[2fr_1fr]">
-        <div class="space-y-3">
-          <div class="items-center justify-between">
+      <div class="grid flex-1 min-h-0 gap-4 overflow-y-auto px-4 py-4 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div class="min-w-0 space-y-3">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h3 class="text-sm font-semibold">Document Preview</h3>
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
               <button class="btn btn-outline btn-xs" @click="prevPage" :disabled="placementPage <= 1 || pdfLoading">Prev</button>
               <span class="badge badge-outline text-xs">{{ placementPage }} / {{ pages || '-' }}</span>
               <button class="btn btn-outline btn-xs" @click="nextPage" :disabled="!pages || placementPage >= pages || pdfLoading">Next</button>
             </div>
           </div>
 
-          <div class="rounded-2xl border border-base-200 bg-base-200/40 p-3">
-            <div class="relative h-130 overflow-auto rounded-xl bg-white" ref="pdfViewer">
+          <div class="rounded-2xl border border-base-200 bg-base-200/40 p-2 sm:p-3">
+            <div class="relative min-h-[16rem] max-h-[50vh] overflow-auto rounded-xl bg-white sm:max-h-[55vh] lg:max-h-[65vh]" ref="pdfViewer">
               <div v-if="pdfLoading" class="flex h-full items-center justify-center text-sm text-base-content/60">
                 Loading PDF...
               </div>
-              <div v-else class="relative p-3">
+              <div v-else class="relative p-2 sm:p-3">
                 <div class="relative" ref="pageWrap">
                   <VuePDF
                     v-if="pdf"
@@ -37,7 +37,7 @@
 
                   <div
                     v-if="selectedSignatureId && signatureImageUrl"
-                    class="absolute left-0 top-0 cursor-grab select-none"
+                    class="absolute left-0 top-0 cursor-grab select-none touch-none"
                     :style="signatureOverlayStyle"
                     @pointerdown.prevent="onSigPointerDown"
                   >
@@ -49,7 +49,7 @@
           </div>
         </div>
 
-        <div class="space-y-4">
+        <div class="min-w-0 space-y-4">
           <div>
             <h3 class="text-sm font-semibold">Place Your Signature</h3>
             <p class="text-xs text-base-content/60">Choose a signature and position it on the preview.</p>
@@ -75,13 +75,13 @@
 
           <div v-if="selectedSignatureId" class="rounded-2xl border border-base-200 bg-base-100 p-4">
             <label class="text-xs font-semibold">Page</label>
-            <div class="mt-2 flex items-center gap-2">
+            <div class="mt-2 flex flex-wrap items-center gap-2">
               <input
                 v-model.number="placementPage"
                 type="number"
                 min="1"
                 :max="pageCount"
-                class="input input-bordered input-sm w-24"
+                class="input input-bordered input-sm w-full sm:w-24"
               >
               <span class="text-xs text-base-content/60">of {{ pageCount }}</span>
             </div>
@@ -92,7 +92,7 @@
         </div>
       </div>
 
-      <div class="modal-action border-t border-base-200 px-6 py-4">
+      <div class="modal-action border-t border-base-200 px-4 py-4 sm:px-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button @click="close" class="btn btn-ghost">Cancel</button>
         <button
           @click="saveSignature"

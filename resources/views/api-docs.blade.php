@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>E-Sign API Documentation</title>
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <style>
         * {
             margin: 0;
@@ -268,6 +270,17 @@
 
             pre {
                 font-size: 0.8em;
+            }
+
+            table {
+                display: block;
+                width: 100%;
+                overflow-x: auto;
+            }
+
+            table th,
+            table td {
+                white-space: nowrap;
             }
         }
     </style>

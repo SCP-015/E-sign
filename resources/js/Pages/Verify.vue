@@ -1,4 +1,5 @@
 <template>
+    <Head title="Verify Document" />
     <div class="min-h-screen bg-base-100">
         <main class="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
             <section>
@@ -37,19 +38,19 @@
                     </div>
 
                     <div v-if="selectedFile" class="rounded-2xl border border-base-200 bg-base-100 p-4 text-sm">
-                        <div class="flex items-start justify-between gap-4">
-                            <div>
-                                <p class="font-semibold">{{ selectedFile.name }}</p>
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                            <div class="min-w-0">
+                                <p class="break-words font-semibold">{{ selectedFile.name }}</p>
                                 <p class="text-xs text-base-content/60">{{ formatFileSize(selectedFile.size) }}</p>
                             </div>
                             <button class="btn btn-ghost btn-xs" type="button" @click="clearFile">Remove</button>
                         </div>
 
                         <div class="mt-4 flex flex-wrap gap-2">
-                            <button class="btn btn-primary btn-sm" type="button" @click="verifyFile" :disabled="verifying">
+                            <button class="btn btn-primary btn-sm w-full sm:w-auto" type="button" @click="verifyFile" :disabled="verifying">
                                 {{ verifying ? 'Verifying...' : 'Verify File' }}
                             </button>
-                            <button class="btn btn-outline btn-sm" type="button" @click="fileInput?.click()">
+                            <button class="btn btn-outline btn-sm w-full sm:w-auto" type="button" @click="fileInput?.click()">
                                 Choose Another
                             </button>
                         </div>
@@ -70,6 +71,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { formatApiError } from '../utils/errors';
 import VerifyResultModal from '../components/VerifyResultModal.vue';

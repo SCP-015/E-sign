@@ -2,7 +2,7 @@
     <div class="flex min-h-screen flex-col">
         <ToastContainer />
         <header v-if="showHeader" class="sticky top-0 z-40 border-b border-base-200 bg-base-100/90 shadow-sm backdrop-blur">
-            <div class="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3">
+            <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:flex-nowrap">
                 <Link href="/dashboard" class="flex items-center gap-3 text-base font-semibold">
                     <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm">
                         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">

@@ -1,4 +1,5 @@
 <template>
+    <Head title="Sign In" />
     <div class="min-h-screen">
         <main class="relative overflow-hidden">
             <section class="mesh-gradient relative flex min-h-screen items-center overflow-hidden pb-20 pt-10 sm:pt-16 lg:pb-28 lg:pt-16">
@@ -58,7 +59,7 @@
                                         </button>
 
                                         <div class="divider text-xs uppercase tracking-[0.2em] text-base-content/40">Protected by</div>
-                                        <div class="grid grid-cols-3 gap-2 text-[10px]">
+                                        <div class="grid grid-cols-1 gap-2 text-[10px] sm:grid-cols-3">
                                             <div class="flex flex-col items-center gap-2 rounded-xl border border-base-200 bg-base-100/80 px-2 py-3 font-semibold text-base-content/70">
                                                 <span class="rounded-lg bg-emerald-100 p-2 text-emerald-600">
                                                     <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
@@ -152,7 +153,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import { useAuthStore } from '../stores/auth';
 import { useToastStore } from '../stores/toast';
 import { formatApiError } from '../utils/errors';

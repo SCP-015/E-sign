@@ -1,5 +1,5 @@
 <template>
-    <section class="grid grid-cols-3 gap-3">
+    <section class="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div v-for="stat in stats" :key="stat.label" class="card border border-base-200 bg-base-100 shadow-sm">
             <div class="card-body items-center text-center gap-1 py-4">
                 <p class="text-xs text-base-content/50">{{ stat.label }}</p>

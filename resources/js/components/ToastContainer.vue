@@ -1,6 +1,6 @@
 <template>
     <div
-        class="pointer-events-none fixed right-4 top-4 z-50 flex w-full max-w-sm flex-col gap-3"
+        class="pointer-events-none fixed left-4 right-4 top-4 z-50 flex w-auto flex-col gap-3 sm:left-auto sm:right-4 sm:w-96"
         role="status"
         aria-live="polite"
     >

@@ -1,4 +1,5 @@
 <template>
+    <Head title="Dashboard" />
     <div class="min-h-screen bg-base-100">
         <main class="mx-auto w-full max-w-7xl space-y-6 px-4 py-6">
             <section>
@@ -15,7 +16,7 @@
 
             <section v-if="isVerified" class="card border border-base-200 bg-base-100 shadow-sm">
                 <div class="card-body gap-4">
-                    <div class="flex items-center justify-between">
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <h3 class="text-lg font-semibold">Upload Document</h3>
                         <span class="badge badge-ghost">PDF only</span>
                     </div>
@@ -50,7 +51,7 @@
                     <div
                         v-for="tip in quickTips"
                         :key="tip.text"
-                        class="min-w-60 rounded-xl border p-4 text-sm"
+                        class="min-w-[15rem] rounded-xl border p-4 text-sm"
                         :class="tip.className"
                     >
                         <div class="flex items-start gap-2">
@@ -90,6 +91,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';
+import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
 import { useToastStore } from '../stores/toast';

@@ -6,7 +6,7 @@
                 class="fixed inset-0 z-50 flex items-center justify-center bg-base-100/60 px-4 backdrop-blur-sm"
                 @click.self="close"
             >
-                <div class="w-full max-w-lg rounded-3xl border border-base-200 bg-base-100 shadow-2xl">
+                <div class="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-base-200 bg-base-100 shadow-2xl">
                     <div class="flex items-start gap-3 border-b border-base-200 px-6 py-5">
                         <div :class="['flex h-11 w-11 items-center justify-center rounded-2xl', iconBadgeClass]">
                             <svg v-if="tone === 'success'" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
@@ -26,9 +26,9 @@
                                 <path d="M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20z"></path>
                             </svg>
                         </div>
-                        <div class="flex-1">
+                        <div class="flex-1 min-w-0">
                             <h3 class="text-lg font-semibold">{{ result?.title || 'Verification Result' }}</h3>
-                            <p class="text-sm text-base-content/70">{{ result?.summary || 'No details available.' }}</p>
+                            <p class="break-words text-sm text-base-content/70">{{ result?.summary || 'No details available.' }}</p>
                         </div>
                         <button type="button" class="btn btn-ghost btn-xs" @click="close" aria-label="Close">
                             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
@@ -37,15 +37,15 @@
                         </button>
                     </div>
 
-                    <div class="px-6 py-5 space-y-4">
+                    <div class="flex-1 min-h-0 space-y-4 overflow-y-auto px-6 py-5">
                         <div v-if="result?.statusLabel" class="flex items-center gap-2">
                             <span :class="['badge badge-sm uppercase', badgeClass]">{{ result.statusLabel }}</span>
                         </div>
 
                         <div v-if="result?.fields?.length" class="grid gap-3 text-sm">
-                            <div v-for="field in result.fields" :key="field.label" class="flex items-start justify-between gap-4">
+                            <div v-for="field in result.fields" :key="field.label" class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                                 <span class="text-base-content/60">{{ field.label }}</span>
-                                <span class="text-right font-medium text-base-content">{{ field.value || '-' }}</span>
+                                <span class="break-words font-medium text-base-content sm:text-right">{{ field.value || '-' }}</span>
                             </div>
                         </div>
 
@@ -53,8 +53,8 @@
                             <h4 class="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">Signers</h4>
                             <div class="space-y-2">
                                 <div v-for="signer in result.signers" :key="signer.name + signer.status" class="rounded-xl border border-base-200 bg-base-100 p-3 text-sm">
-                                    <div class="flex items-center justify-between">
-                                        <span class="font-semibold">{{ signer.name || 'Signer' }}</span>
+                                    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                        <span class="break-words font-semibold">{{ signer.name || 'Signer' }}</span>
                                         <span class="badge badge-outline badge-xs uppercase">{{ signer.status || 'unknown' }}</span>
                                     </div>
                                     <p class="mt-1 text-xs text-base-content/60">Signed at: {{ signer.signedAt || '-' }}</p>

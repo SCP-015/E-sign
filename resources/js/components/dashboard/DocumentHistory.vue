@@ -1,6 +1,6 @@
 <template>
     <section class="space-y-3">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h3 class="text-lg font-semibold">Document History</h3>
             <span class="badge badge-outline text-xs">{{ documents.length }} documents</span>
         </div>
@@ -12,10 +12,10 @@
                 class="card border border-base-200 bg-base-100 shadow-sm"
             >
                 <div class="card-body gap-3">
-                    <div class="flex items-start justify-between">
-                        <div>
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div class="min-w-0">
                             <p class="text-xs text-base-content/40">{{ formatDate(doc.created_at) }}</p>
-                            <h4 class="font-semibold">{{ getFileName(doc) }}</h4>
+                            <h4 class="break-words font-semibold">{{ getFileName(doc) }}</h4>
                         </div>
                         <span
                             :class="[
@@ -31,13 +31,13 @@
                         </span>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <button v-if="doc.status === 'pending' || doc.status === 'IN_PROGRESS'" @click="emit('sign', doc.id, doc.page_count)" class="btn btn-primary btn-sm">
+                        <button v-if="doc.status === 'pending' || doc.status === 'IN_PROGRESS'" @click="emit('sign', doc.id, doc.page_count)" class="btn btn-primary btn-sm w-full sm:w-auto">
                             Sign Now
                         </button>
-                        <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="emit('verify', doc.id)" class="btn btn-outline btn-sm">
+                        <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="emit('verify', doc.id)" class="btn btn-outline btn-sm w-full sm:w-auto">
                             Verify Signature
                         </button>
-                        <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="emit('download', doc.id)" class="btn btn-ghost btn-sm">
+                        <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="emit('download', doc.id)" class="btn btn-ghost btn-sm w-full sm:w-auto">
                             Download
                         </button>
                     </div>
