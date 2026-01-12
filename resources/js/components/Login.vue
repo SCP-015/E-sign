@@ -47,6 +47,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import axios from 'axios';
 
 const loading = ref(false);
 const router = useRouter();
@@ -56,31 +57,117 @@ const authStore = useAuthStore();
 const isInvite = ref(false);
 const inviteEmail = ref('');
 const inviteToken = ref('');
+const inviteCode = ref('');
 
 onMounted(async () => {
-    // Check for invitation details (email + token from invitation link)
-    if (route.query.email && route.query.token) {
-        isInvite.value = true;
-        inviteEmail.value = route.query.email;
-        inviteToken.value = route.query.token;
-        // Store in sessionStorage so we can use it after Google OAuth redirect
-        sessionStorage.setItem('invite_email', route.query.email);
-        sessionStorage.setItem('invite_token', route.query.token);
+    // Check for invitation details (new code-based link)
+    if (route.query.code) {
+        const code = String(route.query.code);
+        try {
+            const validateResp = await axios.get('/api/invitations/validate', {
+                params: { code },
+            });
+
+            isInvite.value = true;
+            inviteCode.value = code;
+            inviteEmail.value = validateResp.data?.email ?? '';
+
+            // Store in sessionStorage so we can use it after Google OAuth redirect
+            sessionStorage.setItem('invite_code', code);
+            if (inviteEmail.value) {
+                sessionStorage.setItem('invite_email', inviteEmail.value);
+            }
+            sessionStorage.removeItem('invite_token');
+
+            // If already logged in, either accept immediately (same email) or logout (different email)
+            if (authStore.isAuthenticated) {
+                await authStore.fetchUser();
+                const currentEmail = authStore.user?.email;
+                if (currentEmail && inviteEmail.value && String(currentEmail).toLowerCase() === String(inviteEmail.value).toLowerCase()) {
+                    await axios.post('/api/invitations/accept', { code });
+                    sessionStorage.removeItem('invite_code');
+                    router.push('/dashboard');
+                    return;
+                }
+                authStore.logout();
+            }
+        } catch (e) {
+            isInvite.value = false;
+            inviteCode.value = '';
+            sessionStorage.removeItem('invite_code');
+        }
     }
 
-    // Check for OAuth token in URL (from Google Callback)
-    // Note: This is different from invite_token
-    const authToken = route.query.token;
-    if (authToken && !route.query.email) {
+    // Legacy invitation link support (email + token)
+    if (!isInvite.value && route.query.email && route.query.token) {
+        const email = String(route.query.email);
+        const token = String(route.query.token);
+        try {
+            await axios.get('/api/invitations/validate', {
+                params: { email, token },
+            });
+
+            isInvite.value = true;
+            inviteEmail.value = email;
+            inviteToken.value = token;
+
+            // Store in sessionStorage so we can use it after Google OAuth redirect
+            sessionStorage.setItem('invite_email', email);
+            sessionStorage.setItem('invite_token', token);
+            sessionStorage.removeItem('invite_code');
+
+            if (authStore.isAuthenticated) {
+                await authStore.fetchUser();
+                const currentEmail = authStore.user?.email;
+                if (currentEmail && String(currentEmail).toLowerCase() === String(email).toLowerCase()) {
+                    await axios.post('/api/invitations/accept', { email, token });
+                    sessionStorage.removeItem('invite_email');
+                    sessionStorage.removeItem('invite_token');
+                    router.push('/dashboard');
+                    return;
+                }
+                authStore.logout();
+            }
+        } catch (e) {
+            isInvite.value = false;
+            inviteEmail.value = '';
+            inviteToken.value = '';
+            sessionStorage.removeItem('invite_email');
+            sessionStorage.removeItem('invite_token');
+        }
+    }
+
+    // Google Callback now returns auth_code (NOT bearer token)
+    const authCode = route.query.auth_code;
+    if (authCode) {
         loading.value = true;
         try {
-            await authStore.setAuth(authToken, {}); 
+            const exchangeResponse = await axios.get('/api/auth/exchange', {
+                params: { code: String(authCode) },
+            });
+            const authToken = exchangeResponse.data?.token;
+            if (!authToken) {
+                throw new Error('Missing token from exchange');
+            }
+
+            await authStore.setAuth(authToken, {});
             await authStore.fetchUser();
             
             // Check if there was an invitation in sessionStorage
+            const storedInviteCode = sessionStorage.getItem('invite_code');
             const storedInviteEmail = sessionStorage.getItem('invite_email');
             const storedInviteToken = sessionStorage.getItem('invite_token');
-            if (storedInviteEmail && storedInviteToken) {
+
+            if (storedInviteCode) {
+                await axios.post('/api/invitations/accept', {
+                    code: storedInviteCode,
+                });
+                sessionStorage.removeItem('invite_code');
+            } else if (storedInviteEmail && storedInviteToken) {
+                await axios.post('/api/invitations/accept', {
+                    email: storedInviteEmail,
+                    token: storedInviteToken,
+                });
                 sessionStorage.removeItem('invite_email');
                 sessionStorage.removeItem('invite_token');
             }

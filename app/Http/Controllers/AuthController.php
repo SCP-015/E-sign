@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Http\Requests\LoginRequest;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
@@ -33,11 +34,6 @@ class AuthController extends Controller
                 'password' => Hash::make($request->password ?? 'password'),
                 'kyc_status' => 'unverified',
             ]);
-
-            // Associate any existing document signers with this user
-            \App\Models\DocumentSigner::where('email', $user->email)
-                ->whereNull('user_id')
-                ->update(['user_id' => $user->id]);
         } else {
             if ($request->password && !Hash::check($request->password, $user->password)) {
                 return response()->json(['message' => 'Invalid credentials'], 401);
@@ -74,11 +70,6 @@ class AuthController extends Controller
                 ]
             );
 
-            // Associate any existing document signers with this user
-            \App\Models\DocumentSigner::where('email', $user->email)
-                ->whereNull('user_id')
-                ->update(['user_id' => $user->id]);
-
             // Always update name and avatar from Google profile on every login
             $user->update([
                 'name' => $googleUser->getName(),
@@ -87,11 +78,31 @@ class AuthController extends Controller
 
             $token = $user->createToken('auth_token')->accessToken;
 
-            return redirect(URL::to('/?token=' . urlencode($token)));
+            $exchangeCode = Str::random(16);
+            Cache::put('auth_exchange:' . $exchangeCode, $token, now()->addMinutes(2));
+
+            return redirect(URL::to('/?auth_code=' . urlencode($exchangeCode)));
 
         } catch (\Exception $e) {
             return response()->json(['error' => 'Google Login Failed: ' . $e->getMessage()], 500);
         }
+    }
+
+    public function exchange(Request $request)
+    {
+        $validated = $request->validate([
+            'code' => 'required|string',
+        ]);
+
+        $key = 'auth_exchange:' . $validated['code'];
+        $token = Cache::pull($key);
+        if (!$token) {
+            return response()->json(['message' => 'Invalid or expired code'], 410);
+        }
+
+        return response()->json([
+            'token' => $token,
+        ]);
     }
 
     // --- MOBILE GOOGLE LOGIN ---

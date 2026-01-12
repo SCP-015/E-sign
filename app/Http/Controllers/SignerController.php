@@ -14,8 +14,8 @@ use Illuminate\Support\Str;
 class SignerController extends Controller
 {
     /**
-     * Add signers to document
-     * POST /api/v1/documents/{documentId}/signers
+     * Add signer to document
+     * POST /api/documents/{documentId}/signers
      */
     public function store(Request $request, $documentId)
     {
@@ -36,11 +36,11 @@ class SignerController extends Controller
             foreach ($request->input('signers') as $signerData) {
                 $email = $signerData['email'];
                 $user = User::where('email', $email)->first();
-                
-                $inviteToken = null;
-                if (!$user) {
-                    $inviteToken = Str::random(40);
-                }
+
+                do {
+                    $inviteToken = Str::random(16);
+                } while (DocumentSigner::where('invite_token', $inviteToken)->exists());
+                $inviteExpiresAt = now()->addDays(7);
 
                 $signer = DocumentSigner::create([
                     'document_id' => $document->id,
@@ -48,6 +48,8 @@ class SignerController extends Controller
                     'email' => $email,
                     'name' => $signerData['name'],
                     'invite_token' => $inviteToken,
+                    'invite_expires_at' => $inviteExpiresAt,
+                    'invite_accepted_at' => null,
                     'order' => $signerData['order'] ?? null,
                     'status' => 'PENDING',
                 ]);
@@ -57,6 +59,7 @@ class SignerController extends Controller
                 // Send invitation email
                 Mail::to($email)->send(new DocumentAssignmentInvitation(
                     $document,
+                    $email,
                     $inviteToken,
                     $request->user()->name
                 ));
@@ -86,7 +89,7 @@ class SignerController extends Controller
 
     /**
      * Get document signers
-     * GET /api/v1/documents/{documentId}/signers
+     * GET /api/documents/{documentId}/signers
      */
     public function index($documentId)
     {

@@ -14,15 +14,17 @@ class DocumentAssignmentInvitation extends Mailable
     use Queueable, SerializesModels;
 
     public $document;
+    public $inviteEmail;
     public $inviteToken;
     public $senderName;
 
     /**
      * Create a new message instance.
      */
-    public function __construct($document, $inviteToken, $senderName)
+    public function __construct($document, $inviteEmail, $inviteToken, $senderName)
     {
         $this->document = $document;
+        $this->inviteEmail = $inviteEmail;
         $this->inviteToken = $inviteToken;
         $this->senderName = $senderName;
     }
@@ -45,7 +47,7 @@ class DocumentAssignmentInvitation extends Mailable
         return new Content(
             markdown: 'emails.documents.assignment_invitation',
             with: [
-                'url' => config('app.url') . '/?email=' . urlencode($this->document->signers->where('invite_token', $this->inviteToken)->first()->email) . '&token=' . $this->inviteToken,
+                'url' => config('app.url') . '/invite?code=' . urlencode($this->inviteToken),
                 'documentTitle' => $this->document->title,
                 'senderName' => $this->senderName,
             ],

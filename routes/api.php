@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\InvitationController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -11,6 +12,7 @@ Route::prefix('auth')->group(function () {
     // Web Google
     Route::get('/google/redirect', [AuthController::class, 'redirectToGoogle']);
     Route::get('/google/callback', [AuthController::class, 'handleGoogleCallback']);
+    Route::get('/exchange', [AuthController::class, 'exchange']);
     
     // Mobile Google
     Route::post('/google/mobile', [AuthController::class, 'googleMobileLogin']);
@@ -19,6 +21,10 @@ Route::prefix('auth')->group(function () {
     // Logout (Protected)
     Route::middleware('auth:api')->post('/logout', [AuthController::class, 'logout']);
 });
+
+// Invitation (Public validate + Auth accept)
+Route::get('/invitations/validate', [InvitationController::class, 'validateInvitation']);
+Route::middleware('auth:api')->post('/invitations/accept', [InvitationController::class, 'accept']);
 
 Route::middleware('auth:api')->group(function () {
     Route::get('/user', function (Request $request) {

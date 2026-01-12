@@ -12,6 +12,8 @@ class DocumentSigner extends Model
         'name',
         'email',
         'invite_token',
+        'invite_expires_at',
+        'invite_accepted_at',
         'order',
         'status',
         'signed_at',
@@ -19,6 +21,8 @@ class DocumentSigner extends Model
 
     protected $casts = [
         'signed_at' => 'datetime',
+        'invite_expires_at' => 'datetime',
+        'invite_accepted_at' => 'datetime',
     ];
 
     public function document()
