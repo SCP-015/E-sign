@@ -14,8 +14,10 @@
                 <div class="card-body gap-3">
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div class="min-w-0">
-                            <p class="text-xs text-base-content/40">{{ formatDate(doc.created_at) }}</p>
-                            <h4 class="break-words font-semibold">{{ getFileName(doc) }}</h4>
+                            <p class="text-xs text-base-content/40">
+                                {{ formatDate(doc.created_at || doc.created_at) }}
+                            </p>
+                            <h4 class="wrap-break-word font-semibold">{{ getFileName(doc) }}</h4>
                         </div>
                         <span
                             :class="[

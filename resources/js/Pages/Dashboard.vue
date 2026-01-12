@@ -51,7 +51,7 @@
                     <div
                         v-for="tip in quickTips"
                         :key="tip.text"
-                        class="min-w-[15rem] rounded-xl border p-4 text-sm"
+                        class="min-w-60 rounded-xl border p-4 text-sm"
                         :class="tip.className"
                     >
                         <div class="flex items-start gap-2">
@@ -300,7 +300,13 @@ const getFileName = (docOrPath) => {
 const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    if (Number.isNaN(date.getTime())) return '';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${day} ${month} ${year} ${hours}:${minutes}`;
 };
 
 const formatDateTime = (dateString) => {

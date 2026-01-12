@@ -21,7 +21,7 @@
           </div>
 
           <div class="rounded-2xl border border-base-200 bg-base-200/40 p-2 sm:p-3">
-            <div class="relative min-h-[16rem] max-h-[50vh] overflow-auto rounded-xl bg-white sm:max-h-[55vh] lg:max-h-[65vh]" ref="pdfViewer">
+            <div class="relative min-h-64 max-h-[50vh] overflow-auto rounded-xl bg-white sm:max-h-[55vh] lg:max-h-[65vh]" ref="pdfViewer">
               <div v-if="pdfLoading" class="flex h-full items-center justify-center text-sm text-base-content/60">
                 Loading PDF...
               </div>
