@@ -1,8 +1,6 @@
 <?php
 
 use App\Http\Controllers\AuthController;
-use App\Http\Resources\UserResource;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
@@ -21,13 +19,7 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::middleware('auth:api')->group(function () {
-    Route::get('/user', function (Request $request) {
-        $user = $request->user();
-        if (!$user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-        return new UserResource($user->load('certificate'));
-    });
+    Route::get('/user', [\App\Http\Controllers\UserController::class, 'show']);
     Route::post('/certificates/issue', [\App\Http\Controllers\CertificateController::class, 'issue']);
     
     // Documents
@@ -63,4 +55,5 @@ Route::middleware('auth:api')->group(function () {
 });
 
 // Public verify endpoint (no auth required)
+Route::post('/verify/upload', [\App\Http\Controllers\VerifyController::class, 'upload']);
 Route::get('/verify/{token}', [\App\Http\Controllers\VerifyController::class, 'verify']);

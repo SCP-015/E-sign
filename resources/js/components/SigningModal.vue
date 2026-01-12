@@ -1,6 +1,6 @@
 <template>
   <div v-if="isOpen" class="modal modal-open" @click.self="close">
-    <div class="modal-box w-11/12 max-w-5xl p-0 max-h-[90vh] overflow-hidden">
+    <div class="modal-box w-11/12 max-w-5xl p-0 max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between border-b border-base-200 px-6 py-4">
         <div>
           <h2 class="text-lg font-semibold">Sign Document</h2>
@@ -359,9 +359,14 @@ const signatureOverlayStyle = computed(() => {
 async function loadSignatures() {
   try {
     const res = await axios.get('/api/signatures');
-    signatures.value = Array.isArray(res.data) ? res.data : [];
+    const list = res.data?.data ?? res.data;
+    signatures.value = Array.isArray(list) ? list : [];
+
     if (signatures.value.length > 0) {
-      selectedSignatureId.value = signatures.value[0].id;
+      const defaultSig = signatures.value.find((s) => s.is_default) || signatures.value[0];
+      selectedSignatureId.value = defaultSig?.id ?? null;
+    } else {
+      selectedSignatureId.value = null;
     }
   } catch (e) {
     console.error('Failed to load signatures:', e);
@@ -372,6 +377,12 @@ async function loadSignatures() {
 async function saveSignature() {
   if (!selectedSignatureId.value) {
     toastStore.error('Please select a signature.');
+    return;
+  }
+
+  const signerUserId = authStore.user?.id;
+  if (!signerUserId) {
+    toastStore.error('Unauthenticated.');
     return;
   }
 
@@ -392,7 +403,7 @@ async function saveSignature() {
   saving.value = true;
   try {
     await axios.post(`/api/documents/${props.documentId}/placements`, {
-      signerUserId: authStore.user.id,
+      signerUserId,
       placements: [
         {
           page: placementPage.value,

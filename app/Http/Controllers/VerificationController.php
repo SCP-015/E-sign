@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\ApiResponse;
+use App\Http\Requests\VerifyDocumentRequest;
 use App\Services\VerificationService;
-use Illuminate\Http\Request;
 
 class VerificationController extends Controller
 {
@@ -14,14 +15,9 @@ class VerificationController extends Controller
         $this->verificationService = $verificationService;
     }
 
-    public function verify(Request $request)
+    public function verify(VerifyDocumentRequest $request)
     {
-        $request->validate([
-            'document_id' => 'required|exists:documents,id'
-        ]);
-
-        $result = $this->verificationService->verify($request->document_id);
-
-        return response()->json($result);
+        $result = $this->verificationService->verifyResult((int) $request->input('document_id'));
+        return ApiResponse::fromService($result);
     }
 }

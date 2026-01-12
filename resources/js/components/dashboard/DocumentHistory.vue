@@ -15,14 +15,14 @@
                     <div class="flex items-start justify-between">
                         <div>
                             <p class="text-xs text-base-content/40">{{ formatDate(doc.created_at) }}</p>
-                            <h4 class="font-semibold">{{ getFileName(doc.file_path) }}</h4>
+                            <h4 class="font-semibold">{{ getFileName(doc) }}</h4>
                         </div>
                         <span
                             :class="[
                                 'badge badge-sm uppercase',
-                                doc.status === 'pending'
+                                doc.status === 'pending' || doc.status === 'IN_PROGRESS'
                                     ? 'badge-warning'
-                                    : doc.status === 'signed'
+                                    : doc.status === 'signed' || doc.status === 'COMPLETED'
                                         ? 'badge-success'
                                         : 'badge-ghost',
                             ]"
@@ -31,13 +31,13 @@
                         </span>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <button v-if="doc.status === 'pending'" @click="emit('sign', doc.id, doc.page_count)" class="btn btn-primary btn-sm">
+                        <button v-if="doc.status === 'pending' || doc.status === 'IN_PROGRESS'" @click="emit('sign', doc.id, doc.page_count)" class="btn btn-primary btn-sm">
                             Sign Now
                         </button>
-                        <button v-if="doc.status === 'signed'" @click="emit('verify', doc.id)" class="btn btn-outline btn-sm">
+                        <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="emit('verify', doc.id)" class="btn btn-outline btn-sm">
                             Verify Signature
                         </button>
-                        <button v-if="doc.status === 'signed'" @click="emit('download', doc.id)" class="btn btn-ghost btn-sm">
+                        <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="emit('download', doc.id)" class="btn btn-ghost btn-sm">
                             Download
                         </button>
                     </div>

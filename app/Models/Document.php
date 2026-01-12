@@ -13,6 +13,9 @@ class Document extends Model
         'user_id',
         'title',
         'file_path',
+        'original_filename',
+        'file_size',
+        'mime_type',
         'file_type',
         'file_size_bytes',
         'page_count',
@@ -20,11 +23,14 @@ class Document extends Model
         'final_pdf_path',
         'verify_token',
         'status',
+        'signed_at',
         'completed_at',
     ];
 
     protected $casts = [
         'completed_at' => 'datetime',
+        'signed_at' => 'datetime',
+        'file_size' => 'integer',
         'file_size_bytes' => 'integer',
         'page_count' => 'integer',
     ];
@@ -42,6 +48,11 @@ class Document extends Model
     public function placements()
     {
         return $this->hasMany(SignaturePlacement::class);
+    }
+
+    public function signingEvidence()
+    {
+        return $this->hasOne(DocumentSigningEvidence::class);
     }
 
     public function isAllSigned()

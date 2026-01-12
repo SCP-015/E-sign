@@ -5,7 +5,7 @@
                 <p class="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">Verification</p>
                 <h2 class="mt-1 text-2xl font-bold">Verify Document</h2>
                 <p class="text-sm text-base-content/60">
-                    Upload a signed PDF to verify its signature against your document history.
+                    Upload a signed PDF to verify its signature using the public verify API.
                 </p>
             </section>
 
@@ -69,42 +69,30 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import axios from 'axios';
-import { useAuthStore } from '../stores/auth';
 import { formatApiError } from '../utils/errors';
 import VerifyResultModal from '../components/VerifyResultModal.vue';
-
-const authStore = useAuthStore();
 
 const dragActive = ref(false);
 const fileInput = ref(null);
 const selectedFile = ref(null);
 const verifying = ref(false);
-const documents = ref([]);
-const documentsLoaded = ref(false);
+const verifyHint = ref('');
 const verifyModalOpen = ref(false);
 const verifyModalResult = ref(null);
 
 const matchHint = computed(() => {
     if (!selectedFile.value) return '';
-    if (!authStore.isAuthenticated) return 'Please sign in to verify using your document history.';
-    if (!documentsLoaded.value) return 'Loading your document history...';
-    return findMatchingDocument(selectedFile.value)
-        ? 'Matched to a document in your history.'
-        : 'No matching document found in your history.';
-});
-
-onMounted(async () => {
-    if (authStore.isAuthenticated) {
-        await loadDocuments();
-    }
+    if (verifying.value) return 'Verifying your document...';
+    return verifyHint.value || 'Ready to verify the uploaded file.';
 });
 
 const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     selectedFile.value = file;
+    verifyHint.value = '';
 };
 
 const handleDrop = (e) => {
@@ -112,6 +100,7 @@ const handleDrop = (e) => {
     const file = e.dataTransfer.files[0];
     if (!file) return;
     selectedFile.value = file;
+    verifyHint.value = '';
 };
 
 const clearFile = () => {
@@ -119,97 +108,54 @@ const clearFile = () => {
     if (fileInput.value) {
         fileInput.value.value = '';
     }
+    verifyHint.value = '';
 };
-
-async function loadDocuments() {
-    try {
-        const res = await axios.get('/api/documents');
-        documents.value = Array.isArray(res.data) ? res.data : (res.data?.data || []);
-        documentsLoaded.value = true;
-    } catch (e) {
-        documentsLoaded.value = false;
-    }
-}
 
 const verifyFile = async () => {
     if (!selectedFile.value) return;
 
-    const localScan = await scanSignatureMarkers(selectedFile.value);
-
-    if (!authStore.isAuthenticated) {
-        openVerifyModal({
-            title: localScan.isValid ? 'Signature Detected' : 'Signature Not Found',
-            tone: localScan.isValid ? 'success' : 'warning',
-            statusLabel: localScan.isValid ? 'DETECTED' : 'NOT FOUND',
-            summary: `${localScan.message} (local scan)`,
-            fields: [
-                { label: 'File', value: selectedFile.value.name },
-                { label: 'Scan', value: 'Local signature marker scan' },
-            ],
-        });
-        return;
-    }
-
-    if (!documentsLoaded.value) {
-        await loadDocuments();
-    }
-
-    const matched = findMatchingDocument(selectedFile.value);
-    if (!matched) {
-        openVerifyModal({
-            title: localScan.isValid ? 'Signature Detected' : 'Signature Not Found',
-            tone: localScan.isValid ? 'success' : 'warning',
-            statusLabel: localScan.isValid ? 'DETECTED' : 'NOT FOUND',
-            summary: `${localScan.message} (local scan)`,
-            fields: [
-                { label: 'File', value: selectedFile.value.name },
-                { label: 'Scan', value: 'Local signature marker scan' },
-            ],
-        });
-        return;
-    }
-
-    const docId = getDocumentId(matched);
-    if (!docId) {
-        openVerifyModal({
-            title: 'Verification Failed',
-            tone: 'error',
-            summary: 'Unable to resolve document ID for verification.',
-            fields: [
-                { label: 'File', value: selectedFile.value.name },
-            ],
-        });
-        return;
-    }
-
     verifying.value = true;
     try {
-        const res = await axios.post('/api/documents/verify', {
-            document_id: docId,
-        });
+        const formData = new FormData();
+        formData.append('file', selectedFile.value);
+        const res = await axios.post('/api/verify/upload', formData);
+        const payload = res.data?.data ?? res.data;
+        const message = res.data?.message ?? payload?.message;
+        const isValid = payload?.is_valid === true;
+        verifyHint.value = message || '';
 
-        const data = res.data || {};
-        const isValid = data.is_valid === true;
+        const fields = [
+            { label: 'File', value: payload?.file_name || selectedFile.value.name },
+            { label: 'Document ID', value: payload?.document_id || '-' },
+            { label: 'Signed By', value: payload?.signed_by || '-' },
+            { label: 'Signed At', value: formatDateTime(payload?.signed_at) },
+        ];
+
+        if (payload?.ltv) {
+            fields.push(
+                { label: 'Certificate #', value: payload.ltv.certificate_number || '-' },
+                { label: 'Cert Valid From', value: formatDateTime(payload.ltv.certificate_not_before) },
+                { label: 'Cert Valid To', value: formatDateTime(payload.ltv.certificate_not_after) },
+                { label: 'TSA URL', value: payload.ltv.tsa_url || '-' },
+                { label: 'TSA At', value: formatDateTime(payload.ltv.tsa_at) },
+            );
+        }
+
         openVerifyModal({
             title: isValid ? 'Signature Verified' : 'Signature Invalid',
             tone: isValid ? 'success' : 'error',
             statusLabel: isValid ? 'VALID' : 'INVALID',
-            summary: data.message || (isValid ? 'Signature is valid.' : 'Signature is not valid.'),
-            fields: [
-                { label: 'Document ID', value: data.document_id || docId },
-                { label: 'File', value: data.file_name || selectedFile.value.name },
-                { label: 'Signed By', value: data.signed_by || '-' },
-                { label: 'Signed At', value: formatDateTime(data.signed_at) },
-            ],
+            summary: message || (isValid ? 'Signature is valid.' : 'Signature is not valid.'),
+            fields,
         });
     } catch (e) {
+        verifyHint.value = formatApiError('Verification failed', e);
         openVerifyModal({
             title: 'Verification Failed',
             tone: 'error',
-            summary: `${formatApiError('Verification failed', e)} (local scan used below)`,
+            summary: formatApiError('Verification failed', e),
             fields: [
-                { label: 'Document ID', value: docId },
-                { label: 'Local scan', value: localScan.message },
+                { label: 'File', value: selectedFile.value.name },
             ],
         });
     } finally {
@@ -246,62 +192,4 @@ const formatDateTime = (dateString) => {
     });
 };
 
-function normalizeName(name) {
-    return (name || '').trim().toLowerCase();
-}
-
-function extractDocName(doc) {
-    return (
-        doc.original_filename ||
-        doc.title ||
-        doc.file_name ||
-        (doc.file_path ? doc.file_path.split('/').pop() : '')
-    );
-}
-
-function getDocumentId(doc) {
-    return doc.documentId || doc.document_id || doc.id || null;
-}
-
-function findMatchingDocument(file) {
-    if (!file) return null;
-    const fileName = normalizeName(file.name);
-    const fileSize = file.size;
-
-    const scored = documents.value.map((doc) => {
-        const docName = normalizeName(extractDocName(doc));
-        const sizeBytes = doc.file_size_bytes || doc.file_size || null;
-        let score = 0;
-
-        if (docName && fileName && docName === fileName) score += 2;
-        if (sizeBytes && fileSize && Number(sizeBytes) === Number(fileSize)) score += 1;
-
-        return { doc, score };
-    }).filter((entry) => entry.score > 0);
-
-    scored.sort((a, b) => b.score - a.score);
-    return scored[0]?.doc || null;
-}
-
-async function scanSignatureMarkers(file) {
-    try {
-        const buffer = await file.arrayBuffer();
-        const text = new TextDecoder('latin1').decode(new Uint8Array(buffer));
-        const hasSignature =
-            text.includes('/SigFlags') ||
-            text.includes('/Sig') ||
-            text.includes('/Contents') ||
-            text.includes('/AcroForm');
-
-        return {
-            isValid: hasSignature,
-            message: hasSignature ? 'Signature markers found in PDF.' : 'No signature markers found in PDF.',
-        };
-    } catch (e) {
-        return {
-            isValid: false,
-            message: 'Failed to scan PDF content.',
-        };
-    }
-}
 </script>

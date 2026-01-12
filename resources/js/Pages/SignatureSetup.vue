@@ -53,7 +53,8 @@
               <div v-for="sig in signatures" :key="sig.id" class="rounded-2xl border border-base-200 bg-base-100 p-4 shadow-sm">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
                   <div class="flex w-full items-center justify-center rounded-xl border border-base-200 bg-base-100 p-2 sm:w-40">
-                    <img :src="`/api/signatures/${sig.id}/image`" :alt="sig.name" class="max-h-20 w-full object-contain">
+                    <img v-if="sig.imageUrl" :src="sig.imageUrl" :alt="sig.name" class="max-h-20 w-full object-contain">
+                    <div v-else class="text-xs text-base-content/40">Preview unavailable</div>
                   </div>
                   <div class="flex-1">
                     <h4 class="font-semibold">{{ sig.name }}</h4>
@@ -134,7 +135,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useToastStore } from '../stores/toast';
@@ -218,6 +219,10 @@ onMounted(() => {
   loadSignatures();
 });
 
+onBeforeUnmount(() => {
+  revokeSignatureUrls(signatures.value);
+});
+
 function initCanvas() {
   const canvas = signatureCanvas.value;
   canvas.width = canvas.offsetWidth;
@@ -298,8 +303,21 @@ async function saveSignature() {
 
 async function loadSignatures() {
   try {
+    revokeSignatureUrls(signatures.value);
     const response = await axios.get('/api/signatures');
-    signatures.value = response.data;
+    const list = response.data?.data ?? response.data;
+    signatures.value = Array.isArray(list) ? list : [];
+
+    await Promise.all(
+      signatures.value.map(async (sig) => {
+        try {
+          const imgRes = await axios.get(`/api/signatures/${sig.id}/image`, { responseType: 'blob' });
+          sig.imageUrl = URL.createObjectURL(imgRes.data);
+        } catch (e) {
+          sig.imageUrl = '';
+        }
+      })
+    );
   } catch (e) {
     console.error('Failed to load signatures:', e);
     toastStore.error(formatApiError('Failed to load signatures', e));
@@ -351,6 +369,16 @@ async function confirmDelete() {
   } finally {
     deleting.value = false;
   }
+}
+
+function revokeSignatureUrls(list) {
+  if (!Array.isArray(list)) return;
+  list.forEach((sig) => {
+    if (sig?.imageUrl) {
+      URL.revokeObjectURL(sig.imageUrl);
+      sig.imageUrl = '';
+    }
+  });
 }
 </script>
 

@@ -2,8 +2,12 @@
 
 namespace App\Services;
 
+use App\Http\Resources\DocumentResource;
+use App\Models\Certificate;
 use App\Models\Document;
+use App\Models\DocumentSigningEvidence;
 use App\Models\Signature;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 use setasign\Fpdi\Tcpdf\Fpdi;
@@ -29,6 +33,7 @@ class DocumentService
         file_put_contents($tempPath, $plaintext);
         return $tempPath;
     }
+
     public function upload($file, $user)
     {
         // Use email-based folder structure: private/{email}/documents/
@@ -67,11 +72,455 @@ class DocumentService
             'user_id' => $user->id,
             'title' => $title ?? $file->getClientOriginalName(),
             'file_path' => $path,
+            'original_filename' => $file->getClientOriginalName(),
+            'file_size' => $file->getSize(),
+            'mime_type' => $file->getMimeType(),
             'file_type' => 'pdf',
             'file_size_bytes' => $file->getSize(),
             'page_count' => $pageCount,
             'status' => 'pending',
         ]);
+    }
+
+    public function indexResult(int $userId): array
+    {
+        $documents = Document::where('user_id', $userId)->latest()->get();
+
+        return [
+            'status' => 'success',
+            'code' => 200,
+            'message' => 'OK',
+            'data' => DocumentResource::collection($documents)->resolve(),
+        ];
+    }
+
+    public function uploadWithMetadataResult(int $userId, UploadedFile $file, ?string $title = null): array
+    {
+        $cert = Certificate::where('user_id', $userId)->where('status', 'active')->first();
+        if (!$cert) {
+            return [
+                'status' => 'error',
+                'code' => 400,
+                'message' => 'No active certificate found. Please complete KYC verification first.',
+                'data' => null,
+            ];
+        }
+
+        $user = \App\Models\User::findOrFail($userId);
+        $doc = $this->uploadWithMetadata($file, $user, $title ?? $file->getClientOriginalName());
+
+        return [
+            'status' => 'success',
+            'code' => 201,
+            'message' => 'OK',
+            'data' => [
+                'documentId' => $doc->id,
+                'fileName' => basename($doc->file_path),
+                'fileType' => $doc->file_type,
+                'fileSizeBytes' => $doc->file_size_bytes,
+                'pageCount' => $doc->page_count,
+                'status' => $doc->status,
+                'createdAt' => $doc->created_at->toIso8601String(),
+            ],
+        ];
+    }
+
+    public function showResult(int $documentId, int $userId): array
+    {
+        $document = Document::with(['signers'])
+            ->where('id', $documentId)
+            ->where('user_id', $userId)
+            ->firstOrFail();
+
+        return [
+            'status' => 'success',
+            'code' => 200,
+            'message' => 'OK',
+            'data' => [
+                'documentId' => $document->id,
+                'status' => $document->status,
+                'pageCount' => $document->page_count,
+                'verify_token' => $document->verify_token,
+            ],
+        ];
+    }
+
+    public function resolveViewUrlResult(int $documentId, int $userId): array
+    {
+        $document = Document::where('id', $documentId)
+            ->where('user_id', $userId)
+            ->firstOrFail();
+
+        $filePath = Storage::disk('private')->path($document->file_path);
+        if (!file_exists($filePath)) {
+            return [
+                'status' => 'error',
+                'code' => 404,
+                'message' => 'File not found',
+                'data' => null,
+            ];
+        }
+
+        return [
+            'status' => 'success',
+            'code' => 200,
+            'message' => 'OK',
+            'data' => [
+                'filePath' => $filePath,
+                'fileName' => basename($document->file_path),
+            ],
+        ];
+    }
+
+    public function finalizeResult(int $documentId, int $userId, array $qrPlacement): array
+    {
+        $document = Document::where('id', $documentId)->where('user_id', $userId)->firstOrFail();
+
+        if (!$document->isAllSigned()) {
+            return [
+                'status' => 'error',
+                'code' => 400,
+                'message' => 'Cannot finalize: Some signers have not signed yet',
+                'data' => null,
+            ];
+        }
+
+        $cert = Certificate::where('user_id', $userId)->where('status', 'active')->latest()->first();
+        if (!$cert || ($cert->expires_at && $cert->expires_at->isPast())) {
+            return [
+                'status' => 'error',
+                'code' => 400,
+                'message' => 'Certificate is not active or has expired. Please renew your certificate before finalizing.',
+                'data' => null,
+            ];
+        }
+
+        $verifyToken = bin2hex(random_bytes(16));
+        $document->update(['verify_token' => $verifyToken]);
+
+        $qrConfig = $qrPlacement ?: [
+            'page' => 'LAST',
+            'position' => 'BOTTOM_RIGHT',
+            'marginBottom' => 15,
+            'marginRight' => 15,
+            'size' => 35,
+        ];
+
+        try {
+            $finalPdfPath = $this->finalizePdf($document, $verifyToken, $qrConfig);
+
+            $document->update([
+                'status' => 'COMPLETED',
+                'final_pdf_path' => $finalPdfPath,
+                'completed_at' => now(),
+            ]);
+
+            $this->upsertSigningEvidence($document->fresh(), $cert, $finalPdfPath);
+
+            $verifyUrl = url('/api/verify/' . $verifyToken);
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'OK',
+                'data' => [
+                    'documentId' => $document->id,
+                    'status' => 'COMPLETED',
+                    'verifyUrl' => $verifyUrl,
+                    'qrValue' => $verifyUrl,
+                    'finalPdfUrl' => url('/api/documents/' . $document->id . '/download'),
+                    'completedAt' => $document->completed_at->toIso8601String(),
+                ],
+            ];
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Finalize Failed: ' . $e->getMessage());
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => 'Finalization failed: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
+    protected function resolveSigningTimestamp(Document $document): \Carbon\Carbon
+    {
+        $dt = $document->completed_at ?? $document->signed_at;
+
+        if (!$dt) {
+            $maxSignerSignedAt = $document->signers()->max('signed_at');
+            if ($maxSignerSignedAt) {
+                $dt = \Carbon\Carbon::parse($maxSignerSignedAt);
+            }
+        }
+
+        if (!$dt) {
+            $dt = $document->updated_at ?? now();
+        }
+
+        return $dt instanceof \Carbon\Carbon ? $dt : \Carbon\Carbon::parse($dt);
+    }
+
+    public function upsertSigningEvidence(Document $document, Certificate $certificate, ?string $finalPdfPath = null): void
+    {
+        try {
+            $signedAt = $this->resolveSigningTimestamp($document);
+
+            $pem = null;
+            if ($certificate->certificate_path && file_exists($certificate->certificate_path)) {
+                $pem = file_get_contents($certificate->certificate_path) ?: null;
+            }
+
+            $parsed = null;
+            if ($pem) {
+                $parsed = @openssl_x509_parse($pem) ?: null;
+            }
+
+            $fingerprint = null;
+            if ($pem && function_exists('openssl_x509_fingerprint')) {
+                $fingerprint = @openssl_x509_fingerprint($pem, 'sha256') ?: null;
+                if (is_string($fingerprint)) {
+                    $fingerprint = strtolower(str_replace(':', '', $fingerprint));
+                }
+            }
+
+            $tsaUrl = env('TSA_URL');
+            $tsaToken = null;
+            $tsaAt = null;
+            if ($tsaUrl && $finalPdfPath) {
+                $fullPdfPath = storage_path('app/' . $finalPdfPath);
+                $tsaToken = $this->tryRequestTsaToken($tsaUrl, $fullPdfPath);
+                if ($tsaToken) {
+                    $tsaAt = now();
+                }
+            }
+
+            $certNotBefore = null;
+            $certNotAfter = null;
+            if (isset($parsed['validFrom_time_t'])) {
+                $certNotBefore = \Carbon\Carbon::createFromTimestamp((int) $parsed['validFrom_time_t'])->toDateTimeString();
+            } elseif ($certificate->issued_at) {
+                $certNotBefore = $certificate->issued_at->toDateTimeString();
+            }
+
+            if (isset($parsed['validTo_time_t'])) {
+                $certNotAfter = \Carbon\Carbon::createFromTimestamp((int) $parsed['validTo_time_t'])->toDateTimeString();
+            } elseif ($certificate->expires_at) {
+                $certNotAfter = $certificate->expires_at->toDateTimeString();
+            }
+
+            $data = [
+                'certificate_id' => $certificate->id,
+                'certificate_number' => $certificate->certificate_number,
+                'certificate_fingerprint_sha256' => $fingerprint,
+                'certificate_serial' => $parsed['serialNumberHex'] ?? ($parsed['serialNumber'] ?? null),
+                'certificate_subject' => isset($parsed['subject']) ? json_encode($parsed['subject']) : null,
+                'certificate_issuer' => isset($parsed['issuer']) ? json_encode($parsed['issuer']) : null,
+                'certificate_not_before' => $certNotBefore,
+                'certificate_not_after' => $certNotAfter,
+                'certificate_pem' => $pem,
+                'signed_at' => $signedAt,
+                'tsa_url' => $tsaUrl,
+                'tsa_at' => $tsaAt,
+                'tsa_token' => $tsaToken,
+            ];
+
+            DocumentSigningEvidence::updateOrCreate(
+                ['document_id' => $document->id],
+                $data
+            );
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed to store signing evidence: ' . $e->getMessage());
+        }
+    }
+
+    protected function tryRequestTsaToken(string $tsaUrl, string $pdfPath): ?string
+    {
+        try {
+            if (!file_exists($pdfPath)) {
+                return null;
+            }
+
+            $tmpReq = sys_get_temp_dir() . '/tsa_req_' . uniqid() . '.tsq';
+            $tmpResp = sys_get_temp_dir() . '/tsa_resp_' . uniqid() . '.tsr';
+
+            $queryCmd = 'openssl ts -query -data ' . escapeshellarg($pdfPath) . ' -sha256 -cert -out ' . escapeshellarg($tmpReq);
+            exec($queryCmd, $o1, $r1);
+            if ($r1 !== 0 || !file_exists($tmpReq)) {
+                @unlink($tmpReq);
+                return null;
+            }
+
+            $curlCmd = 'curl -s -H "Content-Type: application/timestamp-query" --data-binary @' . escapeshellarg($tmpReq) . ' ' . escapeshellarg($tsaUrl) . ' -o ' . escapeshellarg($tmpResp);
+            exec($curlCmd, $o2, $r2);
+            if ($r2 !== 0 || !file_exists($tmpResp) || filesize($tmpResp) === 0) {
+                @unlink($tmpReq);
+                @unlink($tmpResp);
+                return null;
+            }
+
+            $raw = file_get_contents($tmpResp);
+            @unlink($tmpReq);
+            @unlink($tmpResp);
+
+            if ($raw === false) {
+                return null;
+            }
+
+            return base64_encode($raw);
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    public function signLegacyResult(int $documentId, int $userId, array $validated): array
+    {
+        $document = Document::where('id', $documentId)->where('user_id', $userId)->firstOrFail();
+
+        $signature = Signature::where('id', $validated['signature_id'])
+            ->where('user_id', $userId)
+            ->firstOrFail();
+
+        $cert = Certificate::where('user_id', $userId)->where('status', 'active')->latest()->first();
+        if (!$cert) {
+            return [
+                'status' => 'error',
+                'code' => 400,
+                'message' => 'No active certificate found',
+                'data' => null,
+            ];
+        }
+
+        try {
+            $this->signPdf($document, $cert, $signature, $validated['signature_position']);
+
+            $document->update([
+                'status' => 'signed',
+            ]);
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'Document signed successfully',
+                'data' => [
+                    'document' => (new DocumentResource($document->fresh()))->resolve(),
+                ],
+            ];
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Signing Failed: ' . $e->getMessage());
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => 'Signing failed: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
+    public function resolveDownloadResult(int $documentId, int $userId): array
+    {
+        $document = Document::where('id', $documentId)->where('user_id', $userId)->firstOrFail();
+
+        if (!in_array($document->status, ['signed', 'COMPLETED'], true)) {
+            return [
+                'status' => 'error',
+                'code' => 400,
+                'message' => 'Document is not signed yet',
+                'data' => null,
+            ];
+        }
+
+        $filePath = null;
+        if ($document->final_pdf_path && file_exists(storage_path('app/' . $document->final_pdf_path))) {
+            $filePath = storage_path('app/' . $document->final_pdf_path);
+        } elseif ($document->signed_path) {
+            $relativePath = str_replace('private/', '', $document->signed_path);
+            $filePath = Storage::disk('private')->path($relativePath);
+        }
+
+        if (!$filePath || !file_exists($filePath)) {
+            try {
+                $verifyToken = $document->verify_token ?? bin2hex(random_bytes(16));
+                $qrConfig = [
+                    'page' => 'LAST',
+                    'position' => 'BOTTOM_RIGHT',
+                    'marginBottom' => 15,
+                    'marginRight' => 15,
+                    'size' => 35,
+                ];
+
+                $finalPdfPath = $this->finalizePdf($document, $verifyToken, $qrConfig);
+                $document->update([
+                    'final_pdf_path' => $finalPdfPath,
+                    'verify_token' => $verifyToken,
+                ]);
+
+                $allowBackfill = filter_var(env('LTV_BACKFILL_ON_DEMAND', false), FILTER_VALIDATE_BOOLEAN);
+                $canBackfill = $allowBackfill
+                    && $document->fresh()->status === 'COMPLETED'
+                    && !empty($document->fresh()->final_pdf_path);
+
+                if ($canBackfill) {
+                    $cert = Certificate::where('user_id', $userId)->where('status', 'active')->latest()->first();
+                    if ($cert) {
+                        $this->upsertSigningEvidence($document->fresh(), $cert, $finalPdfPath);
+                    }
+                }
+
+                $filePath = storage_path('app/' . $finalPdfPath);
+            } catch (\Exception $e) {
+                return [
+                    'status' => 'error',
+                    'code' => 500,
+                    'message' => 'Failed to generate PDF: ' . $e->getMessage(),
+                    'data' => null,
+                ];
+            }
+        }
+
+        $allowBackfill = filter_var(env('LTV_BACKFILL_ON_DEMAND', false), FILTER_VALIDATE_BOOLEAN);
+        $canBackfill = $allowBackfill
+            && $document->status === 'COMPLETED'
+            && !empty($document->final_pdf_path);
+
+        if ($canBackfill && (!$document->signingEvidence || !$document->signingEvidence->certificate_not_before || !$document->signingEvidence->certificate_not_after)) {
+            $signedAtFallback = $document->completed_at ?? $document->updated_at;
+            $cert = Certificate::where('user_id', $userId)
+                ->where(function ($q) use ($signedAtFallback) {
+                    $q->whereNull('issued_at')->orWhere('issued_at', '<=', $signedAtFallback);
+                })
+                ->where(function ($q) use ($signedAtFallback) {
+                    $q->whereNull('expires_at')->orWhere('expires_at', '>=', $signedAtFallback);
+                })
+                ->orderByDesc('issued_at')
+                ->orderByDesc('created_at')
+                ->first();
+
+            if (!$cert) {
+                $cert = Certificate::where('user_id', $userId)
+                    ->orderByDesc('issued_at')
+                    ->orderByDesc('created_at')
+                    ->first();
+            }
+
+            if ($cert) {
+                $this->upsertSigningEvidence($document->fresh(), $cert, $document->final_pdf_path);
+            }
+        }
+
+        $filename = $document->title
+            ? str_replace('.pdf', '', $document->title) . '_signed.pdf'
+            : 'signed_document_' . $document->id . '.pdf';
+
+        return [
+            'status' => 'success',
+            'code' => 200,
+            'message' => 'OK',
+            'data' => [
+                'filePath' => $filePath,
+                'fileName' => $filename,
+            ],
+        ];
     }
 
     /**
@@ -90,6 +539,37 @@ class DocumentService
 
         // Initialize FPDI
         $pdf = new Fpdi();
+
+        // Embed verify marker into PDF metadata so /verify/upload can map back without decoding QR image
+        $verifyUrl = url('/api/verify/' . $verifyToken);
+        $pdf->SetTitle($document->title ?? ('Document #' . $document->id));
+        $pdf->SetAuthor($document->user?->name ?? 'E-Sign');
+        $pdf->SetSubject('E-Sign Document');
+        $pdf->SetKeywords('E-SIGN;VERIFY_TOKEN=' . $verifyToken . ';VERIFY_URL=' . $verifyUrl);
+
+        // Best-effort: apply a real PDF digital signature using owner's certificate if available
+        try {
+            $cert = $document->user?->certificate;
+            $certPath = $cert?->certificate_path;
+            $keyPath = $cert?->private_key_path;
+
+            if ($certPath && $keyPath && file_exists($certPath) && file_exists($keyPath)) {
+                $certificateContent = file_get_contents($certPath);
+                $privateKeyContent = file_get_contents($keyPath);
+
+                if ($certificateContent !== false && $privateKeyContent !== false) {
+                    $info = [
+                        'Name' => $document->user?->name,
+                        'Location' => 'Office',
+                        'Reason' => 'Digital Signature',
+                        'ContactInfo' => $document->user?->email,
+                    ];
+                    $pdf->setSignature($certificateContent, $privateKeyContent, '', '', 2, $info);
+                }
+            }
+        } catch (\Exception $e) {
+            // Ignore: final PDF can still be generated with visual signatures and QR.
+        }
         
         // Load all placements with relationships
         $placements = $document->placements()->with(['signature', 'signer'])->get();
@@ -155,7 +635,7 @@ class DocumentService
         $qrY = $lastPageHeight - $qrSize - $marginBottom;
         
         // Verify URL
-        $verifyUrl = url('/api/verify/' . $verifyToken);
+        // NOTE: $verifyUrl is defined above (also embedded in metadata)
         
         $pdf->write2DBarcode(
             $verifyUrl,
@@ -173,6 +653,15 @@ class DocumentService
             ),
             'N'
         );
+
+        // Also write a tiny (near-invisible) text marker so token is present even if metadata is stripped
+        try {
+            $pdf->SetFont('helvetica', '', 4);
+            $pdf->SetTextColor(255, 255, 255);
+            $pdf->Text(1, $lastPageHeight - 2, 'VERIFY_TOKEN=' . $verifyToken);
+        } catch (\Exception $e) {
+            // ignore
+        }
         
         // Save final PDF
         $finalFileName = 'final_' . basename($document->file_path);

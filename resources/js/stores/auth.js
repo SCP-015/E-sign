@@ -23,8 +23,13 @@ export const useAuthStore = defineStore('auth', {
                 // If it's a social login redirect, we handle it in component
                 // This is for manual login
                 const response = await axios.post('/api/auth/login', credentials);
-                const user = response.data.user?.data ?? response.data.user;
-                this.setAuth(response.data.token, user);
+                const payload = response.data?.data ?? response.data;
+                const token = payload?.token ?? payload?.access_token ?? null;
+                const user = payload?.user?.data ?? payload?.user ?? null;
+
+                if (token) {
+                    this.setAuth(token, user);
+                }
                 return response;
             } catch (error) {
                 throw error;

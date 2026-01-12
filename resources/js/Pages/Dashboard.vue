@@ -115,8 +115,8 @@ const selectedDocPageCount = ref(0);
 const verifyModalOpen = ref(false);
 const verifyModalResult = ref(null);
 
-const signedCount = computed(() => documents.value.filter(d => d.status === 'signed').length);
-const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending').length);
+const signedCount = computed(() => documents.value.filter(d => d.status === 'signed' || d.status === 'COMPLETED').length);
+const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending' || d.status === 'IN_PROGRESS').length);
 const certificateExpiry = computed(() => {
     const expiresAt = user.value?.certificate?.expires_at;
     if (!expiresAt) return '-';
@@ -196,7 +196,8 @@ const onDocumentSigned = async () => {
 const verifyDocument = async (id) => {
     try {
         const docRes = await axios.get(`/api/documents/${id}`);
-        const verifyToken = docRes.data.verify_token;
+        const docData = docRes.data?.data ?? docRes.data;
+        const verifyToken = docData?.verify_token;
         
         if (!verifyToken) {
             verifyModalResult.value = {
@@ -212,20 +213,21 @@ const verifyDocument = async (id) => {
         }
         
         const res = await axios.get(`/api/verify/${verifyToken}`);
-
-        const status = res.data.status || 'unknown';
-        const tone = status === 'COMPLETED' || status === 'signed' ? 'success' : 'warning';
+        const verifyData = res.data?.data ?? res.data;
+        const status = verifyData?.status || 'unknown';
+        const isValid = verifyData?.is_valid === true;
+        const tone = isValid ? 'success' : 'error';
         verifyModalResult.value = {
             title: 'Verification Result',
             tone,
-            statusLabel: status,
-            summary: tone === 'success' ? 'Document signature verified successfully.' : 'Document is not completed yet.',
+            statusLabel: isValid ? 'VALID' : 'INVALID',
+            summary: verifyData?.message || (isValid ? 'Document signature verified successfully.' : 'Document verification failed.'),
             fields: [
-                { label: 'Document ID', value: res.data.documentId || id },
-                { label: 'File', value: res.data.fileName || 'Document' },
-                { label: 'Completed At', value: formatDateTime(res.data.completedAt) },
+                { label: 'Document ID', value: verifyData?.documentId || id },
+                { label: 'File', value: verifyData?.fileName || 'Document' },
+                { label: 'Completed At', value: formatDateTime(verifyData?.completedAt) },
             ],
-            signers: (res.data.signers || []).map((signer) => ({
+            signers: (verifyData?.signers || []).map((signer) => ({
                 name: signer.name,
                 status: signer.status,
                 signedAt: formatDateTime(signer.signedAt),
@@ -248,7 +250,8 @@ const verifyDocument = async (id) => {
 const fetchDocuments = async () => {
     try {
         const res = await axios.get('/api/documents');
-        documents.value = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        const list = res.data?.data ?? res.data;
+        documents.value = Array.isArray(list) ? list : [];
     } catch (e) {
         console.error('Failed to fetch documents:', e);
         documents.value = [];
@@ -287,7 +290,11 @@ const downloadDocument = async (id) => {
     }
 };
 
-const getFileName = (path) => path ? path.split('/').pop() : 'document.pdf';
+const getFileName = (docOrPath) => {
+    if (!docOrPath) return 'document.pdf';
+    if (typeof docOrPath === 'string') return docOrPath.split('/').pop();
+    return docOrPath.title || docOrPath.original_filename || (docOrPath.file_path ? docOrPath.file_path.split('/').pop() : 'document.pdf');
+};
 const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);

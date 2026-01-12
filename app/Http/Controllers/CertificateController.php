@@ -2,10 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Certificate;
+use App\Helpers\ApiResponse;
 use App\Services\CertificateService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class CertificateController extends Controller
 {
@@ -22,18 +21,12 @@ class CertificateController extends Controller
 
         // Check if user already has an active certificate?
         // For MVP, allow multiple or just new one.
-        
-        try {
-            $cert = $this->certificateService->generateUserCertificate($user);
 
-            return response()->json([
-                'message' => 'Certificate issued successfully',
-                // Read content if needed for response display, or just ID
-                'certificate_content' => file_get_contents($cert->certificate_path),
-                'certificate_id' => $cert->id,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Failed to issue certificate: ' . $e->getMessage()], 500);
+        if (!$user) {
+            return ApiResponse::error('Unauthenticated', 401);
         }
+
+        $result = $this->certificateService->issueCertificateResult((int) $user->id);
+        return ApiResponse::fromService($result);
     }
 }
