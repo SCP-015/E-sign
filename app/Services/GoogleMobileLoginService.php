@@ -144,6 +144,8 @@ class GoogleMobileLoginService
 
         $signer->update([
             'user_id' => $user->id,
+            'email' => strtolower($user->email),
+            'name' => $user->name,
             'invite_accepted_at' => now(),
             'invite_token' => null,
             'invite_expires_at' => null,

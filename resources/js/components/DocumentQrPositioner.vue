@@ -118,7 +118,7 @@ onMounted(async () => {
 async function loadPosition() {
   try {
     const response = await axios.get(`/api/documents/${props.documentId}/qr-position`);
-    const pos = response.data.qr_position;
+    const pos = response.data.qrPosition;
     
     qrPosition.x = pos.x;
     qrPosition.y = pos.y;

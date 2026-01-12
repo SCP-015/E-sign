@@ -11,6 +11,13 @@ class SignatureStoreRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('isDefault') && !$this->has('is_default')) {
+            $this->merge(['is_default' => $this->input('isDefault')]);
+        }
+    }
+
     public function rules(): array
     {
         return [

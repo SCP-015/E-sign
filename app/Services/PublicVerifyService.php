@@ -61,7 +61,9 @@ class PublicVerifyService
             }
 
             if ($token) {
-                $document = Document::where('verify_token', $token)->first();
+                $document = Document::where('verify_token', $token)
+                    ->with(['user', 'signers.user', 'signingEvidence'])
+                    ->first();
                 if ($document) {
                     $evidence = $document->signingEvidence;
                     $allowBackfill = filter_var(env('LTV_BACKFILL_ON_DEMAND', false), FILTER_VALIDATE_BOOLEAN);
@@ -102,10 +104,22 @@ class PublicVerifyService
                         $wasCertValidAtSigning = $signedAt->between($evidence->certificate_not_before, $evidence->certificate_not_after);
                     }
 
+                    $signedBy = null;
+                    $signedEmail = null;
+                    $signedSigner = $document->signers
+                        ?->first(fn ($s) => $s->status === 'SIGNED' && $s->signed_at);
+                    if ($signedSigner) {
+                        $signedBy = $signedSigner->user?->name ?? $signedSigner->name;
+                        $signedEmail = $signedSigner->user?->email ?? $signedSigner->email;
+                    }
+                    $signedBy = $signedBy ?? $document->user?->name;
+                    $signedEmail = $signedEmail ?? $document->user?->email;
+
                     $payload = [
                         'is_valid' => (bool) $wasCertValidAtSigning,
                         'message' => $wasCertValidAtSigning ? 'Signature is valid' : 'Signature cannot be validated (missing/invalid LTV evidence)',
-                        'signed_by' => $document->user?->name,
+                        'signed_by' => $signedBy,
+                        'signed_email' => $signedEmail,
                         'signed_at' => $signedAt?->toIso8601String() ?? $document->completed_at?->toIso8601String() ?? $document->updated_at?->toIso8601String(),
                         'document_id' => $document->id,
                         'file_name' => $document->title ?? basename($document->file_path),
@@ -234,7 +248,8 @@ class PublicVerifyService
             'file_name' => $document->title ?? basename($document->file_path),
             'completed_at' => $document->completed_at?->toIso8601String(),
             'signers' => $document->signers->map(fn ($s) => [
-                'name' => $s->name,
+                'name' => $s->user?->name ?? $s->name,
+                'email' => $s->user?->email ?? $s->email,
                 'status' => $s->status,
                 'signed_at' => $s->signed_at?->toIso8601String(),
             ])->toArray(),
