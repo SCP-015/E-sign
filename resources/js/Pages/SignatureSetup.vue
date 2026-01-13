@@ -1,0 +1,413 @@
+<template>
+  <Head title="Signature Setup" />
+  <div class="min-h-screen">
+    <div class="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10">
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">Signature Studio</p>
+          <h2 class="text-3xl font-bold">Setup Your Signature</h2>
+          <p class="text-sm text-base-content/60">Create and manage your digital signatures.</p>
+        </div>
+        <button @click="goToDashboard" class="btn btn-outline btn-sm w-full sm:w-auto">Back to Dashboard</button>
+      </div>
+
+      <div class="grid gap-6 lg:grid-cols-[1.2fr,1fr]">
+        <div class="card border border-base-200 bg-base-100/90 shadow-sm">
+          <div class="card-body gap-4">
+            <div>
+              <h3 class="text-lg font-semibold">Draw Your Signature</h3>
+              <p class="text-sm text-base-content/60">Use your mouse, trackpad, or touch to sign.</p>
+            </div>
+
+            <div class="rounded-2xl border border-base-200 bg-base-100 p-2">
+              <canvas
+                ref="signatureCanvas"
+                class="h-56 w-full cursor-crosshair rounded-xl touch-none sm:h-72"
+                @pointerdown="startDrawing"
+                @pointermove="draw"
+                @pointerup="stopDrawing"
+                @pointerleave="stopDrawing"
+                @pointercancel="stopDrawing"
+              ></canvas>
+            </div>
+
+            <div class="flex flex-wrap gap-3">
+              <button @click="clearCanvas" class="btn btn-ghost btn-sm">Clear</button>
+              <button @click="saveSignature" class="btn btn-primary btn-sm" :disabled="!isDrawn">
+                Save Signature
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card border border-base-200 bg-base-100/90 shadow-sm">
+          <div class="card-body gap-4">
+            <div>
+              <h3 class="text-lg font-semibold">Your Saved Signatures</h3>
+              <p class="text-sm text-base-content/60">Manage defaults or remove old ones.</p>
+            </div>
+
+            <div v-if="signatures.length === 0" class="rounded-2xl border border-dashed border-base-300 bg-base-200/40 p-6 text-center text-sm text-base-content/60">
+              No signatures saved yet. Draw and save one above.
+            </div>
+
+            <div v-else class="grid gap-4">
+              <div v-for="sig in signatures" :key="sig.id" class="rounded-2xl border border-base-200 bg-base-100 p-4 shadow-sm">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <div class="flex w-full items-center justify-center rounded-xl border border-base-200 bg-base-100 p-2 sm:w-40">
+                    <img v-if="sig.imageUrl" :src="sig.imageUrl" :alt="sig.name" class="max-h-20 w-full object-contain">
+                    <div v-else class="text-xs text-base-content/40">Preview unavailable</div>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <h4 class="wrap-break-word font-semibold">{{ sig.name }}</h4>
+                    <p class="text-xs text-base-content/60">{{ sig.image_type.toUpperCase() }} · {{ formatDate(sig.created_at) }}</p>
+                    <span v-if="sig.is_default" class="badge badge-success badge-sm mt-2">Default</span>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      v-if="!sig.is_default"
+                      @click="setDefault(sig.id)"
+                      class="btn btn-outline btn-xs"
+                      title="Set as default"
+                    >
+                      Set Default
+                    </button>
+                    <button
+                      @click="openDeleteModal(sig)"
+                      class="btn btn-error btn-outline btn-xs"
+                      title="Delete signature"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <Teleport to="body">
+    <transition name="confirm">
+      <div
+        v-if="showDeleteModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-base-100/60 px-4 backdrop-blur-sm"
+        @click.self="closeDeleteModal"
+      >
+        <div class="w-full max-w-md rounded-3xl border border-base-200 bg-base-100 shadow-2xl">
+          <div class="flex items-start gap-3 border-b border-base-200 px-6 py-5">
+            <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-error/10 text-error">
+              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 9v4"></path>
+                <path d="M12 17h.01"></path>
+                <path d="M10.3 4.6l-7 12.1a1 1 0 0 0 .9 1.5h15.6a1 1 0 0 0 .9-1.5l-7-12.1a1 1 0 0 0-1.7 0z"></path>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-semibold">Delete signature?</h3>
+              <p class="text-sm text-base-content/70">This action cannot be undone.</p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-xs" @click="closeDeleteModal">
+              <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="px-6 py-5 text-sm text-base-content/70">
+            Are you sure you want to delete
+            <span class="font-semibold text-base-content">{{ pendingDeleteName }}</span>?
+            If you proceed, this signature will be removed permanently.
+          </div>
+
+          <div class="flex gap-3 border-t border-base-200 px-6 py-4">
+            <button type="button" class="btn btn-ghost flex-1" @click="closeDeleteModal">
+              Cancel
+            </button>
+            <button type="button" class="btn btn-error flex-1" :disabled="deleting" @click="confirmDelete">
+              {{ deleting ? 'Deleting...' : 'Delete Signature' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </Teleport>
+</template>
+
+<script setup>
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { Head, router } from '@inertiajs/vue3';
+import axios from 'axios';
+import { useToastStore } from '../stores/toast';
+import { formatApiError } from '../utils/errors';
+
+const signatureCanvas = ref(null);
+const signatures = ref([]);
+const isDrawing = ref(false);
+const isDrawn = ref(false);
+const toastStore = useToastStore();
+const showDeleteModal = ref(false);
+const pendingDelete = ref(null);
+const deleting = ref(false);
+
+let ctx = null;
+let lastX = 0;
+let lastY = 0;
+
+function getTrimBounds(imageData, alphaThreshold = 1) {
+  const { data, width, height } = imageData;
+
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      const a = data[idx + 3];
+      if (a > alphaThreshold) {
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+
+  if (maxX === -1) return null;
+  return {
+    x: minX,
+    y: minY,
+    w: maxX - minX + 1,
+    h: maxY - minY + 1,
+  };
+}
+
+async function canvasToCroppedPngBlob(sourceCanvas, { padding = 8, alphaThreshold = 1 } = {}) {
+  const srcCtx = sourceCanvas.getContext('2d');
+  const imageData = srcCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+  const bounds = getTrimBounds(imageData, alphaThreshold);
+
+  const outCanvas = document.createElement('canvas');
+
+  if (!bounds) {
+    outCanvas.width = sourceCanvas.width;
+    outCanvas.height = sourceCanvas.height;
+    outCanvas.getContext('2d').drawImage(sourceCanvas, 0, 0);
+  } else {
+    const x = Math.max(0, bounds.x - padding);
+    const y = Math.max(0, bounds.y - padding);
+    const w = Math.min(sourceCanvas.width - x, bounds.w + padding * 2);
+    const h = Math.min(sourceCanvas.height - y, bounds.h + padding * 2);
+
+    outCanvas.width = w;
+    outCanvas.height = h;
+
+    const outCtx = outCanvas.getContext('2d');
+    outCtx.drawImage(sourceCanvas, x, y, w, h, 0, 0, w, h);
+  }
+
+  const blob = await new Promise((resolve) => {
+    outCanvas.toBlob(resolve, 'image/png');
+  });
+  return blob;
+}
+
+onMounted(() => {
+  initCanvas();
+  loadSignatures();
+});
+
+onBeforeUnmount(() => {
+  revokeSignatureUrls(signatures.value);
+});
+
+function initCanvas() {
+  const canvas = signatureCanvas.value;
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  
+  ctx = canvas.getContext('2d');
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#000';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function startDrawing(e) {
+  e.preventDefault();
+  const canvas = signatureCanvas.value;
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  lastX = e.clientX - rect.left;
+  lastY = e.clientY - rect.top;
+  isDrawing.value = true;
+  if (canvas.setPointerCapture) {
+    canvas.setPointerCapture(e.pointerId);
+  }
+}
+
+function draw(e) {
+  if (!isDrawing.value || !ctx) return;
+
+  const rect = signatureCanvas.value.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  ctx.beginPath();
+  ctx.moveTo(lastX, lastY);
+  ctx.lineTo(x, y);
+  ctx.stroke();
+
+  lastX = x;
+  lastY = y;
+  isDrawn.value = true;
+}
+
+function stopDrawing(e) {
+  if (!isDrawing.value) return;
+  isDrawing.value = false;
+  const canvas = signatureCanvas.value;
+  if (canvas?.releasePointerCapture && e?.pointerId != null) {
+    try {
+      canvas.releasePointerCapture(e.pointerId);
+    } catch (error) {
+      // Ignore if already released.
+    }
+  }
+}
+
+function clearCanvas() {
+  ctx.clearRect(0, 0, signatureCanvas.value.width, signatureCanvas.value.height);
+  isDrawn.value = false;
+  toastStore.info('Canvas cleared.');
+}
+
+async function saveSignature() {
+  if (!isDrawn.value) {
+    toastStore.error('Please draw a signature first.');
+    return;
+  }
+
+  try {
+    const blob = await canvasToCroppedPngBlob(signatureCanvas.value, { padding: 8, alphaThreshold: 1 });
+
+    if (!blob) {
+      toastStore.error('Failed to create image from canvas.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('image', blob, 'signature.png');
+    formData.append('name', `Signature ${new Date().toLocaleDateString()}`);
+    formData.append('is_default', signatures.value.length === 0 ? '1' : '0');
+    
+    await axios.post('/api/signatures', formData);
+    
+    toastStore.success('Signature saved successfully.');
+    clearCanvas();
+    await loadSignatures();
+  } catch (e) {
+    console.error('Failed to save signature:', e);
+    console.error('Response data:', e.response?.data);
+    toastStore.error(formatApiError('Failed to save signature', e));
+  }
+}
+
+async function loadSignatures() {
+  try {
+    revokeSignatureUrls(signatures.value);
+    const response = await axios.get('/api/signatures');
+    const list = response.data?.data ?? response.data;
+    signatures.value = Array.isArray(list) ? list : [];
+
+    await Promise.all(
+      signatures.value.map(async (sig) => {
+        try {
+          const imgRes = await axios.get(`/api/signatures/${sig.id}/image`, { responseType: 'blob' });
+          sig.imageUrl = URL.createObjectURL(imgRes.data);
+        } catch (e) {
+          sig.imageUrl = '';
+        }
+      })
+    );
+  } catch (e) {
+    console.error('Failed to load signatures:', e);
+    toastStore.error(formatApiError('Failed to load signatures', e));
+  }
+}
+
+async function setDefault(id) {
+  try {
+    await axios.put(`/api/signatures/${id}/default`);
+    toastStore.success('Signature set as default.');
+    await loadSignatures();
+  } catch (e) {
+    toastStore.error(formatApiError('Failed to set default signature', e));
+  }
+}
+
+function formatDate(dateString) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function goToDashboard() {
+  router.visit('/dashboard');
+}
+
+const pendingDeleteName = computed(() => pendingDelete.value?.name || 'this signature');
+
+function openDeleteModal(signature) {
+  pendingDelete.value = signature;
+  showDeleteModal.value = true;
+}
+
+function closeDeleteModal() {
+  showDeleteModal.value = false;
+  pendingDelete.value = null;
+}
+
+async function confirmDelete() {
+  if (!pendingDelete.value) return;
+  deleting.value = true;
+  try {
+    await axios.delete(`/api/signatures/${pendingDelete.value.id}`);
+    toastStore.success('Signature deleted.');
+    await loadSignatures();
+    closeDeleteModal();
+  } catch (e) {
+    toastStore.error(formatApiError('Failed to delete signature', e));
+  } finally {
+    deleting.value = false;
+  }
+}
+
+function revokeSignatureUrls(list) {
+  if (!Array.isArray(list)) return;
+  list.forEach((sig) => {
+    if (sig?.imageUrl) {
+      URL.revokeObjectURL(sig.imageUrl);
+      sig.imageUrl = '';
+    }
+  });
+}
+</script>
+
+<style scoped>
+.confirm-enter-active,
+.confirm-leave-active {
+  transition: all 0.2s ease;
+}
+
+.confirm-enter-from,
+.confirm-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+</style>

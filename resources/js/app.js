@@ -1,20 +1,32 @@
 import './bootstrap';
-import { createApp } from 'vue';
-import App from './App.vue';
-import router from './router/index.js';
-import { createPinia, setActivePinia } from 'pinia';
+import { createApp, h } from 'vue';
+import { createInertiaApp } from '@inertiajs/vue3';
+import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
+import { createPinia } from 'pinia';
 import { useAuthStore } from './stores/auth';
+import AppLayout from './Layouts/AppLayout.vue';
 
-const key = 'auth'; // Optional pinia persistence key check if needed, but not installing plugin yet
-const pinia = createPinia();
-setActivePinia(pinia);
+const appName = import.meta.env.VITE_APP_NAME || 'E-Sign';
 
-const app = createApp(App);
-app.use(pinia);
-app.use(router);
+createInertiaApp({
+    title: (title) => (title ? `${title} - ${appName}` : appName),
+    resolve: (name) =>
+        resolvePageComponent(`./Pages/${name}.vue`, import.meta.glob('./Pages/**/*.vue')).then(
+            (module) => {
+                module.default.layout = module.default.layout || AppLayout;
+                return module;
+            }
+        ),
+    setup({ el, App, props, plugin }) {
+        const pinia = createPinia();
+        const app = createApp({ render: () => h(App, props) });
 
-// Initialize auth from localStorage before mounting
-const authStore = useAuthStore();
-authStore.initializeAuth();
+        app.use(plugin);
+        app.use(pinia);
 
-app.mount('#app');
+        const authStore = useAuthStore(pinia);
+        authStore.initializeAuth();
+
+        app.mount(el);
+    },
+});

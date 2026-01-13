@@ -1,189 +1,207 @@
 <template>
-  <div v-if="isOpen" class="signing-modal-overlay" @click.self="close">
-    <div class="signing-modal">
-      <!-- Header -->
-      <div class="modal-header">
-        <h2>Sign Document</h2>
-        <button @click="close" class="close-btn">✕</button>
+  <div v-if="isOpen" class="modal modal-open" @click.self="close">
+    <div class="modal-box w-11/12 max-w-5xl p-0 max-h-[95vh] overflow-hidden flex flex-col sm:max-h-[90vh]">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-base-200 px-4 py-4 sm:px-6">
+        <div>
+          <h2 class="text-lg font-semibold">Sign Document</h2>
+          <p class="text-xs text-base-content/60">Place your signature on the PDF.</p>
+        </div>
+        <button @click="close" class="btn btn-ghost btn-sm">✕</button>
       </div>
 
-      <!-- Content -->
-      <div class="modal-body">
-        <!-- PDF Preview -->
-        <div class="pdf-preview-section">
-          <h3>Document Preview</h3>
-          <div class="pdf-viewer" ref="pdfViewer">
-            <div class="pdf-toolbar">
-              <button class="btn-mini" @click="prevPage" :disabled="placementPage <= 1 || pdfLoading">Prev</button>
-              <span class="page-indicator">{{ placementPage }} / {{ pages || '-' }}</span>
-              <button class="btn-mini" @click="nextPage" :disabled="!pages || placementPage >= pages || pdfLoading">Next</button>
+      <div class="grid flex-1 min-h-0 gap-4 overflow-y-auto px-4 py-4 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div class="min-w-0 space-y-3">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h3 class="text-sm font-semibold">Document Preview</h3>
+            <div class="flex flex-wrap items-center gap-2">
+              <button class="btn btn-outline btn-xs" @click="prevPage" :disabled="placementPage <= 1 || pdfLoading">Prev</button>
+              <span class="badge badge-outline text-xs">{{ placementPage }} / {{ pages || '-' }}</span>
+              <button class="btn btn-outline btn-xs" @click="nextPage" :disabled="!pages || placementPage >= pages || pdfLoading">Next</button>
             </div>
+          </div>
 
-            <div v-if="pdfLoading" class="loading">Loading PDF...</div>
-            <div v-else class="pdf-stage" ref="pdfStage">
-              <div class="pdf-page-wrap" ref="pageWrap">
-                <VuePDF
-                  v-if="pdf"
-                  class="pdf-page"
-                  :pdf="pdf"
-                  :page="placementPage"
-                />
+          <div class="rounded-2xl border border-base-200 bg-base-200/40 p-2 sm:p-3">
+            <div class="relative min-h-64 max-h-[50vh] overflow-auto rounded-xl bg-white sm:max-h-[55vh] lg:max-h-[65vh]" ref="pdfViewer">
+              <div v-if="pdfLoading" class="flex h-full items-center justify-center text-sm text-base-content/60">
+                Loading PDF...
+              </div>
+              <div v-else class="relative p-2 sm:p-3">
+                <div class="relative" ref="pageWrap">
+                  <VuePDF
+                    v-if="pdf"
+                    class="w-full"
+                    :pdf="pdf"
+                    :page="placementPage"
+                    @loaded="onPdfLoaded"
+                  />
 
-                <div
-                  v-if="(selectedSignatureId || assignMode) && signatureImageUrl"
-                  class="signature-overlay"
-                  :style="signatureOverlayStyle"
-                  @pointerdown.prevent="onSigPointerDown"
-                >
-                  <img :src="signatureImageUrl" class="signature-img" alt="Signature Placeholder" />
-                  <div v-if="assignMode" class="assign-badge">Assigned to: {{ assignEmail }}</div>
+                  <div
+                    v-if="(selectedSignatureId || assignMode) && signatureImageUrl"
+                    class="absolute left-0 top-0 cursor-grab select-none touch-none"
+                    :style="signatureOverlayStyle"
+                    @pointerdown.prevent="onSigPointerDown"
+                  >
+                    <img
+                      :src="signatureImageUrl"
+                      class="h-full w-full rounded-lg object-contain"
+                      :alt="assignMode ? 'Signature placeholder' : 'Signature'"
+                    />
+                    <div
+                      v-if="assignMode"
+                      class="absolute -top-6 left-0 rounded-full bg-primary/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow"
+                    >
+                      Assigned to: {{ assignEmail || assignName || 'Signer' }}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-
-        <!-- Signature Placement / Assignment -->
-        <div class="signature-section">
-          <div class="mode-switch">
-            <button 
-              @click="assignMode = false" 
-              :class="['btn-mode', { active: !assignMode }]"
-            >
-              Sign Myself
-            </button>
-            <button 
-              v-if="isDocumentOwner"
-              @click="assignMode = true" 
-              :class="['btn-mode', { active: assignMode }]"
-            >
-              Assign to Other
-            </button>
+        <div class="min-w-0 space-y-4">
+          <div>
+            <h3 class="text-sm font-semibold">Signature Placement</h3>
+            <p class="text-xs text-base-content/60">Choose a signature or assign to another signer.</p>
           </div>
 
-          <div v-if="!assignMode">
-            <h3>Place Your Signature</h3>
-            
-            <!-- Signature Selection -->
-            <div class="signature-select">
-              <label>Select Signature:</label>
-              <select v-model="selectedSignatureId" class="form-control">
+          <div class="rounded-2xl border border-base-200 bg-base-100 p-4 space-y-4">
+            <div class="flex items-center gap-2 rounded-full border border-base-200 bg-base-200/60 p-1 text-xs font-semibold">
+              <button
+                type="button"
+                class="flex-1 rounded-full px-3 py-2 transition"
+                :class="assignMode ? 'text-base-content/60' : 'bg-base-100 shadow text-base-content'"
+                @click="assignMode = false"
+              >
+                Sign Myself
+              </button>
+              <button
+                v-if="isDocumentOwner"
+                type="button"
+                class="flex-1 rounded-full px-3 py-2 transition"
+                :class="assignMode ? 'bg-base-100 shadow text-base-content' : 'text-base-content/60'"
+                @click="assignMode = true"
+              >
+                Assign to Other
+              </button>
+            </div>
+
+            <div v-if="!assignMode" class="space-y-3">
+              <label class="text-xs font-semibold">Select Signature</label>
+              <select v-model="selectedSignatureId" class="select select-bordered select-sm w-full">
                 <option :value="null">-- Choose a signature --</option>
                 <option v-for="sig in signatures" :key="sig.id" :value="sig.id">
                   {{ sig.name }}
                 </option>
               </select>
 
-              <div v-if="selectedSignatureId && signatureImageUrl" class="selected-sig-preview">
-                <img :src="signatureImageUrl" alt="Selected signature" />
+              <div v-if="selectedSignatureId && signatureImageUrl" class="flex h-20 items-center justify-center rounded-xl border border-base-200 bg-base-100">
+                <img :src="signatureImageUrl" alt="Selected signature" class="max-h-16 max-w-full object-contain" />
               </div>
 
-              <button @click="goToSignatureSetup" class="btn-secondary btn-sm">
-                + Create New Signature
+              <button @click="goToSignatureSetup" class="btn btn-outline btn-sm w-full">
+                Create New Signature
               </button>
             </div>
-          </div>
 
-          <div v-else class="assign-section">
-            <h3>Assign to Another User</h3>
+            <div v-else class="space-y-3">
+              <div class="space-y-2 rounded-xl border border-base-200 bg-base-200/40 p-3 text-xs">
+                <label class="flex items-center gap-2">
+                  <input v-model="includeOwner" type="checkbox" class="checkbox checkbox-xs">
+                  <span class="font-semibold">Include me as signer</span>
+                </label>
+                <label v-if="includeOwner" class="flex items-center gap-2">
+                  <input v-model="ownerFirst" type="checkbox" class="checkbox checkbox-xs">
+                  <span class="font-semibold">I sign first</span>
+                </label>
+              </div>
 
-            <div class="form-group">
-              <label>
-                <input type="checkbox" v-model="includeOwner" />
-                Include me as signer
-              </label>
-            </div>
+              <div>
+                <label class="text-xs font-semibold">Signing Mode</label>
+                <select v-model="signingMode" class="select select-bordered select-sm w-full">
+                  <option value="PARALLEL">PARALLEL</option>
+                  <option value="SEQUENTIAL">SEQUENTIAL</option>
+                </select>
+              </div>
 
-            <div class="form-group" v-if="includeOwner">
-              <label>
-                <input type="checkbox" v-model="ownerFirst" />
-                I sign first
-              </label>
-            </div>
-
-            <div class="form-group">
-              <label>Signing Mode:</label>
-              <select v-model="signingMode" class="form-control">
-                <option value="PARALLEL">PARALLEL</option>
-                <option value="SEQUENTIAL">SEQUENTIAL</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>Email Address:</label>
-              <input 
-                v-model="assignEmail" 
-                type="email" 
-                placeholder="Enter signer's email"
-                class="form-control"
-              >
-            </div>
-            <div class="form-group">
-              <label>Full Name:</label>
-              <input 
-                v-model="assignName" 
-                type="text" 
-                placeholder="Enter signer's name"
-                class="form-control"
-              >
+              <div>
+                <label class="text-xs font-semibold">Signer Email</label>
+                <input
+                  v-model="assignEmail"
+                  type="email"
+                  placeholder="Enter signer's email"
+                  class="input input-bordered input-sm w-full"
+                >
+              </div>
+              <div>
+                <label class="text-xs font-semibold">Signer Name</label>
+                <input
+                  v-model="assignName"
+                  type="text"
+                  placeholder="Enter signer's name"
+                  class="input input-bordered input-sm w-full"
+                >
+              </div>
             </div>
           </div>
 
-          <!-- Page & Position Selection -->
-          <div v-if="selectedSignatureId || assignMode" class="placement-controls">
-            <div class="control-group">
-              <label>Page:</label>
-              <input 
-                v-model.number="placementPage" 
-                type="number" 
-                min="1" 
+          <div v-if="selectedSignatureId || assignMode" class="rounded-2xl border border-base-200 bg-base-100 p-4">
+            <label class="text-xs font-semibold">Page</label>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                v-model.number="placementPage"
+                type="number"
+                min="1"
                 :max="pageCount"
-                class="form-control"
+                class="input input-bordered input-sm w-full sm:w-24"
               >
-              <span class="help-text">of {{ pageCount }}</span>
+              <span class="text-xs text-base-content/60">of {{ pageCount }}</span>
             </div>
-
-            <p class="help-text">
-              Drag the {{ assignMode ? 'placeholder' : 'signature' }} on the document preview. Position and size will be saved automatically.
+            <p class="mt-3 text-xs text-base-content/60">
+              Drag the {{ assignMode ? 'placeholder' : 'signature' }} on the preview. Position and size will be saved automatically.
             </p>
           </div>
         </div>
       </div>
 
-      <!-- Footer -->
-      <div class="modal-footer">
-        <button @click="close" class="btn-secondary">Cancel</button>
-        <button 
-          v-if="!assignMode"
-          @click="saveSignature" 
-          class="btn-primary"
-          :disabled="!selectedSignatureId || saving"
+      <div class="modal-action border-t border-base-200 px-4 py-4 sm:px-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <button @click="close" class="btn btn-ghost">Cancel</button>
+        <button
+          v-if="canFinalize"
+          @click="finalizeDocument"
+          class="btn btn-primary"
+          :disabled="finalizing || saving"
         >
-          {{ saving ? 'Saving...' : '✓ Save Signature' }}
+          {{ finalizing ? 'Finalizing...' : 'Finalize Document' }}
         </button>
-        <button 
+        <button
+          v-else-if="!assignMode"
+          @click="saveSignature"
+          class="btn btn-primary"
+          :disabled="!selectedSignatureId || saving || finalizing"
+        >
+          {{ saving ? 'Saving...' : 'Save Signature' }}
+        </button>
+        <button
           v-else
-          @click="assignToOther" 
-          class="btn-primary"
-          :disabled="!assignEmail || !assignName || saving"
+          @click="assignToOther"
+          class="btn btn-primary"
+          :disabled="!assignEmail || !assignName || saving || finalizing"
         >
           {{ saving ? 'Assigning...' : '📧 Send Invitation' }}
         </button>
       </div>
 
-      <!-- Message -->
-      <div v-if="message" :class="['message', messageType]">
-        {{ message }}
-      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
+import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
+import { useToastStore } from '../stores/toast';
+import { formatApiError } from '../utils/errors';
 import { VuePDF, usePDF } from '@tato30/vue-pdf';
 import '@tato30/vue-pdf/style.css';
 
@@ -194,20 +212,21 @@ const props = defineProps({
 });
 
 const documentOwnerId = ref(null);
+const documentSigners = ref([]);
+const documentStatus = ref(null);
 
 const emit = defineEmits(['close', 'signed']);
 
-const router = useRouter();
 const authStore = useAuthStore();
+const toastStore = useToastStore();
 const pdfLoading = ref(false);
 const pdfViewer = ref(null);
-const pdfStage = ref(null);
 const pageWrap = ref(null);
 
 const pdfSource = ref(null);
 function onPdfError(reason) {
   console.error('PDF viewer error:', reason);
-  showMessage('PDF viewer error: ' + (reason?.message || String(reason)), 'error');
+  toastStore.error('PDF viewer error: ' + (reason?.message || String(reason)));
 }
 
 const { pdf, pages } = usePDF(pdfSource, { onError: onPdfError });
@@ -218,8 +237,7 @@ const signatureImageUrl = ref('');
 const signatureImageObjectUrl = ref('');
 const placementPage = ref(1);
 const saving = ref(false);
-const message = ref('');
-const messageType = ref('info');
+const finalizing = ref(false);
 
 const assignMode = ref(false);
 const assignEmail = ref('');
@@ -233,6 +251,22 @@ const isDocumentOwner = computed(() => {
   if (!documentOwnerId.value || !authStore.user?.id) return false;
   return Number(documentOwnerId.value) === Number(authStore.user.id);
 });
+const canFinalize = computed(() => {
+  if (!isDocumentOwner.value) return false;
+  const status = String(documentStatus.value || '').toLowerCase();
+  return status === 'signed';
+});
+const hasOtherSigners = computed(() => {
+  const userId = authStore.user?.id;
+  if (!userId) return false;
+
+  return documentSigners.value.some((signer) => {
+    const signerUserId = signer?.user_id ?? signer?.userId;
+    if (!signerUserId) return true;
+    return Number(signerUserId) !== Number(userId);
+  });
+});
+const shouldAutoFinalize = computed(() => isDocumentOwner.value && !hasOtherSigners.value);
 
 const sigX = ref(24);
 const sigY = ref(24);
@@ -251,7 +285,6 @@ onBeforeUnmount(() => {
   detachDragListeners();
 });
 
-// Watch for modal open
 watch(() => props.isOpen, async (newVal) => {
   if (newVal && props.documentId) {
     await loadSignatures();
@@ -281,6 +314,7 @@ watch(() => assignMode.value, (newVal) => {
     selectedSignatureId.value = null;
     // Set a placeholder for assignment if needed
     signatureImageUrl.value = 'https://placehold.co/400x200?text=Signer+Placeholder';
+    resetSignaturePosition();
   } else {
     loadSignatures();
   }
@@ -292,7 +326,9 @@ async function loadPdf() {
     // Fetch document details to get owner_id
     const docRes = await axios.get(`/api/documents/${props.documentId}`);
     const doc = docRes.data?.data ?? docRes.data;
-    documentOwnerId.value = doc.userId;
+    documentOwnerId.value = doc.user_id ?? doc.userId;
+    documentSigners.value = Array.isArray(doc.signers) ? doc.signers : [];
+    documentStatus.value = doc.status ?? null;
     
     const res = await axios.get(`/api/documents/${props.documentId}/view-url`, {
       responseType: 'arraybuffer',
@@ -301,7 +337,7 @@ async function loadPdf() {
     placementPage.value = 1;
   } catch (e) {
     console.error('Failed to load PDF:', e);
-    showMessage('Failed to load PDF: ' + (e.response?.data?.message || e.message), 'error');
+    toastStore.error(formatApiError('Failed to load PDF', e));
   } finally {
     pdfLoading.value = false;
   }
@@ -319,6 +355,33 @@ function nextPage() {
   if (pages.value && placementPage.value < pages.value) placementPage.value += 1;
 }
 
+function getPdfBounds() {
+  const wrapEl = pageWrap.value;
+  if (!wrapEl) return null;
+  const wrapRect = wrapEl.getBoundingClientRect();
+  const pageEl =
+    wrapEl.querySelector('.vue-pdf__page') ||
+    wrapEl.querySelector('.page') ||
+    wrapEl.querySelector('canvas');
+  if (!pageEl) {
+    return { x: 0, y: 0, width: wrapRect.width, height: wrapRect.height };
+  }
+
+  const pageRect = pageEl.getBoundingClientRect();
+  return {
+    x: pageRect.left - wrapRect.left,
+    y: pageRect.top - wrapRect.top,
+    width: pageRect.width,
+    height: pageRect.height,
+  };
+}
+
+function onPdfLoaded() {
+  nextTick(() => {
+    clampSignature();
+  });
+}
+
 async function loadSignatureImage(signatureId) {
   try {
     const res = await axios.get(`/api/signatures/${signatureId}/image`, {
@@ -329,21 +392,17 @@ async function loadSignatureImage(signatureId) {
     signatureImageObjectUrl.value = url;
     signatureImageUrl.value = url;
 
-    // Update overlay size based on actual image dimensions (cropped PNG)
     await new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
-        const wrapEl = pageWrap.value;
-        const wrapW = wrapEl?.getBoundingClientRect?.().width || 0;
+        const bounds = getPdfBounds();
+        const wrapW = bounds?.width || 0;
 
         const ratio = img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 1;
 
-        // Choose a default display height, then compute width by ratio.
-        // Clamp so it doesn't become too large or too small.
         const targetH = 60;
         let targetW = Math.round(targetH * ratio);
 
-        // Reasonable bounds
         const maxW = wrapW ? Math.max(80, Math.floor(wrapW * 0.7)) : 420;
         targetW = Math.min(Math.max(targetW, 80), maxW);
 
@@ -356,7 +415,7 @@ async function loadSignatureImage(signatureId) {
     });
   } catch (e) {
     console.error('Failed to load signature image:', e);
-    showMessage('Failed to load signature image', 'error');
+    toastStore.error(formatApiError('Failed to load signature image', e));
   }
 }
 
@@ -369,19 +428,19 @@ function cleanupSignatureImageUrl() {
 }
 
 function resetSignaturePosition() {
-  sigX.value = 24;
-  sigY.value = 24;
+  const bounds = getPdfBounds();
+  sigX.value = (bounds?.x || 0) + 24;
+  sigY.value = (bounds?.y || 0) + 24;
   clampSignature();
 }
 
 function clampSignature() {
-  const wrapEl = pageWrap.value;
-  if (!wrapEl) return;
-  const rect = wrapEl.getBoundingClientRect();
-  const maxX = Math.max(0, rect.width - sigW.value);
-  const maxY = Math.max(0, rect.height - sigH.value);
-  sigX.value = Math.min(Math.max(0, sigX.value), maxX);
-  sigY.value = Math.min(Math.max(0, sigY.value), maxY);
+  const bounds = getPdfBounds();
+  if (!bounds) return;
+  const maxX = Math.max(bounds.x, bounds.x + bounds.width - sigW.value);
+  const maxY = Math.max(bounds.y, bounds.y + bounds.height - sigH.value);
+  sigX.value = Math.min(Math.max(bounds.x, sigX.value), maxX);
+  sigY.value = Math.min(Math.max(bounds.y, sigY.value), maxY);
 }
 
 function onSigPointerDown(e) {
@@ -443,38 +502,42 @@ async function loadSignatures() {
     const list = res.data?.data ?? res.data;
     signatures.value = Array.isArray(list) ? list : [];
     if (signatures.value.length > 0) {
-      const defaultSig = signatures.value.find((s) => s.isDefault) || signatures.value[0];
+      const defaultSig =
+        signatures.value.find((s) => s.is_default === true || s.isDefault === true) || signatures.value[0];
       selectedSignatureId.value = defaultSig?.id ?? null;
     } else {
       selectedSignatureId.value = null;
     }
   } catch (e) {
+    console.error('Failed to load signatures:', e);
+    toastStore.error(formatApiError('Failed to load signatures', e));
     signatures.value = [];
+    selectedSignatureId.value = null;
   }
 }
 
 async function saveSignature() {
   if (!selectedSignatureId.value) {
-    showMessage('Please select a signature', 'error');
+    toastStore.error('Please select a signature.');
     return;
   }
 
   const signerUserId = authStore.user?.id;
   if (!signerUserId) {
-    showMessage('Unauthenticated', 'error');
+    toastStore.error('Unauthenticated.');
     return;
   }
 
-  if (!pageWrap.value) {
-    showMessage('PDF is not ready yet', 'error');
+  const coords = getNormalizedCoordinates();
+  if (!coords) {
+    toastStore.error('PDF is not ready yet.');
     return;
   }
-
-  const { xNorm, yNorm, wNorm, hNorm } = getNormalizedCoordinates();
+  const { xNorm, yNorm, wNorm, hNorm } = coords;
 
   saving.value = true;
   try {
-    const response = await axios.post(`/api/documents/${props.documentId}/placements`, {
+    await axios.post(`/api/documents/${props.documentId}/placements`, {
       signerUserId,
       placements: [
         {
@@ -488,17 +551,22 @@ async function saveSignature() {
       ]
     });
 
-    if (response?.data?.status && response.data.status !== 'success') {
-      throw new Error(response.data.message || 'Failed to save signature');
+    if (shouldAutoFinalize.value) {
+      try {
+        await axios.post(`/api/documents/${props.documentId}/finalize`);
+        toastStore.success('Document signed and finalized.');
+      } catch (e) {
+        toastStore.error(formatApiError('Signature saved but finalize failed', e));
+      }
+    } else {
+      toastStore.success('Signature placement saved.');
     }
-
-    showMessage('✅ Signature placed successfully!', 'success');
     setTimeout(() => {
       emit('signed');
       close();
     }, 1500);
   } catch (e) {
-    showMessage('Failed to save signature: ' + (e.response?.data?.message || e.message), 'error');
+    toastStore.error(formatApiError('Failed to save signature placement', e));
   } finally {
     saving.value = false;
   }
@@ -506,11 +574,15 @@ async function saveSignature() {
 
 async function assignToOther() {
   if (!assignEmail.value || !assignName.value) {
-    showMessage('Please fill in email and name', 'error');
+    toastStore.error('Please fill in email and name.');
     return;
   }
 
-  const { xNorm, yNorm, wNorm, hNorm } = getNormalizedCoordinates();
+  const coords = getNormalizedCoordinates();
+  if (!coords) {
+    toastStore.error('PDF is not ready yet.');
+    return;
+  }
 
   saving.value = true;
   try {
@@ -521,8 +593,7 @@ async function assignToOther() {
     const ownerOrder = includeMe ? (ownerFirst.value ? 1 : 2) : null;
     const assigneeOrder = includeMe ? (ownerFirst.value ? 2 : 1) : 1;
 
-    // 1. Add signer and send email
-    const signerRes = await axios.post(`/api/documents/${props.documentId}/signers`, {
+    await axios.post(`/api/documents/${props.documentId}/signers`, {
       includeOwner: includeMe,
       ownerOrder,
       signingMode: modePayload,
@@ -530,452 +601,75 @@ async function assignToOther() {
         {
           email: assignEmail.value,
           name: assignName.value,
-          order: assigneeOrder
-        }
-      ]
+          order: assigneeOrder,
+        },
+      ],
     });
 
-    // Handle ApiResponse format
-    const signerData = signerRes.data?.data ?? signerRes.data;
-    const signerId = signerData.signers?.[0]?.id;
-
-    // 2. Add placement for this signer
     await axios.post(`/api/documents/${props.documentId}/placements`, {
       email: assignEmail.value,
       placements: [
         {
           page: placementPage.value,
-          x: xNorm,
-          y: yNorm,
-          w: wNorm,
-          h: hNorm,
-        }
-      ]
+          x: coords.xNorm,
+          y: coords.yNorm,
+          w: coords.wNorm,
+          h: coords.hNorm,
+        },
+      ],
     });
 
-    showMessage('✅ Invitation sent successfully!', 'success');
+    toastStore.success('Invitation sent successfully.');
     setTimeout(() => {
       emit('signed');
       close();
     }, 1500);
   } catch (e) {
-    showMessage('Failed to assign: ' + (e.response?.data?.message || e.message), 'error');
+    toastStore.error(formatApiError('Failed to send invitation', e));
   } finally {
     saving.value = false;
   }
 }
 
+async function finalizeDocument() {
+  if (!props.documentId) {
+    toastStore.error('Document is not available.');
+    return;
+  }
+
+  finalizing.value = true;
+  try {
+    await axios.post(`/api/documents/${props.documentId}/finalize`);
+    toastStore.success('Document finalized.');
+    emit('signed');
+    close();
+  } catch (e) {
+    toastStore.error(formatApiError('Failed to finalize document', e));
+  } finally {
+    finalizing.value = false;
+  }
+}
+
 function getNormalizedCoordinates() {
-  if (!pageWrap.value) return { xNorm: 0, yNorm: 0, wNorm: 0, hNorm: 0 };
-  
-  const wrapRect = pageWrap.value.getBoundingClientRect();
-  const w = Math.max(1, wrapRect.width);
-  const h = Math.max(1, wrapRect.height);
+  const bounds = getPdfBounds();
+  if (!bounds) return null;
+
+  const w = Math.max(1, bounds.width);
+  const h = Math.max(1, bounds.height);
 
   return {
-    xNorm: sigX.value / w,
-    yNorm: sigY.value / h,
+    xNorm: (sigX.value - bounds.x) / w,
+    yNorm: (sigY.value - bounds.y) / h,
     wNorm: sigW.value / w,
-    hNorm: sigH.value / h
+    hNorm: sigH.value / h,
   };
 }
-
-function showMessage(msg, type = 'info') {
-  message.value = msg;
-  messageType.value = type;
-  setTimeout(() => {
-    message.value = '';
-  }, 3000);
-}
-
 function goToSignatureSetup() {
   close();
-  router.push('/signature-setup');
+  router.visit('/signature-setup');
 }
 
 function close() {
   emit('close');
 }
 </script>
-
-<style scoped>
-.signing-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.signing-modal {
-  background: white;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 1000px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  padding: 20px;
-  border-bottom: 1px solid #eee;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 20px;
-  color: #333;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: #999;
-}
-
-.close-btn:hover {
-  color: #333;
-}
-
-.modal-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 20px;
-}
-
-.pdf-preview-section h3,
-.signature-section h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
-  font-size: 16px;
-  color: #333;
-}
-
-.pdf-viewer {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #f5f5f5;
-  height: 500px;
-  position: relative;
-  overflow: auto;
-}
-
-.pdf-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
-  background: #fff;
-  border-bottom: 1px solid #eee;
-  position: sticky;
-  top: 0;
-  z-index: 20;
-}
-
-.page-indicator {
-  font-size: 13px;
-  color: #333;
-}
-
-.btn-mini {
-  background: #6c757d;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 10px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.btn-mini:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pdf-stage {
-  position: relative;
-  padding: 10px;
-}
-
-.pdf-page-wrap {
-  position: relative;
-  width: 100%;
-}
-
-.pdf-page {
-  width: 100%;
-}
-
-.pdf-canvas-wrap {
-  position: relative;
-  min-height: 100%;
-}
-
-.pdf-canvas {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.signature-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  cursor: grab;
-  user-select: none;
-  touch-action: none;
-  z-index: 10;
-}
-
-.signature-overlay:active {
-  cursor: grabbing;
-}
-
-.assign-badge {
-  position: absolute;
-  top: -20px;
-  left: 0;
-  background: #667eea;
-  color: white;
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
-}
-
-.mode-switch {
-  display: flex;
-  background: #f1f5f9;
-  padding: 4px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-}
-
-.btn-mode {
-  flex: 1;
-  border: none;
-  background: none;
-  padding: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #64748b;
-  cursor: pointer;
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-
-.btn-mode.active {
-  background: white;
-  color: #0f172a;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #333;
-}
-
-.signature-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  border: none;
-  border-radius: 6px;
-}
-
-.selected-sig-preview {
-  width: 100%;
-  height: 80px;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  background: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 10px;
-}
-
-.selected-sig-preview img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-.loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #999;
-}
-
-.signature-select {
-  margin-bottom: 20px;
-}
-
-.signature-select label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 500;
-  color: #333;
-}
-
-.form-control {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 14px;
-  margin-bottom: 10px;
-}
-
-.form-control:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.btn-secondary {
-  background: #6c757d;
-  color: white;
-  border: none;
-  padding: 8px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  width: 100%;
-}
-
-.btn-secondary:hover {
-  background: #5a6268;
-}
-
-.placement-controls {
-  margin-top: 20px;
-}
-
-.control-group {
-  margin-bottom: 15px;
-}
-
-.control-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: 500;
-  font-size: 13px;
-  color: #333;
-}
-
-.position-inputs,
-.size-inputs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.position-inputs > div,
-.size-inputs > div {
-  display: flex;
-  flex-direction: column;
-}
-
-.position-inputs label,
-.size-inputs label {
-  font-size: 12px;
-  margin-bottom: 3px;
-}
-
-.help-text {
-  font-size: 12px;
-  color: #999;
-  margin-top: 5px;
-}
-
-.modal-footer {
-  padding: 15px 20px;
-  border-top: 1px solid #eee;
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
-.btn-primary,
-.btn-secondary {
-  padding: 10px 16px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.3s;
-}
-
-.btn-primary {
-  background: #667eea;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #5568d3;
-}
-
-.btn-primary:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-.message {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  padding: 15px 20px;
-  border-radius: 8px;
-  font-weight: 500;
-  z-index: 1001;
-}
-
-.message.success {
-  background: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
-}
-
-.message.error {
-  background: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
-}
-
-@media (max-width: 768px) {
-  .modal-body {
-    grid-template-columns: 1fr;
-  }
-
-  .pdf-viewer {
-    height: 300px;
-  }
-}
-</style>

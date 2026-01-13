@@ -10,13 +10,15 @@
         "@tailwindcss/vite": "^4.0.0",
         "axios": "^1.13.2",
         "concurrently": "^9.0.1",
+        "daisyui": "^5.5.14",
         "laravel-vite-plugin": "^2.0.0",
         "tailwindcss": "^4.0.0",
         "vite": "^7.0.7"
     },
     "dependencies": {
-        "@vitejs/plugin-vue": "^6.0.3",
+        "@inertiajs/vue3": "^2.3.8",
         "@tato30/vue-pdf": "^1.11.5",
+        "@vitejs/plugin-vue": "^6.0.3",
         "pinia": "^3.0.4",
         "vue": "^3.5.26",
         "vue-router": "^4.6.4"
