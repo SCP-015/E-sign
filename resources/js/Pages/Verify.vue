@@ -138,30 +138,6 @@ const verifyFile = async () => {
         verifyHint.value = message || '';
         const ownerInfo = getOwnerInfo(payload?.document_owner ?? payload?.documentOwner);
 
-        const fields = [
-            { label: 'File', value: payload?.fileName ?? payload?.file_name ?? selectedFile.value.name },
-            { label: 'Document ID', value: payload?.documentId ?? payload?.document_id ?? '-' },
-            { label: 'Signed at', value: formatDateTime(payload?.signedAt ?? payload?.signed_at) },
-        ];
-        if (ownerInfo) {
-            fields.splice(
-                1,
-                0,
-                { label: 'Owner Name', value: ownerInfo.name || '-' },
-                { label: 'Owner Email', value: ownerInfo.email || '-' },
-            );
-        }
-
-        if (payload?.ltv) {
-            fields.push(
-                { label: 'Certificate #', value: payload.ltv.certificateNumber ?? payload.ltv.certificate_number ?? '-' },
-                { label: 'Cert Valid From', value: formatDateTime(payload.ltv.certificateNotBefore ?? payload.ltv.certificate_not_before) },
-                { label: 'Cert Valid To', value: formatDateTime(payload.ltv.certificateNotAfter ?? payload.ltv.certificate_not_after) },
-                { label: 'TSA URL', value: payload.ltv.tsaUrl ?? payload.ltv.tsa_url ?? '-' },
-                { label: 'TSA At', value: formatDateTime(payload.ltv.tsaAt ?? payload.ltv.tsa_at) },
-            );
-        }
-
         const signers = Array.isArray(payload?.signers)
             ? payload.signers.map((signer) => ({
                 name: signer?.name,
@@ -170,12 +146,30 @@ const verifyFile = async () => {
             }))
             : [];
 
-        if (signers.length && !fields.some((f) => f.label === 'Completed At')) {
-            const completedAt = payload?.completedAt ?? payload?.completed_at;
-            if (completedAt) {
-                const idx = fields.findIndex((f) => f.label === 'File');
-                const insertAt = idx >= 0 ? idx + 1 : fields.length;
-                fields.splice(insertAt, 0, { label: 'Completed at', value: formatDateTime(completedAt) });
+        const signedBy = !signers.length ? (payload?.signedBy ?? payload?.signed_by) : null;
+        const signedAt = payload?.signedAt ?? payload?.signed_at ?? null;
+        const fields = [
+            { label: 'File', value: payload?.fileName ?? payload?.file_name ?? selectedFile.value.name },
+        ];
+        if (signedBy) {
+            fields.push({ label: 'Signed By', value: signedBy });
+        }
+        if (!signers.length) {
+            fields.push({ label: 'Signed At', value: signedAt ? formatDateTime(signedAt) : '-' });
+        }
+        const completedAt = payload?.completedAt ?? payload?.completed_at;
+        if (completedAt) {
+            fields.push({ label: 'Completed At', value: formatDateTime(completedAt) });
+        }
+
+        if (payload?.ltv) {
+            const certNotBefore = payload.ltv.certificateNotBefore ?? payload.ltv.certificate_not_before;
+            const certNotAfter = payload.ltv.certificateNotAfter ?? payload.ltv.certificate_not_after;
+            if (certNotBefore) {
+                fields.push({ label: 'Cert Valid From', value: formatDateTime(certNotBefore) });
+            }
+            if (certNotAfter) {
+                fields.push({ label: 'Cert Valid To', value: formatDateTime(certNotAfter) });
             }
         }
 
@@ -196,6 +190,7 @@ const verifyFile = async () => {
             summary: formatApiError('Verification failed', e),
             fields: [
                 { label: 'File', value: selectedFile.value.name },
+                { label: 'Signed At', value: '-' },
             ],
         });
     } finally {

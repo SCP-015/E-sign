@@ -121,18 +121,20 @@ const canFinalize = (doc) => {
 
 const getOwnerInfo = (owner) => {
     if (!owner) return null;
-    if (typeof owner === 'string') return { name: owner, email: null };
+    if (typeof owner === 'string') return { name: owner, email: null, avatar: null };
     if (typeof owner !== 'object') return null;
     return {
         name: owner.name || owner.full_name || owner.fullName || null,
         email: owner.email || null,
+        avatar: owner.avatar || null,
     };
 };
 
 const verifyDocument = async (id) => {
+    let docData = null;
     try {
         const docRes = await axios.get(`/api/documents/${id}`);
-        const docData = docRes.data?.data ?? docRes.data;
+        docData = docRes.data?.data ?? docRes.data;
         const verifyToken = docData?.verify_token || docData?.verifyToken;
 
         if (!verifyToken) {
@@ -142,29 +144,38 @@ const verifyDocument = async (id) => {
                 const isValid = payload?.isValid === true || payload?.is_valid === true;
                 const tone = isValid ? 'success' : 'error';
                 const ownerInfo = getOwnerInfo(payload?.document_owner ?? payload?.documentOwner);
+                const signers = Array.isArray(payload?.signers)
+                    ? payload.signers.map((signer) => ({
+                        name: signer?.name,
+                        status: signer?.status,
+                        signedAt: formatDateTime(signer?.signed_at ?? signer?.signedAt),
+                    }))
+                    : [];
+                const signedBy = !signers.length ? (payload?.signed_by ?? payload?.signedBy) : null;
+                const signedAt = payload?.signed_at ?? payload?.signedAt ?? null;
                 const fields = [
-                    { label: 'Document ID', value: payload?.document_id || id },
-                    { label: 'File', value: payload?.file_name || 'Document' },
-                    { label: 'Signed By', value: payload?.signed_by || '-' },
-                    { label: 'Signed At', value: formatDateTime(payload?.signed_at) },
+                    { label: 'File', value: payload?.file_name || payload?.fileName || 'Document' },
                 ];
-                if (ownerInfo) {
-                    fields.splice(
-                        1,
-                        0,
-                        { label: 'Owner Name', value: ownerInfo.name || '-' },
-                        { label: 'Owner Email', value: ownerInfo.email || '-' },
-                    );
+                if (signedBy) {
+                    fields.push({ label: 'Signed By', value: signedBy });
+                }
+                if (!signers.length) {
+                    fields.push({ label: 'Signed At', value: signedAt ? formatDateTime(signedAt) : '-' });
+                }
+                const completedAt = payload?.completed_at ?? payload?.completedAt;
+                if (completedAt) {
+                    fields.push({ label: 'Completed At', value: formatDateTime(completedAt) });
                 }
 
                 if (payload?.ltv) {
-                    fields.push(
-                        { label: 'Certificate #', value: payload.ltv.certificate_number || '-' },
-                        { label: 'Cert Valid From', value: formatDateTime(payload.ltv.certificate_not_before) },
-                        { label: 'Cert Valid To', value: formatDateTime(payload.ltv.certificate_not_after) },
-                        { label: 'TSA URL', value: payload.ltv.tsa_url || '-' },
-                        { label: 'TSA At', value: formatDateTime(payload.ltv.tsa_at) },
-                    );
+                    const certNotBefore = payload.ltv.certificate_not_before ?? payload.ltv.certificateNotBefore;
+                    const certNotAfter = payload.ltv.certificate_not_after ?? payload.ltv.certificateNotAfter;
+                    if (certNotBefore) {
+                        fields.push({ label: 'Cert Valid From', value: formatDateTime(certNotBefore) });
+                    }
+                    if (certNotAfter) {
+                        fields.push({ label: 'Cert Valid To', value: formatDateTime(certNotAfter) });
+                    }
                 }
 
                 verifyModalResult.value = {
@@ -172,7 +183,9 @@ const verifyDocument = async (id) => {
                     tone,
                     statusLabel: isValid ? 'VALID' : 'INVALID',
                     summary: payload?.message || (isValid ? 'Document signature verified successfully.' : 'Document verification failed.'),
+                    owner: ownerInfo,
                     fields,
+                    signers: signers.length ? signers : undefined,
                 };
                 verifyModalOpen.value = true;
             } catch (error) {
@@ -181,7 +194,8 @@ const verifyDocument = async (id) => {
                     tone: 'error',
                     summary: formatApiError('Verification failed', error),
                     fields: [
-                        { label: 'Document ID', value: id },
+                        { label: 'File', value: docData ? getFileName(docData) : 'Document' },
+                        { label: 'Signed At', value: '-' },
                     ],
                 };
                 verifyModalOpen.value = true;
@@ -194,18 +208,37 @@ const verifyDocument = async (id) => {
         const isValid = verifyData?.isValid === true || verifyData?.is_valid === true;
         const tone = isValid ? 'success' : 'error';
         const ownerInfo = getOwnerInfo(verifyData?.document_owner ?? verifyData?.documentOwner);
+        const signers = Array.isArray(verifyData?.signers)
+            ? verifyData.signers.map((signer) => ({
+                name: signer?.name,
+                status: signer?.status,
+                signedAt: formatDateTime(signer?.signed_at ?? signer?.signedAt),
+            }))
+            : [];
+        const signedBy = !signers.length ? (verifyData?.signed_by ?? verifyData?.signedBy) : null;
+        const signedAt = verifyData?.signed_at ?? verifyData?.signedAt ?? null;
         const fields = [
-            { label: 'Document ID', value: verifyData?.document_id || verifyData?.documentId || id },
             { label: 'File', value: verifyData?.file_name || verifyData?.fileName || 'Document' },
-            { label: 'Completed At', value: formatDateTime(verifyData?.completed_at ?? verifyData?.completedAt) },
         ];
-        if (ownerInfo) {
-            fields.splice(
-                1,
-                0,
-                { label: 'Owner Name', value: ownerInfo.name || '-' },
-                { label: 'Owner Email', value: ownerInfo.email || '-' },
-            );
+        if (signedBy) {
+            fields.push({ label: 'Signed By', value: signedBy });
+        }
+        if (!signers.length) {
+            fields.push({ label: 'Signed At', value: signedAt ? formatDateTime(signedAt) : '-' });
+        }
+        const completedAt = verifyData?.completed_at ?? verifyData?.completedAt;
+        if (completedAt) {
+            fields.push({ label: 'Completed At', value: formatDateTime(completedAt) });
+        }
+        if (verifyData?.ltv) {
+            const certNotBefore = verifyData.ltv.certificate_not_before ?? verifyData.ltv.certificateNotBefore;
+            const certNotAfter = verifyData.ltv.certificate_not_after ?? verifyData.ltv.certificateNotAfter;
+            if (certNotBefore) {
+                fields.push({ label: 'Cert Valid From', value: formatDateTime(certNotBefore) });
+            }
+            if (certNotAfter) {
+                fields.push({ label: 'Cert Valid To', value: formatDateTime(certNotAfter) });
+            }
         }
 
         verifyModalResult.value = {
@@ -213,12 +246,9 @@ const verifyDocument = async (id) => {
             tone,
             statusLabel: isValid ? 'VALID' : 'INVALID',
             summary: verifyData?.message || (isValid ? 'Document signature verified successfully.' : 'Document verification failed.'),
+            owner: ownerInfo,
             fields,
-            signers: (verifyData?.signers || []).map((signer) => ({
-                name: signer.name,
-                status: signer.status,
-                signedAt: formatDateTime(signer.signed_at ?? signer.signedAt),
-            })),
+            signers: signers.length ? signers : undefined,
         };
         verifyModalOpen.value = true;
     } catch (e) {
@@ -227,7 +257,8 @@ const verifyDocument = async (id) => {
             tone: 'error',
             summary: formatApiError('Verification failed', e),
             fields: [
-                { label: 'Document ID', value: id },
+                { label: 'File', value: docData ? getFileName(docData) : 'Document' },
+                { label: 'Signed At', value: '-' },
             ],
         };
         verifyModalOpen.value = true;
