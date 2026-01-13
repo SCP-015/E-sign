@@ -19,7 +19,7 @@
                 <div class="header-right">
                     <div class="user-info">
                         <span>{{ user.name }}</span>
-                        <button v-if="user.kyc_status?.toLowerCase() === 'verified'" @click="goToSignatureSetup" class="btn-secondary btn-sm">
+                        <button v-if="user.kycStatus?.toLowerCase() === 'verified'" @click="goToSignatureSetup" class="btn-secondary btn-sm">
                             ✍️ Setup Signature
                         </button>
                         <button @click="logout" class="btn-logout">Logout</button>
@@ -58,7 +58,7 @@
                     <h3>🔐 Digital Identity Status</h3>
                 </div>
                 
-                <div v-if="user.kyc_status === 'unverified'" class="identity-card unverified">
+                <div v-if="user.kycStatus === 'unverified'" class="identity-card unverified">
                     <div class="identity-icon">⚠️</div>
                     <div class="identity-content">
                         <h4>Identity Not Verified</h4>
@@ -94,7 +94,7 @@
             </section>
 
             <!-- Upload Section (Only if Verified) -->
-            <section v-if="user.kyc_status?.toLowerCase() === 'verified'" class="upload-section">
+            <section v-if="user.kycStatus?.toLowerCase() === 'verified'" class="upload-section">
                 <div class="section-header">
                     <h3>📤 Upload Document</h3>
                 </div>
@@ -113,7 +113,7 @@
             </section>
 
             <!-- Verify Uploaded Signed PDF (Public Verify via Upload) -->
-            <section v-if="user.kyc_status?.toLowerCase() === 'verified'" class="upload-section">
+            <section v-if="user.kycStatus?.toLowerCase() === 'verified'" class="upload-section">
                 <div class="section-header">
                     <h3>🧾 Verify Signed PDF (Upload)</h3>
                 </div>
@@ -132,22 +132,28 @@
                     <div v-if="verifyUploadResult" style="margin-top: 1rem;">
                         <div class="glass" style="padding: 1rem;">
                             <p style="font-weight: 700; margin-bottom: 0.5rem;">
-                                Result: {{ verifyUploadResult.is_valid ? 'VALID' : 'INVALID' }}
+                                Result: {{ verifyUploadResult.isValid ? 'VALID' : 'INVALID' }}
                             </p>
                             <p style="margin: 0; color: #cbd5e1;">
                                 {{ verifyUploadResult.message }}
                             </p>
-                            <p v-if="verifyUploadResult.file_name" style="margin: 0.5rem 0 0; color: #94a3b8; font-size: 0.875rem;">
-                                File: {{ verifyUploadResult.file_name }}
+                            <p v-if="verifyUploadResult.fileName" style="margin: 0.5rem 0 0; color: #94a3b8; font-size: 0.875rem;">
+                                File: {{ verifyUploadResult.fileName }}
                             </p>
-                            <p v-if="verifyUploadResult.document_id" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
-                                Document ID: {{ verifyUploadResult.document_id }}
+                            <p v-if="verifyUploadResult.documentId" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
+                                Document ID: {{ verifyUploadResult.documentId }}
                             </p>
-                            <p v-if="verifyUploadResult.signed_by" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
-                                Signed by: {{ verifyUploadResult.signed_by }}
+                            <p v-if="verifyUploadResult.signedBy" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
+                                Signed by: {{ verifyUploadResult.signedBy }}<span v-if="verifyUploadResult.signedEmail"> ({{ verifyUploadResult.signedEmail }})</span>
                             </p>
-                            <p v-if="verifyUploadResult.signed_at" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
-                                Signed at: {{ verifyUploadResult.signed_at }}
+                            <p v-if="verifyUploadResult.signedAt" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
+                                Signed at: {{ verifyUploadResult.signedAt }}
+                            </p>
+                            <p v-if="verifyUploadResult.documentOwner" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
+                                Document owner: {{ verifyUploadResult.documentOwner.name }}<span v-if="verifyUploadResult.documentOwner.email"> ({{ verifyUploadResult.documentOwner.email }})</span>
+                            </p>
+                            <p v-if="verifyUploadResult.verifiedAt" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
+                                Verified at: {{ verifyUploadResult.verifiedAt }}
                             </p>
                         </div>
                     </div>
@@ -159,7 +165,7 @@
                 <div class="section-header">
                     <h3>📋 Document History</h3>
                     <div class="header-actions-group">
-                        <div v-if="!user.has_signature" class="warning-banner-inline">
+                        <div v-if="!user.hasSignature" class="warning-banner-inline">
                             ⚠️ Setup your signature to start signing
                         </div>
                         <span class="doc-count">{{ documents.length }} documents</span>
@@ -176,22 +182,22 @@
                                 <span v-else>📄</span>
                             </div>
                             <div class="doc-meta">
-                                <h4 class="doc-name">{{ doc.original_filename || doc.title || getFileName(doc.file_path) }}</h4>
-                                <p class="doc-date">{{ formatDate(doc.created_at) }}</p>
+                                <h4 class="doc-name">{{ doc.originalFilename || doc.title || getFileName(doc.filePath) }}</h4>
+                                <p class="doc-date">{{ formatDate(doc.createdAt) }}</p>
                             </div>
                             <span :class="['status-badge', doc.status]">{{ doc.status }}</span>
                         </div>
                         <div class="doc-actions">
                             <template v-if="canSign(doc)">
-                                <button @click="openSigningModal(doc.id, doc.page_count)" class="btn-primary btn-sm">
+                                <button @click="openSigningModal(doc.id, doc.pageCount)" class="btn-primary btn-sm">
                                     ✍️ Sign Now
                                 </button>
                             </template>
                             <template v-else-if="isAssignedToMe(doc) && !hasISigned(doc)">
-                                <button v-if="user.kyc_status?.toLowerCase() !== 'verified'" class="btn-disabled btn-sm" title="Complete KYC to sign">
+                                <button v-if="user.kycStatus?.toLowerCase() !== 'verified'" class="btn-disabled btn-sm" title="Complete KYC to sign">
                                     🔒 Verify KYC to Sign
                                 </button>
-                                <button v-else-if="!user.has_signature" @click="goToSignatureSetup" class="btn-warning btn-sm">
+                                <button v-else-if="!user.hasSignature" @click="goToSignatureSetup" class="btn-warning btn-sm">
                                     ✍️ Setup Signature First
                                 </button>
                             </template>
@@ -249,8 +255,8 @@ const canSign = (doc) => {
     const status = doc.status?.toLowerCase();
     if (status === 'signed' || status === 'completed') return false;
     
-    const kycStatus = user.value.kyc_status?.toLowerCase();
-    if (kycStatus !== 'verified' || !user.value.has_signature) return false;
+    const kycStatus = user.value.kycStatus?.toLowerCase();
+    if (kycStatus !== 'verified' || !user.value.hasSignature) return false;
     
     // Check if user is one of the signers who hasn't signed yet
     return isAssignedToMe(doc) && !hasISigned(doc);
@@ -258,7 +264,7 @@ const canSign = (doc) => {
 
 const isAssignedToMe = (doc) => {
     if (!doc.signers || doc.signers.length === 0) {
-        return Number(doc.user_id) === Number(user.value.id);
+        return Number(doc.userId) === Number(user.value.id);
     }
     return doc.signers.some(s => 
         (s.userId && Number(s.userId) === Number(user.value.id)) || 
@@ -280,7 +286,7 @@ const verifyUploadResult = ref(null);
 const signedCount = computed(() => documents.value.filter(d => d.status === 'signed' || d.status === 'COMPLETED').length);
 const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending' || d.status === 'IN_PROGRESS').length);
 const certificateExpiry = computed(() => {
-    const expiresAt = user.value?.certificate?.expires_at;
+    const expiresAt = user.value?.certificate?.expiresAt;
     if (!expiresAt) return '-';
     const date = new Date(expiresAt);
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -296,8 +302,7 @@ const logout = async () => {
     router.push('/');
 };
 
-const verifyPdfFile = async (e) => {
-    const file = e.target.files[0];
+const verifyUploadFile = async (file) => {
     if (!file) return;
 
     const formData = new FormData();
@@ -309,8 +314,12 @@ const verifyPdfFile = async (e) => {
     } catch (e) {
         const msg = e.response?.data?.message || e.message;
         verifyUploadResult.value = {
-            valid: false,
+            isValid: false,
             message: msg,
+            signedBy: null,
+            signedAt: null,
+            documentId: null,
+            fileName: file?.name ?? null,
         };
     }
 };
@@ -321,7 +330,7 @@ const goToSignatureSetup = () => {
 
 const getFileName = (doc) => {
     if (!doc) return 'document.pdf';
-    return doc.title || doc.original_filename || (doc.file_path ? doc.file_path.split('/').pop() : 'document.pdf');
+    return doc.title || doc.originalFilename || (doc.filePath ? doc.filePath.split('/').pop() : 'document.pdf');
 };
 const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -378,26 +387,46 @@ const verifyDocument = async (id) => {
         // Get document to get verify token
         const docRes = await axios.get(`/api/documents/${id}`);
         const doc = docRes.data?.data ?? docRes.data;
-        const verifyToken = doc.verify_token || doc.verifyToken;
+        const verifyToken = doc.verifyToken;
         
         if (!verifyToken) {
             // Fallback: internal verification by document_id
-            const fallback = await axios.post('/api/documents/verify', { document_id: id });
+            const fallback = await axios.post('/api/documents/verify', { documentId: id });
             const payload = fallback.data?.data ?? fallback.data;
-            alert(`❌ No verify token found for this document\n\nInternal verification: ${payload?.message || 'N/A'}`);
+            const owner = payload?.documentOwner;
+            const ownerLine = owner ? `${owner.name || '-'}${owner.email ? ` (${owner.email})` : ''}` : 'N/A';
+            const verifiedAt = payload?.verifiedAt || payload?.signedAt || payload?.ltv?.signedAt || null;
+            const whenLine = verifiedAt ? verifiedAt : 'N/A';
+            alert(
+                `❌ No verify token found for this document\n\n` +
+                `Internal verification: ${payload?.message || 'N/A'}\n` +
+                `Document owner: ${ownerLine}\n` +
+                `Verified at: ${whenLine}`
+            );
             return;
         }
         
         // Call verify endpoint
         const res = await axios.get(`/api/verify/${verifyToken}`);
         const verifyData = res.data?.data ?? res.data;
+
+        const owner = verifyData?.documentOwner;
+        const ownerLine = owner ? `${owner.name || '-'}${owner.email ? ` (${owner.email})` : ''}` : 'N/A';
+        const verifiedAt = verifyData?.verifiedAt || verifyData?.completedAt || verifyData?.ltv?.signedAt || null;
+        const whenLine = verifiedAt ? verifiedAt : 'N/A';
         
         // Show verification details
         const signers = (verifyData.signers || []).map(s => 
-            `${s.name}: ${s.status} (${s.signedAt || 'pending'})`
+            `${s.name}${s.email ? ` (${s.email})` : ''}: ${s.status} (${s.signedAt || 'pending'})`
         ).join('\n');
         
-        alert(`✅ Document Verified!\n\nStatus: ${verifyData.status}\nSigners:\n${signers}`);
+        alert(
+            `✅ Document Verified!\n\n` +
+            `Status: ${verifyData.status}\n` +
+            `Document owner: ${ownerLine}\n` +
+            `Verified at: ${whenLine}\n\n` +
+            `Signers:\n${signers}`
+        );
     } catch (e) {
         alert('Verification Error: ' + (e.response?.data?.message || e.message));
     }

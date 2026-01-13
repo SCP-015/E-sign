@@ -53,13 +53,13 @@
             </div>
             <div class="sig-info">
               <h4>{{ sig.name }}</h4>
-              <p class="sig-type">{{ sig.image_type.toUpperCase() }}</p>
-              <p class="sig-date">{{ formatDate(sig.created_at) }}</p>
-              <div v-if="sig.is_default" class="default-badge">✓ Default</div>
+              <p class="sig-type">{{ sig.imageType.toUpperCase() }}</p>
+              <p class="sig-date">{{ formatDate(sig.createdAt) }}</p>
+              <div v-if="sig.isDefault" class="default-badge">✓ Default</div>
             </div>
             <div class="sig-actions">
               <button 
-                v-if="!sig.is_default"
+                v-if="!sig.isDefault"
                 @click="setDefault(sig.id)" 
                 class="btn-mini"
                 title="Set as default"
@@ -247,7 +247,7 @@ async function saveSignature() {
     const formData = new FormData();
     formData.append('image', blob, 'signature.png');
     formData.append('name', `Signature ${new Date().toLocaleDateString()}`);
-    formData.append('is_default', signatures.value.length === 0 ? '1' : '0'); // First signature is default (1 or 0)
+    formData.append('isDefault', signatures.value.length === 0 ? '1' : '0');
     
     const response = await axios.post('/api/signatures', formData);
     // Check for error in ApiResponse format

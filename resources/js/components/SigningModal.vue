@@ -265,7 +265,7 @@ async function loadPdf() {
     // Fetch document details to get owner_id
     const docRes = await axios.get(`/api/documents/${props.documentId}`);
     const doc = docRes.data?.data ?? docRes.data;
-    documentOwnerId.value = doc.user_id;
+    documentOwnerId.value = doc.userId;
     
     const res = await axios.get(`/api/documents/${props.documentId}/view-url`, {
       responseType: 'arraybuffer',
@@ -416,14 +416,13 @@ async function loadSignatures() {
     const list = res.data?.data ?? res.data;
     signatures.value = Array.isArray(list) ? list : [];
     if (signatures.value.length > 0) {
-      const defaultSig = signatures.value.find((s) => s.is_default) || signatures.value[0];
+      const defaultSig = signatures.value.find((s) => s.isDefault) || signatures.value[0];
       selectedSignatureId.value = defaultSig?.id ?? null;
     } else {
       selectedSignatureId.value = null;
     }
   } catch (e) {
-    console.error('Failed to load signatures:', e);
-    showMessage('Failed to load signatures: ' + (e.response?.data?.message || e.message), 'error');
+    signatures.value = [];
   }
 }
 

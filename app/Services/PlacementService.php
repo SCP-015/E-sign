@@ -21,10 +21,40 @@ class PlacementService
                 $signer = DocumentSigner::where('document_id', $documentId)
                     ->where('user_id', $signerUserId)
                     ->first();
+
+                if (!$signer) {
+                    $signerUser = User::find($signerUserId);
+                    if ($signerUser) {
+                        $signerEmail = strtolower($signerUser->email);
+                        $signer = DocumentSigner::where('document_id', $documentId)
+                            ->whereRaw('LOWER(email) = ?', [$signerEmail])
+                            ->first();
+
+                        if ($signer) {
+                            $signer->update([
+                                'user_id' => $signerUser->id,
+                                'email' => $signerEmail,
+                                'name' => $signerUser->name,
+                            ]);
+                        }
+                    }
+                }
             } elseif ($email) {
+                $email = strtolower(trim((string) $email));
                 $signer = DocumentSigner::where('document_id', $documentId)
-                    ->where('email', $email)
+                    ->whereRaw('LOWER(email) = ?', [$email])
                     ->first();
+
+                if ($signer && !$signer->user_id) {
+                    $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+                    if ($user) {
+                        $signer->update([
+                            'user_id' => $user->id,
+                            'email' => strtolower($user->email),
+                            'name' => $user->name,
+                        ]);
+                    }
+                }
             }
             
             if (!$signer) {
@@ -33,14 +63,14 @@ class PlacementService
                     $signer = DocumentSigner::create([
                         'document_id' => $documentId,
                         'user_id' => $signerUserId,
-                        'email' => $signerUser->email,
+                        'email' => strtolower($signerUser->email),
                         'name' => $signerUser->name,
                         'status' => 'PENDING',
                     ]);
                 } elseif ($email) {
                     $signer = DocumentSigner::create([
                         'document_id' => $documentId,
-                        'email' => $email,
+                        'email' => strtolower(trim((string) $email)),
                         'name' => 'Signer',
                         'status' => 'PENDING',
                     ]);

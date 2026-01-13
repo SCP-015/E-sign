@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Helpers\ApiResponse;
 use App\Http\Requests\DocumentUploadRequest;
+use App\Http\Resources\DocumentResource;
+use App\Models\Certificate;
 use App\Models\Document;
+use App\Models\Signature;
 use App\Services\DocumentService;
 use Illuminate\Http\Request;
 
@@ -67,7 +70,7 @@ class DocumentController extends Controller
 
             if (!file_exists($filePath)) {
                 \Illuminate\Support\Facades\Log::error('File not found: ' . $filePath);
-                return response()->json(['message' => 'File not found on server'], 404);
+                return ApiResponse::error('File not found on server', 404);
             }
 
             return response()->file($filePath, [
@@ -76,10 +79,10 @@ class DocumentController extends Controller
             ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             \Illuminate\Support\Facades\Log::error('Document not found or access denied: ' . $id);
-            return response()->json(['message' => 'Document not found or access denied'], 404);
+            return ApiResponse::error('Document not found or access denied', 404);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('ViewUrl error: ' . $e->getMessage());
-            return response()->json(['message' => 'Failed to load PDF: ' . $e->getMessage()], 500);
+            return ApiResponse::error('Failed to load PDF: ' . $e->getMessage(), 500);
         }
     }
 
@@ -97,9 +100,7 @@ class DocumentController extends Controller
 
         // Check if all signers have signed
         if (!$document->isAllSigned()) {
-            return response()->json([
-                'message' => 'Cannot finalize: Some signers have not signed yet',
-            ], 400);
+            return ApiResponse::error('Cannot finalize: Some signers have not signed yet', 400);
         }
 
         // Generate verify token
@@ -125,19 +126,32 @@ class DocumentController extends Controller
                 'completed_at' => now(),
             ]);
 
+            $document = $document->fresh();
+
+            // Create/refresh signing evidence (LTV payload) for public verification
+            $cert = \App\Models\Certificate::where('user_id', (int) $document->user_id)
+                ->where('status', 'active')
+                ->orderByDesc('issued_at')
+                ->orderByDesc('created_at')
+                ->first();
+
+            if ($cert) {
+                $this->documentService->upsertSigningEvidence($document, $cert, $document->final_pdf_path, $document->completed_at);
+            }
+
             $verifyUrl = url('/api/verify/' . $verifyToken);
 
-            return response()->json([
-                'documentId' => $document->id,
+            return ApiResponse::success([
+                'document_id' => $document->id,
                 'status' => 'COMPLETED',
-                'verifyUrl' => $verifyUrl,
-                'qrValue' => $verifyUrl,
-                'finalPdfUrl' => url('/api/documents/' . $document->id . '/download'),
-                'completedAt' => $document->completed_at->toIso8601String(),
-            ]);
+                'verify_url' => $verifyUrl,
+                'qr_value' => $verifyUrl,
+                'final_pdf_url' => url('/api/documents/' . $document->id . '/download'),
+                'completed_at' => $document->completed_at->toIso8601String(),
+            ], 'OK', 200);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Finalize Failed: ' . $e->getMessage());
-            return response()->json(['message' => 'Finalization failed: ' . $e->getMessage()], 500);
+            return ApiResponse::error('Finalization failed: ' . $e->getMessage(), 500);
         }
     }
 
@@ -165,7 +179,7 @@ class DocumentController extends Controller
         $cert = Certificate::where('user_id', $user->id)->where('status', 'active')->latest()->first();
 
         if (!$cert) {
-            return response()->json(['message' => 'No active certificate found'], 400);
+            return ApiResponse::error('No active certificate found', 400);
         }
 
         try {
@@ -179,14 +193,14 @@ class DocumentController extends Controller
             $document->update([
                 'status' => 'signed',
             ]);
-            
-            return response()->json([
+
+            return ApiResponse::success([
                 'message' => 'Document signed successfully',
-                'document' => new DocumentResource($document->fresh()),
-            ]);
+                'document' => (new DocumentResource($document->fresh()))->resolve(),
+            ], 'OK', 200);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Signing Failed: ' . $e->getMessage());
-            return response()->json(['message' => 'Signing failed: ' . $e->getMessage()], 500);
+            return ApiResponse::error('Signing failed: ' . $e->getMessage(), 500);
         }
     }
 
@@ -204,7 +218,7 @@ class DocumentController extends Controller
             ->firstOrFail();
 
         if (!in_array($document->status, ['signed', 'COMPLETED'], true)) {
-            return response()->json(['message' => 'Document is not signed yet'], 400);
+            return ApiResponse::error('Document is not signed yet', 400);
         }
 
         // Check if final PDF exists (from finalize), otherwise use signed_path (legacy)
@@ -234,10 +248,48 @@ class DocumentController extends Controller
                     'final_pdf_path' => $finalPdfPath,
                     'verify_token' => $verifyToken,
                 ]);
+
+                $document = $document->fresh();
+
+                // Create/refresh signing evidence so verify/upload can validate
+                $cert = \App\Models\Certificate::where('user_id', (int) $document->user_id)
+                    ->where('status', 'active')
+                    ->orderByDesc('issued_at')
+                    ->orderByDesc('created_at')
+                    ->first();
+
+                if ($cert) {
+                    $this->documentService->upsertSigningEvidence($document, $cert, $document->final_pdf_path, $document->completed_at ?? now());
+                }
                 
                 $filePath = storage_path('app/' . $finalPdfPath);
             } catch (\Exception $e) {
-                return response()->json(['message' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
+                return ApiResponse::error('Failed to generate PDF: ' . $e->getMessage(), 500);
+            }
+        }
+
+        // Ensure signing evidence exists even for previously generated final PDFs
+        $document->load('signingEvidence');
+        $evidence = $document->signingEvidence;
+        $evidenceMissing = !$evidence
+            || !$evidence->signed_at
+            || !$evidence->certificate_not_before
+            || !$evidence->certificate_not_after;
+
+        if ($evidenceMissing) {
+            $cert = Certificate::where('user_id', (int) $document->user_id)
+                ->where('status', 'active')
+                ->orderByDesc('issued_at')
+                ->orderByDesc('created_at')
+                ->first();
+
+            if ($cert) {
+                $this->documentService->upsertSigningEvidence(
+                    $document,
+                    $cert,
+                    $document->final_pdf_path,
+                    $document->completed_at ?? $document->updated_at ?? now()
+                );
             }
         }
 

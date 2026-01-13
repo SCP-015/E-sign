@@ -67,10 +67,11 @@ onMounted(async () => {
             const validateResp = await axios.get('/api/invitations/validate', {
                 params: { code },
             });
+            const validatePayload = validateResp.data?.data ?? validateResp.data;
 
             isInvite.value = true;
             inviteCode.value = code;
-            inviteEmail.value = validateResp.data?.email ?? '';
+            inviteEmail.value = validatePayload?.email ?? '';
 
             // Store in sessionStorage so we can use it after Google OAuth redirect
             sessionStorage.setItem('invite_code', code);
@@ -145,7 +146,8 @@ onMounted(async () => {
             const exchangeResponse = await axios.get('/api/auth/exchange', {
                 params: { code: String(authCode) },
             });
-            const authToken = exchangeResponse.data?.token;
+            const exchangePayload = exchangeResponse.data?.data ?? exchangeResponse.data;
+            const authToken = exchangePayload?.token;
             if (!authToken) {
                 throw new Error('Missing token from exchange');
             }

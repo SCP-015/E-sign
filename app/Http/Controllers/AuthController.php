@@ -77,12 +77,10 @@ class AuthController extends Controller
         $key = 'auth_exchange:' . $validated['code'];
         $token = Cache::pull($key);
         if (!$token) {
-            return response()->json(['message' => 'Invalid or expired code'], 410);
+            return ApiResponse::error('Invalid or expired code', 410);
         }
 
-        return response()->json([
-            'token' => $token,
-        ]);
+        return ApiResponse::success(['token' => $token], 'OK', 200);
     }
 
     // --- MOBILE GOOGLE LOGIN ---

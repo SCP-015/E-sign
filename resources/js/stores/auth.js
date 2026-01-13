@@ -24,7 +24,7 @@ export const useAuthStore = defineStore('auth', {
                 // This is for manual login
                 const response = await axios.post('/api/auth/login', credentials);
                 const payload = response.data?.data ?? response.data;
-                const token = payload?.token ?? payload?.access_token ?? null;
+                const token = payload?.token ?? payload?.accessToken ?? payload?.access_token ?? null;
                 const user = payload?.user?.data ?? payload?.user ?? null;
 
                 if (token) {
