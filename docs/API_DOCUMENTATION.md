@@ -795,6 +795,12 @@ Success (200):
     "signedBy": "User Name",
     "signedAt": "2026-01-01T00:00:00.000000Z",
     "documentId": 1,
+    "documentOwner": {
+      "id": 1,
+      "name": "Owner Name",
+      "email": "owner@example.com",
+      "avatar": null
+    },
     "fileName": "My Doc",
     "ltv": {
       "certificateNumber": "CERT-2026-00001",
@@ -839,6 +845,12 @@ Success (200):
     "signedEmail": "signer@example.com",
     "signedAt": "2026-01-01T00:00:00.000000Z",
     "documentId": 1,
+    "documentOwner": {
+      "id": 1,
+      "name": "Owner Name",
+      "email": "owner@example.com",
+      "avatar": null
+    },
     "fileName": "My Doc",
     "ltv": {
       "certificateNumber": "CERT-2026-00001",
@@ -894,6 +906,12 @@ Success (200):
     "status": "COMPLETED",
     "isValid": true,
     "message": "Document is valid",
+    "documentOwner": {
+      "id": 1,
+      "name": "Owner Name",
+      "email": "owner@example.com",
+      "avatar": null
+    },
     "fileName": "My Doc",
     "completedAt": "2026-01-01T00:00:00.000000Z",
     "signers": [

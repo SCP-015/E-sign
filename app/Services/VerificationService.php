@@ -18,7 +18,18 @@ class VerificationService
 
     public function verify($documentId)
     {
-        $document = Document::findOrFail($documentId);
+        $document = Document::with('user')->findOrFail($documentId);
+
+        $verifiedAt = now()->toIso8601String();
+
+        $documentOwner = $document->user
+            ? [
+                'id' => (int) $document->user->id,
+                'name' => $document->user->name,
+                'email' => $document->user->email,
+                'avatar' => $document->user->avatar,
+            ]
+            : null;
 
         $evidence = $document->signingEvidence;
         $allowBackfill = filter_var(env('LTV_BACKFILL_ON_DEMAND', false), FILTER_VALIDATE_BOOLEAN);
@@ -55,11 +66,13 @@ class VerificationService
 
         if (!$evidence || !$evidence->signed_at || !$evidence->certificate_not_before || !$evidence->certificate_not_after) {
             return [
+                'verified_at' => $verifiedAt,
                 'is_valid' => false,
                 'message' => 'No signing evidence found for document (LTV data missing)',
                 'signed_by' => $document->user?->name,
                 'signed_at' => $document->completed_at?->toIso8601String() ?? $document->updated_at?->toIso8601String(),
                 'document_id' => $document->id,
+                'document_owner' => $documentOwner,
             ];
         }
 
@@ -67,11 +80,13 @@ class VerificationService
         $wasCertValidAtSigning = $signedAt->between($evidence->certificate_not_before, $evidence->certificate_not_after);
         if (!$wasCertValidAtSigning) {
             return [
+                'verified_at' => $verifiedAt,
                 'is_valid' => false,
                 'message' => 'Certificate was not valid at signing time',
                 'signed_by' => $document->user?->name,
                 'signed_at' => $signedAt->toIso8601String(),
                 'document_id' => $document->id,
+                'document_owner' => $documentOwner,
                 'evidence' => [
                     'certificate_number' => $evidence->certificate_number,
                     'certificate_fingerprint_sha256' => $evidence->certificate_fingerprint_sha256,
@@ -83,10 +98,12 @@ class VerificationService
 
         if (!in_array($document->status, ['signed', 'COMPLETED'], true)) {
             return [
+                'verified_at' => $verifiedAt,
                 'is_valid' => false,
                 'message' => 'Document not signed',
                 'signed_by' => null,
                 'signed_at' => null,
+                'document_owner' => $documentOwner,
             ];
         }
 
@@ -120,10 +137,12 @@ class VerificationService
                 $pdfPath = storage_path('app/' . $finalPdfPath);
             } catch (\Exception $e) {
                 return [
+                    'verified_at' => $verifiedAt,
                     'is_valid' => false,
                     'message' => 'Signed file not found in storage',
                     'signed_by' => null,
                     'signed_at' => null,
+                    'document_owner' => $documentOwner,
                 ];
             }
         }
@@ -142,20 +161,24 @@ class VerificationService
         
         if (!$hasSignature) {
             return [
+                'verified_at' => $verifiedAt,
                 'is_valid' => false,
                 'message' => 'No signature markers found in PDF',
                 'signed_by' => null,
-                'signed_at' => null
+                'signed_at' => null,
+                'document_owner' => $documentOwner,
             ];
         }
 
         // Success - document is signed and file exists
         return [
+            'verified_at' => $verifiedAt,
             'is_valid' => true,
             'message' => 'Signature is valid',
             'signed_by' => $document->user->name,
             'signed_at' => $evidence->signed_at?->toIso8601String() ?? $document->updated_at->toIso8601String(),
             'document_id' => $document->id,
+            'document_owner' => $documentOwner,
             'file_name' => $document->title ?? basename($document->file_path),
             'ltv' => [
                 'certificate_number' => $evidence->certificate_number,
