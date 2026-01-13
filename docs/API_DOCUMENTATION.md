@@ -399,6 +399,7 @@ Success (200):
       "fileSizeBytes": 12345,
       "mimeType": "application/pdf",
       "fileType": "pdf",
+      "signingMode": "PARALLEL",
       "status": "pending",
       "pageCount": 2,
       "verifyToken": null,
@@ -406,7 +407,17 @@ Success (200):
       "completedAt": null,
       "createdAt": "...",
       "updatedAt": "...",
-      "signers": []
+      "signers": [
+        {
+          "id": 10,
+          "userId": 2,
+          "email": "signer@example.com",
+          "name": "Signer",
+          "order": 1,
+          "status": "PENDING",
+          "signedAt": null
+        }
+      ]
     }
   ],
   "message": "OK"
@@ -474,6 +485,7 @@ Success (200):
     "fileSizeBytes": 12345,
     "mimeType": "application/pdf",
     "fileType": "pdf",
+    "signingMode": "PARALLEL",
     "status": "pending",
     "pageCount": 2,
     "verifyToken": null,
@@ -481,7 +493,17 @@ Success (200):
     "completedAt": null,
     "createdAt": "...",
     "updatedAt": "...",
-    "signers": []
+    "signers": [
+      {
+        "id": 10,
+        "userId": 2,
+        "email": "signer@example.com",
+        "name": "Signer",
+        "order": 1,
+        "status": "PENDING",
+        "signedAt": null
+      }
+    ]
   },
   "message": "OK"
 }
@@ -577,6 +599,7 @@ Notes:
 
 - **LTV Evidence**: Finalize captures and stores certificate snapshot (fingerprint, serial, validity window) and signing timestamp. This allows documents to remain valid even after the user's certificate expires.
 - Finalize response does not include the evidence payload; evidence is returned by verification endpoints.
+- Finalize is required for **multi-signer** documents (documents that have signers assigned). For **self-sign** flow (no assigned signers), the system auto-finalizes and sets status `COMPLETED` immediately after signing.
 
 Error (400) when certificate expired:
 
@@ -594,6 +617,21 @@ Download final/signed PDF.
 
 - **Auth**: Yes
 - **Response**: `application/pdf` (attachment)
+
+Notes:
+
+- For **multi-signer** documents: download is only available after the owner finalizes the document (status must be `COMPLETED`).
+- For **legacy / no-signer** documents: download is available when status is `signed` or `COMPLETED`.
+
+Error (400) when attempting to download multi-signer document before finalize:
+
+```json
+{
+  "status": "error",
+  "data": null,
+  "message": "Document must be finalized by owner before download"
+}
+```
 
 ---
 
@@ -620,6 +658,35 @@ Request body:
 }
 ```
 
+Success (200):
+
+```json
+{
+  "status": "success",
+  "data": {
+    "documentId": 1,
+    "status": "IN_PROGRESS",
+    "signers": [
+      {
+        "id": 10,
+        "userId": 1,
+        "email": "owner@example.com",
+        "name": "Owner Name",
+        "order": 1
+      },
+      {
+        "id": 11,
+        "userId": 2,
+        "email": "signer1@example.com",
+        "name": "Signer 1",
+        "order": 2
+      }
+    ]
+  },
+  "message": "Signers added successfully"
+}
+```
+
 Notes:
 
 - `includeOwner` (optional): include the authenticated document owner as a signer.
@@ -627,6 +694,7 @@ Notes:
 - `signingMode` (optional): `PARALLEL` (default) or `SEQUENTIAL`.
   - `PARALLEL`: any signer can sign in any order.
   - `SEQUENTIAL`: only the next signer in order can sign (enforced in placements endpoint).
+- Owner does not receive an invitation email.
 
 ## GET /documents/{document}/signers
 
@@ -690,6 +758,29 @@ Success (200):
   "message": "Placements saved successfully"
 }
 ```
+
+Self-sign example (no assigned signers):
+
+```json
+{
+  "status": "success",
+  "data": {
+    "documentId": 1,
+    "signerId": 10,
+    "placements": [],
+    "signerStatus": "SIGNED",
+    "documentStatus": "COMPLETED",
+    "needsFinalize": false,
+    "verifyToken": "<token>"
+  },
+  "message": "Placements saved successfully"
+}
+```
+
+Notes:
+
+- **Self-sign flow (no assigned signers)**: when the signer signs, the system auto-finalizes and sets `documentStatus` to `COMPLETED` (no separate finalize step).
+- **Multi-signer flow (assigned signers exist)**: when the last signer signs, `documentStatus` becomes `signed` and `needsFinalize=true`. The owner must call `POST /documents/{document}/finalize` to reach `COMPLETED`.
 
 Error (403) if signer is not assigned to this document:
 
