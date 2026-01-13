@@ -2,7 +2,19 @@
     <section class="space-y-3">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h3 class="text-lg font-semibold">Document History</h3>
-            <span class="badge badge-outline text-xs">{{ documents.length }} documents</span>
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="badge badge-outline text-xs">{{ totalCount ?? documents.length }} documents</span>
+                <Link v-if="showAllHref" :href="showAllHref" class="btn btn-ghost btn-xs">
+                    {{ showAllLabel }}
+                </Link>
+            </div>
+        </div>
+
+        <div
+            v-if="actionsDisabled"
+            class="rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-xs text-base-content/70"
+        >
+            {{ disabledHint }}
         </div>
 
         <div v-if="documents.length > 0" class="space-y-3">
@@ -33,16 +45,40 @@
                         </span>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <button v-if="shouldShowSign(doc)" @click="emit('sign', doc.id, doc.page_count ?? doc.pageCount)" class="btn btn-primary btn-sm w-full sm:w-auto">
+                        <button
+                            v-if="shouldShowSign(doc)"
+                            @click="emit('sign', doc.id, doc.page_count ?? doc.pageCount)"
+                            class="btn btn-primary btn-sm w-full sm:w-auto"
+                            :class="actionsDisabled ? 'btn-disabled' : ''"
+                            :disabled="actionsDisabled"
+                        >
                             Sign Now
                         </button>
-                        <button v-if="shouldShowFinalize(doc)" @click="emit('finalize', doc.id)" class="btn btn-primary btn-sm w-full sm:w-auto">
+                        <button
+                            v-if="shouldShowFinalize(doc)"
+                            @click="emit('finalize', doc.id)"
+                            class="btn btn-primary btn-sm w-full sm:w-auto"
+                            :class="actionsDisabled ? 'btn-disabled' : ''"
+                            :disabled="actionsDisabled"
+                        >
                             Finalize
                         </button>
-                        <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="emit('verify', doc.id)" class="btn btn-outline btn-sm w-full sm:w-auto">
+                        <button
+                            v-if="doc.status === 'signed' || doc.status === 'COMPLETED'"
+                            @click="emit('verify', doc.id)"
+                            class="btn btn-outline btn-sm w-full sm:w-auto"
+                            :class="actionsDisabled ? 'btn-disabled' : ''"
+                            :disabled="actionsDisabled"
+                        >
                             Verify Signature
                         </button>
-                        <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="emit('download', doc.id)" class="btn btn-ghost btn-sm w-full sm:w-auto">
+                        <button
+                            v-if="doc.status === 'signed' || doc.status === 'COMPLETED'"
+                            @click="emit('download', doc.id)"
+                            class="btn btn-ghost btn-sm w-full sm:w-auto"
+                            :class="actionsDisabled ? 'btn-disabled' : ''"
+                            :disabled="actionsDisabled"
+                        >
                             Download
                         </button>
                     </div>
@@ -61,10 +97,32 @@
 </template>
 
 <script setup>
+import { Link } from '@inertiajs/vue3';
+
 const props = defineProps({
     documents: {
         type: Array,
         default: () => [],
+    },
+    totalCount: {
+        type: Number,
+        default: null,
+    },
+    showAllHref: {
+        type: String,
+        default: '',
+    },
+    showAllLabel: {
+        type: String,
+        default: 'Lihat selengkapnya',
+    },
+    actionsDisabled: {
+        type: Boolean,
+        default: false,
+    },
+    disabledHint: {
+        type: String,
+        default: 'Selesaikan KYC terlebih dahulu untuk mengakses dokumen.',
     },
     formatDate: {
         type: Function,
@@ -87,6 +145,9 @@ const props = defineProps({
 const emit = defineEmits(['sign', 'verify', 'download', 'finalize']);
 
 const shouldShowSign = (doc) => {
+    if (props.actionsDisabled) {
+        return doc.status === 'pending' || doc.status === 'IN_PROGRESS';
+    }
     if (props.canSign) {
         return props.canSign(doc);
     }

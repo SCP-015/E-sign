@@ -24,6 +24,10 @@ Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->name('dashboard');
 
+Route::get('/documents', function () {
+    return Inertia::render('Documents');
+})->name('documents');
+
 Route::get('/signature-setup', function () {
     return Inertia::render('SignatureSetup');
 })->name('signature.setup');
