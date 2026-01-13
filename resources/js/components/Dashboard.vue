@@ -207,7 +207,7 @@
                             <button v-if="doc.status === 'signed'" @click="verifyDocument(doc.id)" class="btn-secondary btn-sm">
                                 Verify Signature
                             </button>
-                            <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="downloadDocument(doc.id)" class="btn-link btn-sm">
+                            <button v-if="canDownload(doc)" @click="downloadDocument(doc.id)" class="btn-link btn-sm">
                                 📥 Download
                             </button>
                         </div>
@@ -296,6 +296,13 @@ const allSignersSigned = (doc) => {
 const canFinalize = (doc) => {
     const status = String(doc.status || '').toLowerCase();
     return isOwner(doc) && status === 'signed' && allSignersSigned(doc);
+};
+
+const canDownload = (doc) => {
+    const status = String(doc.status || '');
+    const hasSigners = Array.isArray(doc.signers) && doc.signers.length > 0;
+    if (hasSigners) return status === 'COMPLETED';
+    return status === 'signed' || status === 'COMPLETED';
 };
 
 const verifyUploadResult = ref(null);
