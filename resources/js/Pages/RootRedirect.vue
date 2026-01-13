@@ -20,6 +20,12 @@ defineOptions({
 const authStore = useAuthStore();
 
 onMounted(() => {
+  const query = window.location.search;
+  if (query) {
+    router.visit(`/login${query}`);
+    return;
+  }
+
   const target = authStore.isAuthenticated ? '/dashboard' : '/login';
   router.visit(target);
 });

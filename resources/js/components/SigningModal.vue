@@ -36,44 +36,96 @@
                   />
 
                   <div
-                    v-if="selectedSignatureId && signatureImageUrl"
+                    v-if="(selectedSignatureId || assignMode) && signatureImageUrl"
                     class="absolute left-0 top-0 cursor-grab select-none touch-none"
                     :style="signatureOverlayStyle"
                     @pointerdown.prevent="onSigPointerDown"
                   >
-                    <img :src="signatureImageUrl" class="h-full w-full rounded-lg object-contain" alt="Signature" />
+                    <img
+                      :src="signatureImageUrl"
+                      class="h-full w-full rounded-lg object-contain"
+                      :alt="assignMode ? 'Signature placeholder' : 'Signature'"
+                    />
+                    <div
+                      v-if="assignMode"
+                      class="absolute -top-6 left-0 rounded-full bg-primary/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow"
+                    >
+                      Assigned to: {{ assignEmail || assignName || 'Signer' }}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-
         <div class="min-w-0 space-y-4">
           <div>
-            <h3 class="text-sm font-semibold">Place Your Signature</h3>
-            <p class="text-xs text-base-content/60">Choose a signature and position it on the preview.</p>
+            <h3 class="text-sm font-semibold">Signature Placement</h3>
+            <p class="text-xs text-base-content/60">Choose a signature or assign to another signer.</p>
           </div>
 
-          <div class="rounded-2xl border border-base-200 bg-base-100 p-4">
-            <label class="text-xs font-semibold">Select Signature</label>
-            <select v-model="selectedSignatureId" class="select select-bordered select-sm mt-2 w-full">
-              <option :value="null">-- Choose a signature --</option>
-              <option v-for="sig in signatures" :key="sig.id" :value="sig.id">
-                {{ sig.name }}
-              </option>
-            </select>
-
-            <div v-if="selectedSignatureId && signatureImageUrl" class="mt-4 flex h-20 items-center justify-center rounded-xl border border-base-200 bg-base-100">
-              <img :src="signatureImageUrl" alt="Selected signature" class="max-h-16 max-w-full object-contain" />
+          <div class="rounded-2xl border border-base-200 bg-base-100 p-4 space-y-4">
+            <div class="flex items-center gap-2 rounded-full border border-base-200 bg-base-200/60 p-1 text-xs font-semibold">
+              <button
+                type="button"
+                class="flex-1 rounded-full px-3 py-2 transition"
+                :class="assignMode ? 'text-base-content/60' : 'bg-base-100 shadow text-base-content'"
+                @click="assignMode = false"
+              >
+                Sign Myself
+              </button>
+              <button
+                v-if="isDocumentOwner"
+                type="button"
+                class="flex-1 rounded-full px-3 py-2 transition"
+                :class="assignMode ? 'bg-base-100 shadow text-base-content' : 'text-base-content/60'"
+                @click="assignMode = true"
+              >
+                Assign to Other
+              </button>
             </div>
 
-            <button @click="goToSignatureSetup" class="btn btn-outline btn-sm mt-4 w-full">
-              Create New Signature
-            </button>
+            <div v-if="!assignMode" class="space-y-3">
+              <label class="text-xs font-semibold">Select Signature</label>
+              <select v-model="selectedSignatureId" class="select select-bordered select-sm w-full">
+                <option :value="null">-- Choose a signature --</option>
+                <option v-for="sig in signatures" :key="sig.id" :value="sig.id">
+                  {{ sig.name }}
+                </option>
+              </select>
+
+              <div v-if="selectedSignatureId && signatureImageUrl" class="flex h-20 items-center justify-center rounded-xl border border-base-200 bg-base-100">
+                <img :src="signatureImageUrl" alt="Selected signature" class="max-h-16 max-w-full object-contain" />
+              </div>
+
+              <button @click="goToSignatureSetup" class="btn btn-outline btn-sm w-full">
+                Create New Signature
+              </button>
+            </div>
+
+            <div v-else class="space-y-3">
+              <div>
+                <label class="text-xs font-semibold">Signer Email</label>
+                <input
+                  v-model="assignEmail"
+                  type="email"
+                  placeholder="Enter signer's email"
+                  class="input input-bordered input-sm w-full"
+                >
+              </div>
+              <div>
+                <label class="text-xs font-semibold">Signer Name</label>
+                <input
+                  v-model="assignName"
+                  type="text"
+                  placeholder="Enter signer's name"
+                  class="input input-bordered input-sm w-full"
+                >
+              </div>
+            </div>
           </div>
 
-          <div v-if="selectedSignatureId" class="rounded-2xl border border-base-200 bg-base-100 p-4">
+          <div v-if="selectedSignatureId || assignMode" class="rounded-2xl border border-base-200 bg-base-100 p-4">
             <label class="text-xs font-semibold">Page</label>
             <div class="mt-2 flex flex-wrap items-center gap-2">
               <input
@@ -86,7 +138,7 @@
               <span class="text-xs text-base-content/60">of {{ pageCount }}</span>
             </div>
             <p class="mt-3 text-xs text-base-content/60">
-              Drag the signature on the preview. Position and size will be saved automatically.
+              Drag the {{ assignMode ? 'placeholder' : 'signature' }} on the preview. Position and size will be saved automatically.
             </p>
           </div>
         </div>
@@ -95,11 +147,20 @@
       <div class="modal-action border-t border-base-200 px-4 py-4 sm:px-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button @click="close" class="btn btn-ghost">Cancel</button>
         <button
+          v-if="!assignMode"
           @click="saveSignature"
           class="btn btn-primary"
           :disabled="!selectedSignatureId || saving"
         >
           {{ saving ? 'Saving...' : 'Save Signature' }}
+        </button>
+        <button
+          v-else
+          @click="assignToOther"
+          class="btn btn-primary"
+          :disabled="!assignEmail || !assignName || saving"
+        >
+          {{ saving ? 'Assigning...' : '📧 Send Invitation' }}
         </button>
       </div>
 
@@ -123,6 +184,8 @@ const props = defineProps({
   pageCount: Number,
 });
 
+const documentOwnerId = ref(null);
+
 const emit = defineEmits(['close', 'signed']);
 
 const authStore = useAuthStore();
@@ -145,6 +208,15 @@ const signatureImageUrl = ref('');
 const signatureImageObjectUrl = ref('');
 const placementPage = ref(1);
 const saving = ref(false);
+
+const assignMode = ref(false);
+const assignEmail = ref('');
+const assignName = ref('');
+
+const isDocumentOwner = computed(() => {
+  if (!documentOwnerId.value || !authStore.user?.id) return false;
+  return Number(documentOwnerId.value) === Number(authStore.user.id);
+});
 
 const sigX = ref(24);
 const sigY = ref(24);
@@ -187,9 +259,25 @@ watch(() => selectedSignatureId.value, async (newVal) => {
   }
 });
 
+watch(() => assignMode.value, (newVal) => {
+  if (newVal) {
+    selectedSignatureId.value = null;
+    // Set a placeholder for assignment if needed
+    signatureImageUrl.value = 'https://placehold.co/400x200?text=Signer+Placeholder';
+    resetSignaturePosition();
+  } else {
+    loadSignatures();
+  }
+});
+
 async function loadPdf() {
   pdfLoading.value = true;
   try {
+    // Fetch document details to get owner_id
+    const docRes = await axios.get(`/api/documents/${props.documentId}`);
+    const doc = docRes.data?.data ?? docRes.data;
+    documentOwnerId.value = doc.user_id;
+    
     const res = await axios.get(`/api/documents/${props.documentId}/view-url`, {
       responseType: 'arraybuffer',
     });
@@ -361,7 +449,6 @@ async function loadSignatures() {
     const res = await axios.get('/api/signatures');
     const list = res.data?.data ?? res.data;
     signatures.value = Array.isArray(list) ? list : [];
-
     if (signatures.value.length > 0) {
       const defaultSig = signatures.value.find((s) => s.is_default) || signatures.value[0];
       selectedSignatureId.value = defaultSig?.id ?? null;
@@ -386,19 +473,12 @@ async function saveSignature() {
     return;
   }
 
-  const bounds = getPdfBounds();
-  if (!bounds) {
+  const coords = getNormalizedCoordinates();
+  if (!coords) {
     toastStore.error('PDF is not ready yet.');
     return;
   }
-
-  const w = Math.max(1, bounds.width);
-  const h = Math.max(1, bounds.height);
-
-  const xNorm = (sigX.value - bounds.x) / w;
-  const yNorm = (sigY.value - bounds.y) / h;
-  const wNorm = sigW.value / w;
-  const hNorm = sigH.value / h;
+  const { xNorm, yNorm, wNorm, hNorm } = coords;
 
   saving.value = true;
   try {
@@ -428,6 +508,69 @@ async function saveSignature() {
   }
 }
 
+async function assignToOther() {
+  if (!assignEmail.value || !assignName.value) {
+    toastStore.error('Please fill in email and name.');
+    return;
+  }
+
+  const coords = getNormalizedCoordinates();
+  if (!coords) {
+    toastStore.error('PDF is not ready yet.');
+    return;
+  }
+
+  saving.value = true;
+  try {
+    await axios.post(`/api/documents/${props.documentId}/signers`, {
+      signers: [
+        {
+          email: assignEmail.value,
+          name: assignName.value,
+          order: 1,
+        },
+      ],
+    });
+
+    await axios.post(`/api/documents/${props.documentId}/placements`, {
+      email: assignEmail.value,
+      placements: [
+        {
+          page: placementPage.value,
+          x: coords.xNorm,
+          y: coords.yNorm,
+          w: coords.wNorm,
+          h: coords.hNorm,
+        },
+      ],
+    });
+
+    toastStore.success('Invitation sent successfully.');
+    setTimeout(() => {
+      emit('signed');
+      close();
+    }, 1500);
+  } catch (e) {
+    toastStore.error(formatApiError('Failed to send invitation', e));
+  } finally {
+    saving.value = false;
+  }
+}
+
+function getNormalizedCoordinates() {
+  const bounds = getPdfBounds();
+  if (!bounds) return null;
+
+  const w = Math.max(1, bounds.width);
+  const h = Math.max(1, bounds.height);
+
+  return {
+    xNorm: (sigX.value - bounds.x) / w,
+    yNorm: (sigY.value - bounds.y) / h,
+    wNorm: sigW.value / w,
+    hNorm: sigH.value / h,
+  };
+}
 function goToSignatureSetup() {
   close();
   router.visit('/signature-setup');

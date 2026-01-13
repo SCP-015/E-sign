@@ -5,6 +5,7 @@ use App\Http\Controllers\ApiDocumentationController;
 use Inertia\Inertia;
 
 Route::get('/api-docs', [ApiDocumentationController::class, 'index'])->name('api.docs');
+Route::get('/docs/api', [ApiDocumentationController::class, 'index'])->name('api.docs.ui');
 
 Route::get('/', function () {
     return Inertia::render('RootRedirect');

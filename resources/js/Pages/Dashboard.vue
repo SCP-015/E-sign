@@ -67,6 +67,7 @@
                 :documents="documents"
                 :formatDate="formatDate"
                 :getFileName="getFileName"
+                :canSign="canSign"
                 @sign="openSigningModal"
                 @verify="verifyDocument"
                 @download="downloadDocument"
@@ -125,6 +126,33 @@ const certificateExpiry = computed(() => {
     const date = new Date(expiresAt);
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 });
+
+const isAssignedToMe = (doc) => {
+    if (!doc?.signers || doc.signers.length === 0) {
+        return Number(doc?.user_id ?? doc?.userId) === Number(user.value?.id);
+    }
+    return doc.signers.some((s) =>
+        (s.userId && Number(s.userId) === Number(user.value?.id)) ||
+        (s.email && s.email.toLowerCase() === user.value?.email?.toLowerCase())
+    );
+};
+
+const hasISigned = (doc) => {
+    if (!doc?.signers) return false;
+    const mySigner = doc.signers.find((s) =>
+        (s.userId && Number(s.userId) === Number(user.value?.id)) ||
+        (s.email && s.email.toLowerCase() === user.value?.email?.toLowerCase())
+    );
+    return Boolean(mySigner?.signedAt);
+};
+
+const canSign = (doc) => {
+    const status = String(doc?.status || '').toLowerCase();
+    if (status === 'signed' || status === 'completed') return false;
+    const kycStatus = user.value?.kyc_status?.toLowerCase();
+    if (kycStatus !== 'verified' || !user.value?.has_signature) return false;
+    return isAssignedToMe(doc) && !hasISigned(doc);
+};
 
 const stats = computed(() => [
     { label: 'Documents', value: documents.value.length, valueClass: 'text-primary' },
@@ -199,18 +227,50 @@ const verifyDocument = async (id) => {
     try {
         const docRes = await axios.get(`/api/documents/${id}`);
         const docData = docRes.data?.data ?? docRes.data;
-        const verifyToken = docData?.verify_token;
+        const verifyToken = docData?.verify_token || docData?.verifyToken;
         
         if (!verifyToken) {
-            verifyModalResult.value = {
-                title: 'Verification Failed',
-                tone: 'error',
-                summary: 'No verify token found for this document.',
-                fields: [
-                    { label: 'Document ID', value: id },
-                ],
-            };
-            verifyModalOpen.value = true;
+            try {
+                const fallbackRes = await axios.post('/api/documents/verify', { document_id: id });
+                const payload = fallbackRes.data?.data ?? fallbackRes.data;
+                const isValid = payload?.is_valid === true;
+                const tone = isValid ? 'success' : 'error';
+                const fields = [
+                    { label: 'Document ID', value: payload?.document_id || id },
+                    { label: 'File', value: payload?.file_name || 'Document' },
+                    { label: 'Signed By', value: payload?.signed_by || '-' },
+                    { label: 'Signed At', value: formatDateTime(payload?.signed_at) },
+                ];
+
+                if (payload?.ltv) {
+                    fields.push(
+                        { label: 'Certificate #', value: payload.ltv.certificate_number || '-' },
+                        { label: 'Cert Valid From', value: formatDateTime(payload.ltv.certificate_not_before) },
+                        { label: 'Cert Valid To', value: formatDateTime(payload.ltv.certificate_not_after) },
+                        { label: 'TSA URL', value: payload.ltv.tsa_url || '-' },
+                        { label: 'TSA At', value: formatDateTime(payload.ltv.tsa_at) },
+                    );
+                }
+
+                verifyModalResult.value = {
+                    title: 'Verification Result',
+                    tone,
+                    statusLabel: isValid ? 'VALID' : 'INVALID',
+                    summary: payload?.message || (isValid ? 'Document signature verified successfully.' : 'Document verification failed.'),
+                    fields,
+                };
+                verifyModalOpen.value = true;
+            } catch (error) {
+                verifyModalResult.value = {
+                    title: 'Verification Failed',
+                    tone: 'error',
+                    summary: formatApiError('Verification failed', error),
+                    fields: [
+                        { label: 'Document ID', value: id },
+                    ],
+                };
+                verifyModalOpen.value = true;
+            }
             return;
         }
         

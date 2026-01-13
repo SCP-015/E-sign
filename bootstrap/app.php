@@ -23,6 +23,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             HandleInertiaRequests::class,
         ]);
+
+        $middleware->alias([
+            'kyc.verified' => \App\Http\Middleware\RestrictIfNoKyc::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $isApiRequest = function (Request $request): bool {

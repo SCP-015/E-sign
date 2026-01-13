@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DocumentSigner;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -65,6 +66,12 @@ class GoogleMobileLoginService
                 ]
             );
 
+            $inviteEmail = request()->input('invite_email');
+            $inviteToken = request()->input('invite_token');
+            if ($inviteEmail && $inviteToken) {
+                $this->acceptInvitation($user, $inviteEmail, $inviteToken);
+            }
+
             // Update user avatar if provided
             if ($picture && !$user->avatar) {
                 $user->avatar = $picture;
@@ -111,6 +118,36 @@ class GoogleMobileLoginService
             Log::error('Google mobile login error: ' . $e->getMessage());
             throw $e;
         }
+    }
+
+    private function acceptInvitation(User $user, string $inviteEmail, string $inviteToken): void
+    {
+        if (strtolower($user->email) !== strtolower($inviteEmail)) {
+            return;
+        }
+
+        $signer = DocumentSigner::where('email', $inviteEmail)
+            ->where('invite_token', $inviteToken)
+            ->first();
+
+        if (!$signer) {
+            return;
+        }
+
+        if ($signer->invite_accepted_at) {
+            return;
+        }
+
+        if ($signer->invite_expires_at && $signer->invite_expires_at->isPast()) {
+            return;
+        }
+
+        $signer->update([
+            'user_id' => $user->id,
+            'invite_accepted_at' => now(),
+            'invite_token' => null,
+            'invite_expires_at' => null,
+        ]);
     }
 
     private function verifyIdToken(string $idToken)

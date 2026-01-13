@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Helpers\ApiResponse;
 use App\Http\Requests\StorePlacementsRequest;
-use App\Http\Requests\UpdatePlacementRequest;
 use App\Services\PlacementService;
+use Illuminate\Http\Request;
 
 class PlacementController extends Controller
 {
@@ -22,10 +22,10 @@ class PlacementController extends Controller
      */
     public function store(StorePlacementsRequest $request, $documentId)
     {
-        $signerUserId = (int) $request->input('signerUserId');
         $result = $this->placementService->storePlacements(
             (int) $documentId,
-            $signerUserId,
+            $request->input('signerUserId') ? (int) $request->input('signerUserId') : null,
+            $request->input('email'),
             $request->input('placements')
         );
 
@@ -38,7 +38,14 @@ class PlacementController extends Controller
      */
     public function update(UpdatePlacementRequest $request, $documentId, $placementId)
     {
-        $result = $this->placementService->updatePlacement(
+        $request->validate([
+            'x' => 'nullable|numeric',
+            'y' => 'nullable|numeric',
+            'w' => 'nullable|numeric',
+            'h' => 'nullable|numeric',
+        ]);
+
+                            $result = $this->placementService->updatePlacement(
             (int) $documentId,
             (int) $placementId,
             $request->only(['x', 'y', 'w', 'h'])

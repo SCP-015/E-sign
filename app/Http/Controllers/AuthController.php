@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\GoogleMobileLoginCodeRequest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
@@ -57,11 +58,31 @@ class AuthController extends Controller
 
             $token = $user->createToken('auth_token')->accessToken;
 
-            return redirect(URL::to('/?token=' . urlencode($token)));
+            $exchangeCode = Str::random(16);
+            Cache::put('auth_exchange:' . $exchangeCode, $token, now()->addMinutes(2));
+
+            return redirect(URL::to('/?auth_code=' . urlencode($exchangeCode)));
 
         } catch (\Exception $e) {
             return ApiResponse::error('Google Login Failed: ' . $e->getMessage(), 500);
         }
+    }
+
+    public function exchange(Request $request)
+    {
+        $validated = $request->validate([
+            'code' => 'required|string',
+        ]);
+
+        $key = 'auth_exchange:' . $validated['code'];
+        $token = Cache::pull($key);
+        if (!$token) {
+            return response()->json(['message' => 'Invalid or expired code'], 410);
+        }
+
+        return response()->json([
+            'token' => $token,
+        ]);
     }
 
     // --- MOBILE GOOGLE LOGIN ---

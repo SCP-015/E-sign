@@ -4,28 +4,56 @@ namespace App\Services;
 
 use App\Models\Document;
 use App\Models\DocumentSigner;
+use App\Models\User;
+use App\Mail\DocumentAssignmentInvitation;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class SignerService
 {
     public function addSigners(int $documentId, int $ownerUserId, array $signersInput): array
     {
-        $document = Document::where('id', $documentId)
-            ->where('user_id', $ownerUserId)
-            ->firstOrFail();
-
-        DB::beginTransaction();
         try {
+            $document = Document::where('id', $documentId)
+                ->where('user_id', $ownerUserId)
+                ->firstOrFail();
+
+            $owner = User::findOrFail($ownerUserId);
+
+            DB::beginTransaction();
+            
             $signers = [];
             foreach ($signersInput as $signerData) {
+                $email = $signerData['email'];
+                $user = User::where('email', $email)->first();
+
+                do {
+                    $inviteToken = Str::random(16);
+                } while (DocumentSigner::where('invite_token', $inviteToken)->exists());
+                
+                $inviteExpiresAt = now()->addDays(7);
+
                 $signer = DocumentSigner::create([
                     'document_id' => $document->id,
-                    'user_id' => $signerData['userId'],
+                    'user_id' => $user?->id,
+                    'email' => $email,
                     'name' => $signerData['name'],
+                    'invite_token' => $inviteToken,
+                    'invite_expires_at' => $inviteExpiresAt,
+                    'invite_accepted_at' => null,
                     'order' => $signerData['order'] ?? null,
                     'status' => 'PENDING',
                 ]);
+
                 $signers[] = $signer;
+
+                Mail::to($email)->send(new DocumentAssignmentInvitation(
+                    $document,
+                    $email,
+                    $inviteToken,
+                    $owner->name
+                ));
             }
 
             $document->update(['status' => 'IN_PROGRESS']);
@@ -35,12 +63,14 @@ class SignerService
             return [
                 'status' => 'success',
                 'code' => 200,
-                'message' => 'OK',
+                'message' => 'Signers added successfully',
                 'data' => [
                     'documentId' => $document->id,
                     'status' => $document->status,
                     'signers' => collect($signers)->map(fn ($s) => [
+                        'id' => $s->id,
                         'userId' => $s->user_id,
+                        'email' => $s->email,
                         'name' => $s->name,
                         'order' => $s->order,
                     ])->toArray(),
@@ -60,24 +90,33 @@ class SignerService
 
     public function getSigners(int $documentId): array
     {
-        $document = Document::findOrFail($documentId);
-        $signers = $document->signers()->with('user')->get();
+        try {
+            $document = Document::findOrFail($documentId);
+            $signers = $document->signers()->with('user')->get();
 
-        return [
-            'status' => 'success',
-            'code' => 200,
-            'message' => 'OK',
-            'data' => [
-                'documentId' => $document->id,
-                'status' => $document->status,
-                'signers' => $signers->map(fn ($s) => [
-                    'id' => $s->id,
-                    'userId' => $s->user_id,
-                    'name' => $s->name,
-                    'order' => $s->order,
-                    'signedAt' => $s->signed_at?->toIso8601String(),
-                ])->toArray(),
-            ],
-        ];
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'OK',
+                'data' => [
+                    'documentId' => $document->id,
+                    'status' => $document->status,
+                    'signers' => $signers->map(fn ($s) => [
+                        'id' => $s->id,
+                        'userId' => $s->user_id,
+                        'name' => $s->name,
+                        'order' => $s->order,
+                        'signedAt' => $s->signed_at?->toIso8601String(),
+                    ])->toArray(),
+                ],
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'code' => 404,
+                'message' => 'Document not found: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
     }
 }

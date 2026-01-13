@@ -43,6 +43,11 @@
                                             <p class="text-sm text-base-content/60">Log in to your secure dashboard</p>
                                         </div>
 
+                                        <div v-if="isInvite" class="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-base-content/70">
+                                            <p class="font-semibold text-primary">Invitation received</p>
+                                            <p class="text-xs text-base-content/60">You've been invited to sign a document. Continue with Google to access it.</p>
+                                        </div>
+
                                         <div v-if="loading" class="flex items-center gap-3 rounded-2xl border border-base-200 bg-base-200/60 px-4 py-3">
                                             <span class="loading loading-spinner loading-md text-primary"></span>
                                             <div>
@@ -154,6 +159,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
 import { useToastStore } from '../stores/toast';
 import { formatApiError } from '../utils/errors';
@@ -161,30 +167,165 @@ import { formatApiError } from '../utils/errors';
 const loading = ref(false);
 const authStore = useAuthStore();
 const toastStore = useToastStore();
+const isInvite = ref(false);
+const inviteEmail = ref('');
+const inviteToken = ref('');
+const inviteCode = ref('');
+
+const clearInviteState = () => {
+    isInvite.value = false;
+    inviteEmail.value = '';
+    inviteToken.value = '';
+    inviteCode.value = '';
+};
+
+const acceptStoredInvite = async () => {
+    const storedInviteCode = sessionStorage.getItem('invite_code');
+    const storedInviteEmail = sessionStorage.getItem('invite_email');
+    const storedInviteToken = sessionStorage.getItem('invite_token');
+
+    try {
+        if (storedInviteCode) {
+            await axios.post('/api/invitations/accept', { code: storedInviteCode });
+            sessionStorage.removeItem('invite_code');
+        } else if (storedInviteEmail && storedInviteToken) {
+            await axios.post('/api/invitations/accept', { email: storedInviteEmail, token: storedInviteToken });
+            sessionStorage.removeItem('invite_email');
+            sessionStorage.removeItem('invite_token');
+        }
+    } catch (error) {
+        toastStore.error(formatApiError('Failed to accept invitation', error));
+    }
+};
+
+const handleInviteCode = async (code) => {
+    try {
+        const validateResp = await axios.get('/api/invitations/validate', {
+            params: { code },
+        });
+
+        isInvite.value = true;
+        inviteCode.value = code;
+        inviteEmail.value = validateResp.data?.email ?? '';
+        sessionStorage.setItem('invite_code', code);
+        if (inviteEmail.value) {
+            sessionStorage.setItem('invite_email', inviteEmail.value);
+        }
+        sessionStorage.removeItem('invite_token');
+
+        if (authStore.isAuthenticated) {
+            await authStore.fetchUser();
+            const currentEmail = authStore.user?.email;
+            if (currentEmail && inviteEmail.value && currentEmail.toLowerCase() === inviteEmail.value.toLowerCase()) {
+                await axios.post('/api/invitations/accept', { code });
+                sessionStorage.removeItem('invite_code');
+                router.visit('/dashboard');
+                return true;
+            }
+            authStore.logout();
+        }
+    } catch (error) {
+        clearInviteState();
+        sessionStorage.removeItem('invite_code');
+        sessionStorage.removeItem('invite_email');
+        toastStore.error(formatApiError('Invalid invitation', error));
+    }
+    return false;
+};
+
+const handleInviteLegacy = async (email, token) => {
+    try {
+        await axios.get('/api/invitations/validate', {
+            params: { email, token },
+        });
+
+        isInvite.value = true;
+        inviteEmail.value = email;
+        inviteToken.value = token;
+
+        sessionStorage.setItem('invite_email', email);
+        sessionStorage.setItem('invite_token', token);
+        sessionStorage.removeItem('invite_code');
+
+        if (authStore.isAuthenticated) {
+            await authStore.fetchUser();
+            const currentEmail = authStore.user?.email;
+            if (currentEmail && currentEmail.toLowerCase() === email.toLowerCase()) {
+                await axios.post('/api/invitations/accept', { email, token });
+                sessionStorage.removeItem('invite_email');
+                sessionStorage.removeItem('invite_token');
+                router.visit('/dashboard');
+                return true;
+            }
+            authStore.logout();
+        }
+    } catch (error) {
+        clearInviteState();
+        sessionStorage.removeItem('invite_email');
+        sessionStorage.removeItem('invite_token');
+        toastStore.error(formatApiError('Invalid invitation', error));
+    }
+    return false;
+};
+
+const handleAuthToken = async (token) => {
+    loading.value = true;
+    try {
+        await authStore.setAuth(token, {});
+        await authStore.fetchUser();
+        await acceptStoredInvite();
+        router.visit('/dashboard');
+    } catch (error) {
+        console.error('Login Error', error);
+        authStore.logout();
+        toastStore.error(formatApiError('Authentication failed', error));
+    } finally {
+        loading.value = false;
+    }
+};
 
 onMounted(async () => {
-    const token = new URLSearchParams(window.location.search).get('token');
-    if (token) {
-        loading.value = true;
+    const params = new URLSearchParams(window.location.search);
+    const inviteCodeParam = params.get('code');
+    const inviteEmailParam = params.get('email');
+    const inviteTokenParam = params.get('token');
+    const authCode = params.get('auth_code');
+    const authToken = !inviteEmailParam && !inviteCodeParam ? params.get('token') : null;
+
+    if (inviteCodeParam) {
+        const accepted = await handleInviteCode(String(inviteCodeParam));
+        if (accepted) return;
+    } else if (inviteEmailParam && inviteTokenParam) {
+        const accepted = await handleInviteLegacy(String(inviteEmailParam), String(inviteTokenParam));
+        if (accepted) return;
+    }
+
+    if (authCode) {
         try {
-            await authStore.setAuth(token, {}); 
-            await authStore.fetchUser();
-            router.visit('/dashboard');
+            const exchangeResponse = await axios.get('/api/auth/exchange', {
+                params: { code: String(authCode) },
+            });
+            const exchangedToken = exchangeResponse.data?.token;
+            if (!exchangedToken) {
+                throw new Error('Missing token from exchange');
+            }
+            await handleAuthToken(exchangedToken);
         } catch (error) {
             console.error('Login Error', error);
             authStore.logout();
             toastStore.error(formatApiError('Authentication failed', error));
-        } finally {
-            loading.value = false;
         }
+        return;
+    }
+
+    if (authToken) {
+        await handleAuthToken(String(authToken));
         return;
     }
 
     if (authStore.isAuthenticated) {
         router.visit('/dashboard');
-        return;
     }
-
 });
 
 const googleLogin = () => {

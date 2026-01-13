@@ -33,7 +33,7 @@
                         </span>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <button v-if="doc.status === 'pending' || doc.status === 'IN_PROGRESS'" @click="emit('sign', doc.id, doc.page_count)" class="btn btn-primary btn-sm w-full sm:w-auto">
+                        <button v-if="shouldShowSign(doc)" @click="emit('sign', doc.id, doc.page_count)" class="btn btn-primary btn-sm w-full sm:w-auto">
                             Sign Now
                         </button>
                         <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="emit('verify', doc.id)" class="btn btn-outline btn-sm w-full sm:w-auto">
@@ -71,7 +71,18 @@ const props = defineProps({
         type: Function,
         required: true,
     },
+    canSign: {
+        type: Function,
+        default: null,
+    },
 });
 
 const emit = defineEmits(['sign', 'verify', 'download']);
+
+const shouldShowSign = (doc) => {
+    if (props.canSign) {
+        return props.canSign(doc);
+    }
+    return doc.status === 'pending' || doc.status === 'IN_PROGRESS';
+};
 </script>
