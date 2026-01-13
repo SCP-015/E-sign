@@ -610,12 +610,23 @@ Request body:
 
 ```json
 {
+  "includeOwner": true,
+  "ownerOrder": 1,
+  "signingMode": "PARALLEL",
   "signers": [
     {"email": "signer1@example.com", "name": "Signer 1", "order": 1},
     {"email": "signer2@example.com", "name": "Signer 2", "order": 2}
   ]
 }
 ```
+
+Notes:
+
+- `includeOwner` (optional): include the authenticated document owner as a signer.
+- `ownerOrder` (optional): order position for the owner when `includeOwner=true`.
+- `signingMode` (optional): `PARALLEL` (default) or `SEQUENTIAL`.
+  - `PARALLEL`: any signer can sign in any order.
+  - `SEQUENTIAL`: only the next signer in order can sign (enforced in placements endpoint).
 
 ## GET /documents/{document}/signers
 
@@ -671,9 +682,36 @@ Success (200):
         "signatureId": 10
       }
     ],
-    "signerStatus": "SIGNED"
+    "signerStatus": "SIGNED",
+    "documentStatus": "signed",
+    "needsFinalize": true,
+    "verifyToken": "<token-if-all-signed>"
   },
   "message": "Placements saved successfully"
+}
+```
+
+Error (403) if signer is not assigned to this document:
+
+```json
+{
+  "status": "error",
+  "data": null,
+  "message": "Signer is not assigned to this document"
+}
+```
+
+Error (409) when `signingMode=SEQUENTIAL` and it's not the signer's turn:
+
+```json
+{
+  "status": "error",
+  "data": {
+    "nextSignerId": 123,
+    "nextSignerEmail": "next@example.com",
+    "nextSignerOrder": 1
+  },
+  "message": "Not your turn to sign yet"
 }
 ```
 

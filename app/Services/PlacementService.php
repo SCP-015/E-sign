@@ -15,6 +15,8 @@ class PlacementService
     {
         try {
             $document = Document::findOrFail($documentId);
+
+            $existingSignersCount = DocumentSigner::where('document_id', $documentId)->count();
             
             $signer = null;
             if ($signerUserId) {
@@ -58,6 +60,16 @@ class PlacementService
             }
             
             if (!$signer) {
+                // If there are existing signers (assignment flow), do not allow creating a new signer implicitly.
+                if ($existingSignersCount > 0) {
+                    return [
+                        'status' => 'error',
+                        'code' => 403,
+                        'message' => 'Signer is not assigned to this document',
+                        'data' => null,
+                    ];
+                }
+
                 if ($signerUserId) {
                     $signerUser = User::findOrFail($signerUserId);
                     $signer = DocumentSigner::create([
@@ -112,6 +124,32 @@ class PlacementService
             }
 
             if ($hasSignature) {
+                $signingMode = strtoupper((string) ($document->signing_mode ?? 'PARALLEL'));
+                if ($signingMode === 'SEQUENTIAL') {
+                    // Sequential signing enforcement: only allow the earliest pending signer to sign.
+                    $nextSigner = DocumentSigner::where('document_id', $documentId)
+                        ->where('status', '!=', 'SIGNED')
+                        ->orderByRaw('"order" IS NULL')
+                        ->orderBy('order')
+                        ->orderBy('id')
+                        ->first();
+
+                    if ($nextSigner && (int) $nextSigner->id !== (int) $signer->id) {
+                        DB::rollBack();
+
+                        return [
+                            'status' => 'error',
+                            'code' => 409,
+                            'message' => 'Not your turn to sign yet',
+                            'data' => [
+                                'nextSignerId' => $nextSigner->id,
+                                'nextSignerEmail' => $nextSigner->email,
+                                'nextSignerOrder' => $nextSigner->order,
+                            ],
+                        ];
+                    }
+                }
+
                 $signer->update([
                     'status' => 'SIGNED',
                     'signed_at' => now(),
@@ -149,6 +187,9 @@ class PlacementService
                         'signatureId' => $p->signature_id,
                     ])->toArray(),
                     'signerStatus' => $signer->status,
+                    'documentStatus' => $document->status,
+                    'needsFinalize' => isset($allSigned) ? (bool) $allSigned : false,
+                    'verifyToken' => isset($verifyToken) ? $verifyToken : null,
                 ],
             ];
         } catch (\Exception $e) {

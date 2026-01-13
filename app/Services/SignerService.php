@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 
 class SignerService
 {
-    public function addSigners(int $documentId, int $ownerUserId, array $signersInput): array
+    public function addSigners(int $documentId, int $ownerUserId, array $signersInput, array $options = []): array
     {
         try {
             $document = Document::where('id', $documentId)
@@ -22,10 +22,80 @@ class SignerService
             $owner = User::findOrFail($ownerUserId);
 
             DB::beginTransaction();
+
+            $ownerEmail = strtolower(trim((string) $owner->email));
+            $includeOwner = (bool) ($options['include_owner'] ?? false);
+            $ownerOrder = $options['owner_order'] ?? null;
+            $signingMode = $options['signing_mode'] ?? null;
+
+            if (is_string($signingMode) && $signingMode !== '') {
+                $mode = strtoupper(trim($signingMode));
+                if (in_array($mode, ['PARALLEL', 'SEQUENTIAL'], true)) {
+                    $document->update(['signing_mode' => $mode]);
+                }
+            }
+
+            if ($includeOwner) {
+                $existingOwner = DocumentSigner::where('document_id', $document->id)
+                    ->where(function ($q) use ($ownerUserId, $ownerEmail) {
+                        $q->where('user_id', $ownerUserId)
+                            ->orWhereRaw('LOWER(email) = ?', [$ownerEmail]);
+                    })
+                    ->first();
+
+                if ($existingOwner) {
+                    $existingOwner->update([
+                        'user_id' => $ownerUserId,
+                        'email' => $ownerEmail,
+                        'name' => $owner->name,
+                        'order' => is_null($ownerOrder) ? $existingOwner->order : (int) $ownerOrder,
+                    ]);
+                } else {
+                    DocumentSigner::create([
+                        'document_id' => $document->id,
+                        'user_id' => $ownerUserId,
+                        'email' => $ownerEmail,
+                        'name' => $owner->name,
+                        'order' => is_null($ownerOrder) ? null : (int) $ownerOrder,
+                        'status' => 'PENDING',
+                    ]);
+                }
+            }
             
             $signers = [];
             foreach ($signersInput as $signerData) {
                 $email = strtolower(trim((string) $signerData['email']));
+                if ($email === $ownerEmail) {
+                    // Owner included via signers payload: upsert without sending invitation
+                    $existingOwner = DocumentSigner::where('document_id', $document->id)
+                        ->where(function ($q) use ($ownerUserId, $ownerEmail) {
+                            $q->where('user_id', $ownerUserId)
+                                ->orWhereRaw('LOWER(email) = ?', [$ownerEmail]);
+                        })
+                        ->first();
+
+                    if ($existingOwner) {
+                        $existingOwner->update([
+                            'user_id' => $ownerUserId,
+                            'email' => $ownerEmail,
+                            'name' => $owner->name,
+                            'order' => isset($signerData['order']) ? (int) $signerData['order'] : $existingOwner->order,
+                            'status' => 'PENDING',
+                        ]);
+                        $signers[] = $existingOwner;
+                    } else {
+                        $signers[] = DocumentSigner::create([
+                            'document_id' => $document->id,
+                            'user_id' => $ownerUserId,
+                            'email' => $ownerEmail,
+                            'name' => $owner->name,
+                            'order' => isset($signerData['order']) ? (int) $signerData['order'] : null,
+                            'status' => 'PENDING',
+                        ]);
+                    }
+
+                    continue;
+                }
                 $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
                 $displayName = $user?->name ?? $signerData['name'];
 
@@ -79,6 +149,21 @@ class SignerService
                     $owner->name
                 ));
             }
+
+            // Normalize signer order to sequential 1..N based on provided order (nulls last)
+            $allSigners = DocumentSigner::where('document_id', $document->id)
+                ->orderByRaw('"order" IS NULL')
+                ->orderBy('order')
+                ->orderBy('id')
+                ->get();
+
+            $seq = 1;
+            foreach ($allSigners as $s) {
+                $s->update(['order' => $seq]);
+                $seq++;
+            }
+
+            $signers = $allSigners;
 
             $document->update(['status' => 'IN_PROGRESS']);
 

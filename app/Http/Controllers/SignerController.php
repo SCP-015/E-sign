@@ -21,10 +21,17 @@ class SignerController extends Controller
      */
     public function store(StoreSignersRequest $request, $documentId)
     {
+        $options = [
+            'include_owner' => (bool) ($request->input('includeOwner') ?? $request->input('include_owner') ?? false),
+            'owner_order' => $request->input('ownerOrder') ?? $request->input('owner_order'),
+            'signing_mode' => $request->input('signingMode') ?? $request->input('signing_mode'),
+        ];
+
         $result = $this->signerService->addSigners(
             (int) $documentId,
             (int) $request->user()->id,
-            $request->input('signers')
+            $request->input('signers'),
+            $options
         );
 
         return ApiResponse::fromService($result);
