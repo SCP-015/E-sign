@@ -15,6 +15,7 @@
 
                 <nav class="hidden items-center gap-2 md:flex">
                     <Link href="/dashboard" class="btn btn-ghost btn-sm">Dashboard</Link>
+                    <Link href="/documents" class="btn btn-ghost btn-sm">Documents</Link>
                     <Link href="/signature-setup" class="btn btn-ghost btn-sm">Signatures</Link>
                     <Link href="/verify" class="btn btn-ghost btn-sm">Verify Page</Link>
                 </nav>
@@ -55,6 +56,7 @@
                         </label>
                         <ul tabindex="0" class="menu dropdown-content mt-3 w-48 rounded-box border border-base-200 bg-base-100 p-2 shadow">
                             <li><Link href="/dashboard">Dashboard</Link></li>
+                            <li><Link href="/documents">Documents</Link></li>
                             <li><Link href="/signature-setup">Signatures</Link></li>
                             <li><Link href="/verify">Verify Page</Link></li>
                             <li v-if="isAuthenticated"><button type="button" @click="logout">Logout</button></li>
