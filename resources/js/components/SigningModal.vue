@@ -104,6 +104,25 @@
             </div>
 
             <div v-else class="space-y-3">
+              <div class="space-y-2 rounded-xl border border-base-200 bg-base-200/40 p-3 text-xs">
+                <label class="flex items-center gap-2">
+                  <input v-model="includeOwner" type="checkbox" class="checkbox checkbox-xs">
+                  <span class="font-semibold">Include me as signer</span>
+                </label>
+                <label v-if="includeOwner" class="flex items-center gap-2">
+                  <input v-model="ownerFirst" type="checkbox" class="checkbox checkbox-xs">
+                  <span class="font-semibold">I sign first</span>
+                </label>
+              </div>
+
+              <div>
+                <label class="text-xs font-semibold">Signing Mode</label>
+                <select v-model="signingMode" class="select select-bordered select-sm w-full">
+                  <option value="PARALLEL">PARALLEL</option>
+                  <option value="SEQUENTIAL">SEQUENTIAL</option>
+                </select>
+              </div>
+
               <div>
                 <label class="text-xs font-semibold">Signer Email</label>
                 <input
@@ -147,10 +166,18 @@
       <div class="modal-action border-t border-base-200 px-4 py-4 sm:px-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button @click="close" class="btn btn-ghost">Cancel</button>
         <button
-          v-if="!assignMode"
+          v-if="canFinalize"
+          @click="finalizeDocument"
+          class="btn btn-primary"
+          :disabled="finalizing || saving"
+        >
+          {{ finalizing ? 'Finalizing...' : 'Finalize Document' }}
+        </button>
+        <button
+          v-else-if="!assignMode"
           @click="saveSignature"
           class="btn btn-primary"
-          :disabled="!selectedSignatureId || saving"
+          :disabled="!selectedSignatureId || saving || finalizing"
         >
           {{ saving ? 'Saving...' : 'Save Signature' }}
         </button>
@@ -158,7 +185,7 @@
           v-else
           @click="assignToOther"
           class="btn btn-primary"
-          :disabled="!assignEmail || !assignName || saving"
+          :disabled="!assignEmail || !assignName || saving || finalizing"
         >
           {{ saving ? 'Assigning...' : '📧 Send Invitation' }}
         </button>
@@ -186,6 +213,7 @@ const props = defineProps({
 
 const documentOwnerId = ref(null);
 const documentSigners = ref([]);
+const documentStatus = ref(null);
 
 const emit = defineEmits(['close', 'signed']);
 
@@ -209,14 +237,24 @@ const signatureImageUrl = ref('');
 const signatureImageObjectUrl = ref('');
 const placementPage = ref(1);
 const saving = ref(false);
+const finalizing = ref(false);
 
 const assignMode = ref(false);
 const assignEmail = ref('');
 const assignName = ref('');
 
+const includeOwner = ref(true);
+const ownerFirst = ref(true);
+const signingMode = ref('PARALLEL');
+
 const isDocumentOwner = computed(() => {
   if (!documentOwnerId.value || !authStore.user?.id) return false;
   return Number(documentOwnerId.value) === Number(authStore.user.id);
+});
+const canFinalize = computed(() => {
+  if (!isDocumentOwner.value) return false;
+  const status = String(documentStatus.value || '').toLowerCase();
+  return status === 'signed';
 });
 const hasOtherSigners = computed(() => {
   const userId = authStore.user?.id;
@@ -290,6 +328,7 @@ async function loadPdf() {
     const doc = docRes.data?.data ?? docRes.data;
     documentOwnerId.value = doc.user_id ?? doc.userId;
     documentSigners.value = Array.isArray(doc.signers) ? doc.signers : [];
+    documentStatus.value = doc.status ?? null;
     
     const res = await axios.get(`/api/documents/${props.documentId}/view-url`, {
       responseType: 'arraybuffer',
@@ -547,12 +586,22 @@ async function assignToOther() {
 
   saving.value = true;
   try {
+    const normalizedMode = String(signingMode.value || 'PARALLEL').toUpperCase();
+    const modePayload = normalizedMode === 'SEQUENTIAL' ? 'SEQUENTIAL' : 'PARALLEL';
+
+    const includeMe = !!includeOwner.value;
+    const ownerOrder = includeMe ? (ownerFirst.value ? 1 : 2) : null;
+    const assigneeOrder = includeMe ? (ownerFirst.value ? 2 : 1) : 1;
+
     await axios.post(`/api/documents/${props.documentId}/signers`, {
+      includeOwner: includeMe,
+      ownerOrder,
+      signingMode: modePayload,
       signers: [
         {
           email: assignEmail.value,
           name: assignName.value,
-          order: 1,
+          order: assigneeOrder,
         },
       ],
     });
@@ -579,6 +628,25 @@ async function assignToOther() {
     toastStore.error(formatApiError('Failed to send invitation', e));
   } finally {
     saving.value = false;
+  }
+}
+
+async function finalizeDocument() {
+  if (!props.documentId) {
+    toastStore.error('Document is not available.');
+    return;
+  }
+
+  finalizing.value = true;
+  try {
+    await axios.post(`/api/documents/${props.documentId}/finalize`);
+    toastStore.success('Document finalized.');
+    emit('signed');
+    close();
+  } catch (e) {
+    toastStore.error(formatApiError('Failed to finalize document', e));
+  } finally {
+    finalizing.value = false;
   }
 }
 

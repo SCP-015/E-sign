@@ -68,7 +68,9 @@
                 :formatDate="formatDate"
                 :getFileName="getFileName"
                 :canSign="canSign"
+                :canFinalize="canFinalize"
                 @sign="openSigningModal"
+                @finalize="finalizeDocument"
                 @verify="verifyDocument"
                 @download="downloadDocument"
             />
@@ -155,6 +157,14 @@ const canSign = (doc) => {
     if (status === 'signed' || status === 'completed') return false;
     if (kycStatus.value !== 'verified' || !hasSignature.value) return false;
     return isAssignedToMe(doc) && !hasISigned(doc);
+};
+
+const canFinalize = (doc) => {
+    const status = String(doc?.status || '').toLowerCase();
+    if (status !== 'signed') return false;
+    const ownerId = doc?.user_id ?? doc?.userId;
+    if (!ownerId || !authStore.user?.id) return false;
+    return Number(ownerId) === Number(authStore.user.id);
 };
 
 const stats = computed(() => [
@@ -259,6 +269,16 @@ const openSigningModal = (docId, pageCount) => {
 
 const onDocumentSigned = async () => {
     await fetchDocuments();
+};
+
+const finalizeDocument = async (id) => {
+    try {
+        await axios.post(`/api/documents/${id}/finalize`);
+        toastStore.success('Document finalized.');
+        await fetchDocuments();
+    } catch (e) {
+        toastStore.error(formatApiError('Failed to finalize document', e));
+    }
 };
 
 const verifyDocument = async (id) => {

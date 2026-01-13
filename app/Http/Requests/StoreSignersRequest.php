@@ -14,6 +14,12 @@ class StoreSignersRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'includeOwner' => 'nullable|boolean',
+            'include_owner' => 'nullable|boolean',
+            'ownerOrder' => 'nullable|integer',
+            'owner_order' => 'nullable|integer',
+            'signingMode' => 'nullable|string|in:PARALLEL,SEQUENTIAL,parallel,sequential',
+            'signing_mode' => 'nullable|string|in:PARALLEL,SEQUENTIAL,parallel,sequential',
             'signers' => 'required|array|min:1',
             'signers.*.email' => 'required|email',
             'signers.*.name' => 'required|string|max:255',

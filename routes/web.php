@@ -15,6 +15,11 @@ Route::get('/login', function () {
     return Inertia::render('Login');
 })->name('login');
 
+Route::get('/invite', function () {
+    $query = request()->getQueryString();
+    return redirect('/login' . ($query ? '?' . $query : ''));
+})->name('invite');
+
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->name('dashboard');

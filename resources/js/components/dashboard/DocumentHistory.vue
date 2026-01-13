@@ -36,6 +36,9 @@
                         <button v-if="shouldShowSign(doc)" @click="emit('sign', doc.id, doc.page_count ?? doc.pageCount)" class="btn btn-primary btn-sm w-full sm:w-auto">
                             Sign Now
                         </button>
+                        <button v-if="shouldShowFinalize(doc)" @click="emit('finalize', doc.id)" class="btn btn-primary btn-sm w-full sm:w-auto">
+                            Finalize
+                        </button>
                         <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="emit('verify', doc.id)" class="btn btn-outline btn-sm w-full sm:w-auto">
                             Verify Signature
                         </button>
@@ -75,14 +78,25 @@ const props = defineProps({
         type: Function,
         default: null,
     },
+    canFinalize: {
+        type: Function,
+        default: null,
+    },
 });
 
-const emit = defineEmits(['sign', 'verify', 'download']);
+const emit = defineEmits(['sign', 'verify', 'download', 'finalize']);
 
 const shouldShowSign = (doc) => {
     if (props.canSign) {
         return props.canSign(doc);
     }
     return doc.status === 'pending' || doc.status === 'IN_PROGRESS';
+};
+
+const shouldShowFinalize = (doc) => {
+    if (props.canFinalize) {
+        return props.canFinalize(doc);
+    }
+    return false;
 };
 </script>

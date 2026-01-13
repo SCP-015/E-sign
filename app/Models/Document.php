@@ -22,6 +22,7 @@ class Document extends Model
         'signed_path',
         'final_pdf_path',
         'verify_token',
+        'signing_mode',
         'status',
         'signed_at',
         'completed_at',

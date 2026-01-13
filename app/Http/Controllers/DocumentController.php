@@ -217,6 +217,12 @@ class DocumentController extends Controller
             })
             ->firstOrFail();
 
+        $hasSigners = $document->signers()->exists();
+
+        if ($hasSigners && $document->status !== 'COMPLETED') {
+            return ApiResponse::error('Document must be finalized by owner before download', 400);
+        }
+
         if (!in_array($document->status, ['signed', 'COMPLETED'], true)) {
             return ApiResponse::error('Document is not signed yet', 400);
         }
@@ -232,6 +238,9 @@ class DocumentController extends Controller
         }
 
         if (!$filePath || !file_exists($filePath)) {
+            if ($hasSigners) {
+                return ApiResponse::error('Final PDF not found. Please finalize the document first.', 400);
+            }
             // Generate final PDF on-the-fly if doesn't exist
             try {
                 $verifyToken = $document->verify_token ?? bin2hex(random_bytes(16));
