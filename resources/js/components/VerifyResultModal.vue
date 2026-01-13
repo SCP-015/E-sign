@@ -42,6 +42,24 @@
                             <span :class="['badge badge-sm uppercase', badgeClass]">{{ result.statusLabel }}</span>
                         </div>
 
+                        <div v-if="result?.owner" class="rounded-2xl border border-base-200 bg-base-100 p-4">
+                            <h4 class="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">Document Owner</h4>
+                            <div class="mt-3 flex items-center gap-3">
+                                <div class="h-10 w-10 overflow-hidden rounded-full bg-base-200">
+                                    <img
+                                        v-if="result.owner.avatar"
+                                        :src="result.owner.avatar"
+                                        :alt="result.owner.name || 'Owner'"
+                                        class="h-full w-full object-cover"
+                                    >
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="wrap-break-word font-semibold">{{ result.owner.name || '-' }}</p>
+                                    <p class="wrap-break-word text-xs text-base-content/60">{{ result.owner.email || '-' }}</p>
+                                </div>
+                            </div>
+                        </div>
+
                         <div v-if="result?.fields?.length" class="grid gap-3 text-sm">
                             <div v-for="field in result.fields" :key="field.label" class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                                 <span class="text-base-content/60">{{ field.label }}</span>

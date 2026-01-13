@@ -60,12 +60,14 @@
                   </div>
                   <div class="flex-1 min-w-0">
                     <h4 class="wrap-break-word font-semibold">{{ sig.name }}</h4>
-                    <p class="text-xs text-base-content/60">{{ sig.image_type.toUpperCase() }} · {{ formatDate(sig.created_at) }}</p>
-                    <span v-if="sig.is_default" class="badge badge-success badge-sm mt-2">Default</span>
+                    <p class="text-xs text-base-content/60">
+                      {{ ((sig.imageType ?? sig.image_type) ? String(sig.imageType ?? sig.image_type).toUpperCase() : '') }} · {{ formatDate(sig.createdAt ?? sig.created_at) }}
+                    </p>
+                    <span v-if="(sig.isDefault ?? sig.is_default)" class="badge badge-success badge-sm mt-2">Default</span>
                   </div>
                   <div class="flex flex-wrap gap-2">
                     <button
-                      v-if="!sig.is_default"
+                      v-if="!(sig.isDefault ?? sig.is_default)"
                       @click="setDefault(sig.id)"
                       class="btn btn-outline btn-xs"
                       title="Set as default"
@@ -322,8 +324,14 @@ async function loadSignatures() {
   try {
     revokeSignatureUrls(signatures.value);
     const response = await axios.get('/api/signatures');
-    const list = response.data?.data ?? response.data;
-    signatures.value = Array.isArray(list) ? list : [];
+    const payload = response.data?.data ?? response.data;
+    const list = Array.isArray(payload)
+      ? payload
+      : (payload && typeof payload === 'object' && 'id' in payload)
+        ? [payload]
+        : [];
+
+    signatures.value = list;
 
     await Promise.all(
       signatures.value.map(async (sig) => {

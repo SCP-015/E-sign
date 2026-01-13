@@ -365,6 +365,7 @@ const verifyDocument = async (id) => {
             tone,
             statusLabel: isValid ? 'VALID' : 'INVALID',
             summary: verifyData?.message || (isValid ? 'Document signature verified successfully.' : 'Document verification failed.'),
+            owner: ownerInfo,
             fields,
             signers: (verifyData?.signers || []).map((signer) => ({
                 name: signer.name,
