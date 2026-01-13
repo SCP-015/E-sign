@@ -59,7 +59,7 @@
                     <div v-else class="text-xs text-base-content/40">Preview unavailable</div>
                   </div>
                   <div class="flex-1 min-w-0">
-                    <h4 class="break-words font-semibold">{{ sig.name }}</h4>
+                    <h4 class="wrap-break-word font-semibold">{{ sig.name }}</h4>
                     <p class="text-xs text-base-content/60">{{ sig.image_type.toUpperCase() }} · {{ formatDate(sig.created_at) }}</p>
                     <span v-if="sig.is_default" class="badge badge-success badge-sm mt-2">Default</span>
                   </div>

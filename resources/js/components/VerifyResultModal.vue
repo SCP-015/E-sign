@@ -28,7 +28,7 @@
                         </div>
                         <div class="flex-1 min-w-0">
                             <h3 class="text-lg font-semibold">{{ result?.title || 'Verification Result' }}</h3>
-                            <p class="break-words text-sm text-base-content/70">{{ result?.summary || 'No details available.' }}</p>
+                            <p class="wrap-break-word text-sm text-base-content/70">{{ result?.summary || 'No details available.' }}</p>
                         </div>
                         <button type="button" class="btn btn-ghost btn-xs" @click="close" aria-label="Close">
                             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
@@ -45,7 +45,7 @@
                         <div v-if="result?.fields?.length" class="grid gap-3 text-sm">
                             <div v-for="field in result.fields" :key="field.label" class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                                 <span class="text-base-content/60">{{ field.label }}</span>
-                                <span class="break-words font-medium text-base-content sm:text-right">{{ field.value || '-' }}</span>
+                                <span class="wrap-break-word font-medium text-base-content sm:text-right">{{ field.value || '-' }}</span>
                             </div>
                         </div>
 
@@ -54,7 +54,7 @@
                             <div class="space-y-2">
                                 <div v-for="signer in result.signers" :key="signer.name + signer.status" class="rounded-xl border border-base-200 bg-base-100 p-3 text-sm">
                                     <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                        <span class="break-words font-semibold">{{ signer.name || 'Signer' }}</span>
+                                        <span class="wrap-break-word font-semibold">{{ signer.name || 'Signer' }}</span>
                                         <span class="badge badge-outline badge-xs uppercase">{{ signer.status || 'unknown' }}</span>
                                     </div>
                                     <p class="mt-1 text-xs text-base-content/60">Signed at: {{ signer.signedAt || signer.signed_at || '-' }}</p>

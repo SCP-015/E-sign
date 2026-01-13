@@ -213,6 +213,16 @@ const getUploadBlockMessage = (payload) => {
     return `Upload ditolak: ${missing.join(', ')} belum lengkap.`;
 };
 
+const getOwnerInfo = (owner) => {
+    if (!owner) return null;
+    if (typeof owner === 'string') return { name: owner, email: null };
+    if (typeof owner !== 'object') return null;
+    return {
+        name: owner.name || owner.full_name || owner.fullName || null,
+        email: owner.email || null,
+    };
+};
+
 const uploadFile = async (file) => {
     if (!file) return;
     if (file.size > MAX_UPLOAD_BYTES) {
@@ -261,14 +271,23 @@ const verifyDocument = async (id) => {
             try {
                 const fallbackRes = await axios.post('/api/documents/verify', { document_id: id });
                 const payload = fallbackRes.data?.data ?? fallbackRes.data;
-                const isValid = payload?.is_valid === true;
+                const isValid = payload?.isValid === true || payload?.is_valid === true;
                 const tone = isValid ? 'success' : 'error';
+                const ownerInfo = getOwnerInfo(payload?.document_owner ?? payload?.documentOwner);
                 const fields = [
                     { label: 'Document ID', value: payload?.document_id || id },
                     { label: 'File', value: payload?.file_name || 'Document' },
                     { label: 'Signed By', value: payload?.signed_by || '-' },
                     { label: 'Signed At', value: formatDateTime(payload?.signed_at) },
                 ];
+                if (ownerInfo) {
+                    fields.splice(
+                        1,
+                        0,
+                        { label: 'Owner Name', value: ownerInfo.name || '-' },
+                        { label: 'Owner Email', value: ownerInfo.email || '-' },
+                    );
+                }
 
                 if (payload?.ltv) {
                     fields.push(
@@ -305,18 +324,28 @@ const verifyDocument = async (id) => {
         const res = await axios.get(`/api/verify/${verifyToken}`);
         const verifyData = res.data?.data ?? res.data;
         const status = verifyData?.status || 'unknown';
-        const isValid = verifyData?.is_valid === true;
+        const isValid = verifyData?.isValid === true || verifyData?.is_valid === true;
         const tone = isValid ? 'success' : 'error';
+        const ownerInfo = getOwnerInfo(verifyData?.document_owner ?? verifyData?.documentOwner);
+        const fields = [
+            { label: 'Document ID', value: verifyData?.document_id || verifyData?.documentId || id },
+            { label: 'File', value: verifyData?.file_name || verifyData?.fileName || 'Document' },
+            { label: 'Completed At', value: formatDateTime(verifyData?.completed_at ?? verifyData?.completedAt) },
+        ];
+        if (ownerInfo) {
+            fields.splice(
+                1,
+                0,
+                { label: 'Owner Name', value: ownerInfo.name || '-' },
+                { label: 'Owner Email', value: ownerInfo.email || '-' },
+            );
+        }
         verifyModalResult.value = {
             title: 'Verification Result',
             tone,
             statusLabel: isValid ? 'VALID' : 'INVALID',
             summary: verifyData?.message || (isValid ? 'Document signature verified successfully.' : 'Document verification failed.'),
-            fields: [
-                { label: 'Document ID', value: verifyData?.document_id || verifyData?.documentId || id },
-                { label: 'File', value: verifyData?.file_name || verifyData?.fileName || 'Document' },
-                { label: 'Completed At', value: formatDateTime(verifyData?.completed_at ?? verifyData?.completedAt) },
-            ],
+            fields,
             signers: (verifyData?.signers || []).map((signer) => ({
                 name: signer.name,
                 status: signer.status,

@@ -185,6 +185,7 @@ const props = defineProps({
 });
 
 const documentOwnerId = ref(null);
+const documentSigners = ref([]);
 
 const emit = defineEmits(['close', 'signed']);
 
@@ -217,6 +218,17 @@ const isDocumentOwner = computed(() => {
   if (!documentOwnerId.value || !authStore.user?.id) return false;
   return Number(documentOwnerId.value) === Number(authStore.user.id);
 });
+const hasOtherSigners = computed(() => {
+  const userId = authStore.user?.id;
+  if (!userId) return false;
+
+  return documentSigners.value.some((signer) => {
+    const signerUserId = signer?.user_id ?? signer?.userId;
+    if (!signerUserId) return true;
+    return Number(signerUserId) !== Number(userId);
+  });
+});
+const shouldAutoFinalize = computed(() => isDocumentOwner.value && !hasOtherSigners.value);
 
 const sigX = ref(24);
 const sigY = ref(24);
@@ -277,6 +289,7 @@ async function loadPdf() {
     const docRes = await axios.get(`/api/documents/${props.documentId}`);
     const doc = docRes.data?.data ?? docRes.data;
     documentOwnerId.value = doc.user_id ?? doc.userId;
+    documentSigners.value = Array.isArray(doc.signers) ? doc.signers : [];
     
     const res = await axios.get(`/api/documents/${props.documentId}/view-url`, {
       responseType: 'arraybuffer',
@@ -499,7 +512,16 @@ async function saveSignature() {
       ]
     });
 
-    toastStore.success('Signature placement saved.');
+    if (shouldAutoFinalize.value) {
+      try {
+        await axios.post(`/api/documents/${props.documentId}/finalize`);
+        toastStore.success('Document signed and finalized.');
+      } catch (e) {
+        toastStore.error(formatApiError('Signature saved but finalize failed', e));
+      }
+    } else {
+      toastStore.success('Signature placement saved.');
+    }
     setTimeout(() => {
       emit('signed');
       close();

@@ -40,7 +40,7 @@
                     <div v-if="selectedFile" class="rounded-2xl border border-base-200 bg-base-100 p-4 text-sm">
                         <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                             <div class="min-w-0">
-                                <p class="break-words font-semibold">{{ selectedFile.name }}</p>
+                                <p class="wrap-break-word font-semibold">{{ selectedFile.name }}</p>
                                 <p class="text-xs text-base-content/60">{{ formatFileSize(selectedFile.size) }}</p>
                             </div>
                             <button class="btn btn-ghost btn-xs" type="button" @click="clearFile">Remove</button>
@@ -113,6 +113,16 @@ const clearFile = () => {
     verifyHint.value = '';
 };
 
+const getOwnerInfo = (owner) => {
+    if (!owner) return null;
+    if (typeof owner === 'string') return { name: owner, email: null };
+    if (typeof owner !== 'object') return null;
+    return {
+        name: owner.name || owner.full_name || owner.fullName || null,
+        email: owner.email || null,
+    };
+};
+
 const verifyFile = async () => {
     if (!selectedFile.value) return;
 
@@ -123,8 +133,9 @@ const verifyFile = async () => {
         const res = await axios.post('/api/verify/upload', formData);
         const payload = res.data?.data ?? res.data;
         const message = res.data?.message ?? payload?.message;
-        const isValid = payload?.is_valid === true;
+        const isValid = payload?.isValid === true || payload?.is_valid === true;
         verifyHint.value = message || '';
+        const ownerInfo = getOwnerInfo(payload?.document_owner ?? payload?.documentOwner);
 
         const fields = [
             { label: 'File', value: payload?.file_name || selectedFile.value.name },
@@ -132,6 +143,14 @@ const verifyFile = async () => {
             { label: 'Signed By', value: payload?.signed_by || '-' },
             { label: 'Signed At', value: formatDateTime(payload?.signed_at) },
         ];
+        if (ownerInfo) {
+            fields.splice(
+                1,
+                0,
+                { label: 'Owner Name', value: ownerInfo.name || '-' },
+                { label: 'Owner Email', value: ownerInfo.email || '-' },
+            );
+        }
 
         if (payload?.ltv) {
             fields.push(
