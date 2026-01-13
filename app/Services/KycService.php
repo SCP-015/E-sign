@@ -12,6 +12,27 @@ class KycService
 {
     protected $certificateService;
 
+    protected function kycAlreadySubmitted(User $user): bool
+    {
+        if (($user->kyc_status ?? null) === 'verified') {
+            return true;
+        }
+
+        if (KycData::where('user_id', $user->id)->exists()) {
+            return true;
+        }
+
+        // Defensive check: prevent duplicate KYC for the same email (in case of legacy data/import issues)
+        if (!empty($user->email)) {
+            $email = strtolower(trim((string) $user->email));
+            return KycData::whereHas('user', function ($q) use ($email) {
+                $q->whereRaw('LOWER(email) = ?', [$email]);
+            })->exists();
+        }
+
+        return false;
+    }
+
     public function __construct(CertificateService $certificateService)
     {
         $this->certificateService = $certificateService;
@@ -19,6 +40,15 @@ class KycService
 
     public function submitKyc(User $user, array $data, UploadedFile $idPhoto, UploadedFile $selfiePhoto): array
     {
+        if ($this->kycAlreadySubmitted($user)) {
+            return [
+                'status' => 'error',
+                'code' => 409,
+                'message' => 'KYC already submitted',
+                'data' => null,
+            ];
+        }
+
         // Store KYC files in private storage with email-based folder structure
         $email = strtolower($user->email);
 
@@ -79,7 +109,20 @@ class KycService
         try {
             $user = User::findOrFail($userId);
 
+            if ($this->kycAlreadySubmitted($user)) {
+                return [
+                    'status' => 'error',
+                    'code' => 409,
+                    'message' => 'KYC already submitted',
+                    'data' => null,
+                ];
+            }
+
             $result = $this->submitKyc($user, $validated, $idPhoto, $selfiePhoto);
+
+            if (($result['status'] ?? null) === 'error') {
+                return $result;
+            }
 
             $data = [
                 'id' => $result['user']->id,

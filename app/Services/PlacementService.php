@@ -7,6 +7,7 @@ use App\Models\DocumentSigner;
 use App\Models\SignaturePlacement;
 use App\Models\Signature;
 use App\Models\User;
+use App\Models\Certificate;
 use Illuminate\Support\Facades\DB;
 
 class PlacementService
@@ -15,6 +16,8 @@ class PlacementService
     {
         try {
             $document = Document::findOrFail($documentId);
+
+            $existingSignersCount = DocumentSigner::where('document_id', $documentId)->count();
             
             $signer = null;
             if ($signerUserId) {
@@ -58,6 +61,16 @@ class PlacementService
             }
             
             if (!$signer) {
+                // If there are existing signers (assignment flow), do not allow creating a new signer implicitly.
+                if ($existingSignersCount > 0) {
+                    return [
+                        'status' => 'error',
+                        'code' => 403,
+                        'message' => 'Signer is not assigned to this document',
+                        'data' => null,
+                    ];
+                }
+
                 if ($signerUserId) {
                     $signerUser = User::findOrFail($signerUserId);
                     $signer = DocumentSigner::create([
@@ -112,6 +125,32 @@ class PlacementService
             }
 
             if ($hasSignature) {
+                $signingMode = strtoupper((string) ($document->signing_mode ?? 'PARALLEL'));
+                if ($signingMode === 'SEQUENTIAL') {
+                    // Sequential signing enforcement: only allow the earliest pending signer to sign.
+                    $nextSigner = DocumentSigner::where('document_id', $documentId)
+                        ->where('status', '!=', 'SIGNED')
+                        ->orderByRaw('"order" IS NULL')
+                        ->orderBy('order')
+                        ->orderBy('id')
+                        ->first();
+
+                    if ($nextSigner && (int) $nextSigner->id !== (int) $signer->id) {
+                        DB::rollBack();
+
+                        return [
+                            'status' => 'error',
+                            'code' => 409,
+                            'message' => 'Not your turn to sign yet',
+                            'data' => [
+                                'nextSignerId' => $nextSigner->id,
+                                'nextSignerEmail' => $nextSigner->email,
+                                'nextSignerOrder' => $nextSigner->order,
+                            ],
+                        ];
+                    }
+                }
+
                 $signer->update([
                     'status' => 'SIGNED',
                     'signed_at' => now(),
@@ -123,10 +162,45 @@ class PlacementService
                 
                 if ($allSigned) {
                     $verifyToken = $document->verify_token ?? bin2hex(random_bytes(16));
-                    $document->update([
-                        'status' => 'signed',
-                        'verify_token' => $verifyToken,
-                    ]);
+
+                    // If this was a self-sign flow (no prior signers assigned), auto-finalize
+                    if ($existingSignersCount === 0) {
+                        // Generate final PDF with QR and mark as COMPLETED
+                        $qrConfig = [
+                            'page' => 'LAST',
+                            'position' => 'BOTTOM_RIGHT',
+                            'marginBottom' => 15,
+                            'marginRight' => 15,
+                            'size' => 35,
+                        ];
+
+                        $finalPdfPath = app(\App\Services\DocumentService::class)
+                            ->finalizePdf($document, $verifyToken, $qrConfig);
+
+                        $document->update([
+                            'status' => 'COMPLETED',
+                            'completed_at' => now(),
+                            'final_pdf_path' => $finalPdfPath,
+                            'verify_token' => $verifyToken,
+                        ]);
+
+                        // Upsert signing evidence (owner certificate)
+                        $cert = Certificate::where('user_id', (int) $document->user_id)
+                            ->where('status', 'active')
+                            ->orderByDesc('issued_at')
+                            ->orderByDesc('created_at')
+                            ->first();
+                        if ($cert) {
+                            app(\App\Services\DocumentService::class)
+                                ->upsertSigningEvidence($document->fresh(), $cert, $finalPdfPath, now());
+                        }
+                    } else {
+                        // Multi-signer: keep as signed; requires explicit finalize by owner
+                        $document->update([
+                            'status' => 'signed',
+                            'verify_token' => $verifyToken,
+                        ]);
+                    }
                 }
             }
 
@@ -149,6 +223,11 @@ class PlacementService
                         'signatureId' => $p->signature_id,
                     ])->toArray(),
                     'signerStatus' => $signer->status,
+                    'documentStatus' => $document->status,
+                    'needsFinalize' => isset($allSigned)
+                        ? ($existingSignersCount === 0 ? false : (bool) $allSigned)
+                        : false,
+                    'verifyToken' => isset($verifyToken) ? $verifyToken : null,
                 ],
             ];
         } catch (\Exception $e) {

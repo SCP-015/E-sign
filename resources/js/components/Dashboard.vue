@@ -201,10 +201,13 @@
                                     ✍️ Setup Signature First
                                 </button>
                             </template>
-                            <button v-if="doc.status === 'signed'" @click="verifyDocument(doc.id)" class="btn-secondary btn-sm">
+                            <button v-if="canFinalize(doc)" @click="finalizeDocument(doc.id)" class="btn-primary btn-sm">
+                                ✅ Finalize (ACC)
+                            </button>
+                            <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="verifyDocument(doc.id)" class="btn-secondary btn-sm">
                                 Verify Signature
                             </button>
-                            <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="downloadDocument(doc.id)" class="btn-link btn-sm">
+                            <button v-if="canDownload(doc)" @click="downloadDocument(doc.id)" class="btn-link btn-sm">
                                 📥 Download
                             </button>
                         </div>
@@ -279,6 +282,27 @@ const hasISigned = (doc) => {
         (s.email && s.email.toLowerCase() === user.value.email?.toLowerCase())
     );
     return !!(mySigner && mySigner.signedAt);
+};
+
+const isOwner = (doc) => {
+    return Number(doc.userId) === Number(user.value.id);
+};
+
+const allSignersSigned = (doc) => {
+    if (!doc.signers || doc.signers.length === 0) return false;
+    return doc.signers.every(s => !!s.signedAt || String(s.status || '').toUpperCase() === 'SIGNED');
+};
+
+const canFinalize = (doc) => {
+    const status = String(doc.status || '').toLowerCase();
+    return isOwner(doc) && status === 'signed' && allSignersSigned(doc);
+};
+
+const canDownload = (doc) => {
+    const status = String(doc.status || '');
+    const hasSigners = Array.isArray(doc.signers) && doc.signers.length > 0;
+    if (hasSigners) return status === 'COMPLETED';
+    return status === 'signed' || status === 'COMPLETED';
 };
 
 const verifyUploadResult = ref(null);
@@ -376,6 +400,23 @@ const openSigningModal = (docId, pageCount) => {
     selectedDocId.value = docId;
     selectedDocPageCount.value = pageCount || 1;
     showSigningModal.value = true;
+};
+
+const finalizeDocument = async (docId) => {
+    try {
+        await axios.post(`/api/documents/${docId}/finalize`, {
+            qrPlacement: {
+                page: 'LAST',
+                position: 'BOTTOM_RIGHT',
+                marginBottom: 15,
+                marginRight: 15,
+                size: 35,
+            }
+        });
+        await fetchDocuments();
+    } catch (e) {
+        alert('Finalize Failed: ' + (e.response?.data?.message || e.message));
+    }
 };
 
 const onDocumentSigned = async () => {

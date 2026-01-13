@@ -86,6 +86,29 @@
 
           <div v-else class="assign-section">
             <h3>Assign to Another User</h3>
+
+            <div class="form-group">
+              <label>
+                <input type="checkbox" v-model="includeOwner" />
+                Include me as signer
+              </label>
+            </div>
+
+            <div class="form-group" v-if="includeOwner">
+              <label>
+                <input type="checkbox" v-model="ownerFirst" />
+                I sign first
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label>Signing Mode:</label>
+              <select v-model="signingMode" class="form-control">
+                <option value="PARALLEL">PARALLEL</option>
+                <option value="SEQUENTIAL">SEQUENTIAL</option>
+              </select>
+            </div>
+
             <div class="form-group">
               <label>Email Address:</label>
               <input 
@@ -201,6 +224,10 @@ const messageType = ref('info');
 const assignMode = ref(false);
 const assignEmail = ref('');
 const assignName = ref('');
+
+const includeOwner = ref(true);
+const ownerFirst = ref(true);
+const signingMode = ref('PARALLEL');
 
 const isDocumentOwner = computed(() => {
   if (!documentOwnerId.value || !authStore.user?.id) return false;
@@ -487,13 +514,23 @@ async function assignToOther() {
 
   saving.value = true;
   try {
+    const normalizedMode = String(signingMode.value || 'PARALLEL').toUpperCase();
+    const modePayload = normalizedMode === 'SEQUENTIAL' ? 'SEQUENTIAL' : 'PARALLEL';
+
+    const includeMe = !!includeOwner.value;
+    const ownerOrder = includeMe ? (ownerFirst.value ? 1 : 2) : null;
+    const assigneeOrder = includeMe ? (ownerFirst.value ? 2 : 1) : 1;
+
     // 1. Add signer and send email
     const signerRes = await axios.post(`/api/documents/${props.documentId}/signers`, {
+      includeOwner: includeMe,
+      ownerOrder,
+      signingMode: modePayload,
       signers: [
         {
           email: assignEmail.value,
           name: assignName.value,
-          order: 1
+          order: assigneeOrder
         }
       ]
     });
