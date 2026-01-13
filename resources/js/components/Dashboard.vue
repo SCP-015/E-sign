@@ -149,6 +149,12 @@
                             <p v-if="verifyUploadResult.signedAt" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
                                 Signed at: {{ verifyUploadResult.signedAt }}
                             </p>
+                            <p v-if="verifyUploadResult.documentOwner" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
+                                Document owner: {{ verifyUploadResult.documentOwner.name }}<span v-if="verifyUploadResult.documentOwner.email"> ({{ verifyUploadResult.documentOwner.email }})</span>
+                            </p>
+                            <p v-if="verifyUploadResult.verifiedAt" style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.875rem;">
+                                Verified at: {{ verifyUploadResult.verifiedAt }}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -387,20 +393,40 @@ const verifyDocument = async (id) => {
             // Fallback: internal verification by document_id
             const fallback = await axios.post('/api/documents/verify', { documentId: id });
             const payload = fallback.data?.data ?? fallback.data;
-            alert(`❌ No verify token found for this document\n\nInternal verification: ${payload?.message || 'N/A'}`);
+            const owner = payload?.documentOwner;
+            const ownerLine = owner ? `${owner.name || '-'}${owner.email ? ` (${owner.email})` : ''}` : 'N/A';
+            const verifiedAt = payload?.verifiedAt || payload?.signedAt || payload?.ltv?.signedAt || null;
+            const whenLine = verifiedAt ? verifiedAt : 'N/A';
+            alert(
+                `❌ No verify token found for this document\n\n` +
+                `Internal verification: ${payload?.message || 'N/A'}\n` +
+                `Document owner: ${ownerLine}\n` +
+                `Verified at: ${whenLine}`
+            );
             return;
         }
         
         // Call verify endpoint
         const res = await axios.get(`/api/verify/${verifyToken}`);
         const verifyData = res.data?.data ?? res.data;
+
+        const owner = verifyData?.documentOwner;
+        const ownerLine = owner ? `${owner.name || '-'}${owner.email ? ` (${owner.email})` : ''}` : 'N/A';
+        const verifiedAt = verifyData?.verifiedAt || verifyData?.completedAt || verifyData?.ltv?.signedAt || null;
+        const whenLine = verifiedAt ? verifiedAt : 'N/A';
         
         // Show verification details
         const signers = (verifyData.signers || []).map(s => 
             `${s.name}${s.email ? ` (${s.email})` : ''}: ${s.status} (${s.signedAt || 'pending'})`
         ).join('\n');
         
-        alert(`✅ Document Verified!\n\nStatus: ${verifyData.status}\nSigners:\n${signers}`);
+        alert(
+            `✅ Document Verified!\n\n` +
+            `Status: ${verifyData.status}\n` +
+            `Document owner: ${ownerLine}\n` +
+            `Verified at: ${whenLine}\n\n` +
+            `Signers:\n${signers}`
+        );
     } catch (e) {
         alert('Verification Error: ' + (e.response?.data?.message || e.message));
     }

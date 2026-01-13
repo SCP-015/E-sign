@@ -285,6 +285,8 @@ class DocumentService
 
         // Initialize FPDI
         $pdf = new Fpdi();
+        // Avoid TCPDF auto page breaks adding an extra blank page when drawing near the bottom
+        $pdf->SetAutoPageBreak(false, 0);
 
         // Embed verify marker into PDF metadata so /verify/upload can map back without decoding QR image
         $verifyUrl = url('/api/verify/' . $verifyToken);
@@ -375,6 +377,9 @@ class DocumentService
         $qrSize = $qrConfig['size'] ?? 35;
         $marginBottom = $qrConfig['marginBottom'] ?? 15;
         $marginRight = $qrConfig['marginRight'] ?? 15;
+
+        // Ensure we're writing on the intended page (important when TCPDF might have advanced state)
+        $pdf->setPage($qrPage);
         
         // Position at bottom-right corner (small)
         $qrX = $lastPageWidth - $qrSize - $marginRight;
@@ -481,6 +486,8 @@ class DocumentService
 
         // Initialize FPDI
         $pdf = new Fpdi();
+        // Avoid TCPDF auto page breaks adding an extra blank page when drawing near the bottom
+        $pdf->SetAutoPageBreak(false, 0);
 
         // Set certificate for digital signature
         $certificateContent = file_get_contents($certPath);
