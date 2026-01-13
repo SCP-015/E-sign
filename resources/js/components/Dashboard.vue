@@ -204,7 +204,7 @@
                             <button v-if="canFinalize(doc)" @click="finalizeDocument(doc.id)" class="btn-primary btn-sm">
                                 ✅ Finalize (ACC)
                             </button>
-                            <button v-if="doc.status === 'signed'" @click="verifyDocument(doc.id)" class="btn-secondary btn-sm">
+                            <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="verifyDocument(doc.id)" class="btn-secondary btn-sm">
                                 Verify Signature
                             </button>
                             <button v-if="canDownload(doc)" @click="downloadDocument(doc.id)" class="btn-link btn-sm">
