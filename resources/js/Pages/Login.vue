@@ -171,12 +171,24 @@ const isInvite = ref(false);
 const inviteEmail = ref('');
 const inviteToken = ref('');
 const inviteCode = ref('');
+const inviteMismatch = ref(null);
 
 const clearInviteState = () => {
     isInvite.value = false;
     inviteEmail.value = '';
     inviteToken.value = '';
     inviteCode.value = '';
+    inviteMismatch.value = null;
+};
+
+const setInviteMismatch = (expectedEmail, currentEmail) => {
+    inviteMismatch.value = {
+        expectedEmail,
+        currentEmail,
+    };
+    toastStore.error(
+        `Undangan ini untuk ${expectedEmail}, tetapi kamu masuk sebagai ${currentEmail}. Silakan ganti akun.`
+    );
 };
 
 const acceptStoredInvite = async () => {
@@ -223,6 +235,9 @@ const handleInviteCode = async (code) => {
                 router.visit('/dashboard');
                 return true;
             }
+            if (inviteEmail.value && currentEmail) {
+                setInviteMismatch(inviteEmail.value, currentEmail);
+            }
             authStore.logout();
         }
     } catch (error) {
@@ -257,6 +272,9 @@ const handleInviteLegacy = async (email, token) => {
                 sessionStorage.removeItem('invite_token');
                 router.visit('/dashboard');
                 return true;
+            }
+            if (currentEmail) {
+                setInviteMismatch(email, currentEmail);
             }
             authStore.logout();
         }
