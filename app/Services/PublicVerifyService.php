@@ -135,8 +135,18 @@ class PublicVerifyService
                         'signed_email' => $signedEmail,
                         'signed_at' => $signedAt?->toIso8601String() ?? $document->completed_at?->toIso8601String() ?? $document->updated_at?->toIso8601String(),
                         'document_id' => $document->id,
+                        'status' => $document->status,
                         'document_owner' => $documentOwner,
                         'file_name' => $document->title ?? basename($document->file_path),
+                        'completed_at' => $document->completed_at?->toIso8601String(),
+                        'signers' => $document->signers
+                            ?->map(fn ($s) => [
+                                'name' => $s->user?->name ?? $s->name,
+                                'email' => $s->user?->email ?? $s->email,
+                                'status' => $s->status,
+                                'signed_at' => $s->signed_at?->toIso8601String(),
+                            ])
+                            ?->toArray() ?? [],
                     ];
 
                     if ($evidence) {

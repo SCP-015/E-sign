@@ -120,6 +120,7 @@ const getOwnerInfo = (owner) => {
     return {
         name: owner.name || owner.full_name || owner.fullName || null,
         email: owner.email || null,
+        avatar: owner.avatar || null,
     };
 };
 
@@ -138,10 +139,9 @@ const verifyFile = async () => {
         const ownerInfo = getOwnerInfo(payload?.document_owner ?? payload?.documentOwner);
 
         const fields = [
-            { label: 'File', value: payload?.file_name || selectedFile.value.name },
-            { label: 'Document ID', value: payload?.document_id || '-' },
-            { label: 'Signed By', value: payload?.signed_by || '-' },
-            { label: 'Signed At', value: formatDateTime(payload?.signed_at) },
+            { label: 'File', value: payload?.fileName ?? payload?.file_name ?? selectedFile.value.name },
+            { label: 'Document ID', value: payload?.documentId ?? payload?.document_id ?? '-' },
+            { label: 'Signed at', value: formatDateTime(payload?.signedAt ?? payload?.signed_at) },
         ];
         if (ownerInfo) {
             fields.splice(
@@ -154,12 +154,29 @@ const verifyFile = async () => {
 
         if (payload?.ltv) {
             fields.push(
-                { label: 'Certificate #', value: payload.ltv.certificate_number || '-' },
-                { label: 'Cert Valid From', value: formatDateTime(payload.ltv.certificate_not_before) },
-                { label: 'Cert Valid To', value: formatDateTime(payload.ltv.certificate_not_after) },
-                { label: 'TSA URL', value: payload.ltv.tsa_url || '-' },
-                { label: 'TSA At', value: formatDateTime(payload.ltv.tsa_at) },
+                { label: 'Certificate #', value: payload.ltv.certificateNumber ?? payload.ltv.certificate_number ?? '-' },
+                { label: 'Cert Valid From', value: formatDateTime(payload.ltv.certificateNotBefore ?? payload.ltv.certificate_not_before) },
+                { label: 'Cert Valid To', value: formatDateTime(payload.ltv.certificateNotAfter ?? payload.ltv.certificate_not_after) },
+                { label: 'TSA URL', value: payload.ltv.tsaUrl ?? payload.ltv.tsa_url ?? '-' },
+                { label: 'TSA At', value: formatDateTime(payload.ltv.tsaAt ?? payload.ltv.tsa_at) },
             );
+        }
+
+        const signers = Array.isArray(payload?.signers)
+            ? payload.signers.map((signer) => ({
+                name: signer?.name,
+                status: signer?.status,
+                signedAt: formatDateTime(signer?.signedAt ?? signer?.signed_at),
+            }))
+            : [];
+
+        if (signers.length && !fields.some((f) => f.label === 'Completed At')) {
+            const completedAt = payload?.completedAt ?? payload?.completed_at;
+            if (completedAt) {
+                const idx = fields.findIndex((f) => f.label === 'File');
+                const insertAt = idx >= 0 ? idx + 1 : fields.length;
+                fields.splice(insertAt, 0, { label: 'Completed at', value: formatDateTime(completedAt) });
+            }
         }
 
         openVerifyModal({
@@ -167,7 +184,9 @@ const verifyFile = async () => {
             tone: isValid ? 'success' : 'error',
             statusLabel: isValid ? 'VALID' : 'INVALID',
             summary: message || (isValid ? 'Signature is valid.' : 'Signature is not valid.'),
+            owner: ownerInfo,
             fields,
+            signers,
         });
     } catch (e) {
         verifyHint.value = formatApiError('Verification failed', e);
