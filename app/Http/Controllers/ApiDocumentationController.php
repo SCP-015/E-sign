@@ -8,7 +8,7 @@ class ApiDocumentationController extends Controller
 {
     public function index()
     {
-        $markdown = file_get_contents(base_path('API_DOCUMENTATION.md'));
+        $markdown = file_get_contents(base_path('docs/API_DOCUMENTATION.md'));
         
         return view('api-docs', [
             'markdown' => $markdown

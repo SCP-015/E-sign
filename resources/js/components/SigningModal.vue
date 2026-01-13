@@ -276,7 +276,7 @@ async function loadPdf() {
     // Fetch document details to get owner_id
     const docRes = await axios.get(`/api/documents/${props.documentId}`);
     const doc = docRes.data?.data ?? docRes.data;
-    documentOwnerId.value = doc.user_id;
+    documentOwnerId.value = doc.user_id ?? doc.userId;
     
     const res = await axios.get(`/api/documents/${props.documentId}/view-url`, {
       responseType: 'arraybuffer',
@@ -450,7 +450,8 @@ async function loadSignatures() {
     const list = res.data?.data ?? res.data;
     signatures.value = Array.isArray(list) ? list : [];
     if (signatures.value.length > 0) {
-      const defaultSig = signatures.value.find((s) => s.is_default) || signatures.value[0];
+      const defaultSig =
+        signatures.value.find((s) => s.is_default === true || s.isDefault === true) || signatures.value[0];
       selectedSignatureId.value = defaultSig?.id ?? null;
     } else {
       selectedSignatureId.value = null;
@@ -458,6 +459,8 @@ async function loadSignatures() {
   } catch (e) {
     console.error('Failed to load signatures:', e);
     toastStore.error(formatApiError('Failed to load signatures', e));
+    signatures.value = [];
+    selectedSignatureId.value = null;
   }
 }
 

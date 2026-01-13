@@ -8,11 +8,11 @@
                 <p class="text-sm text-base-content/60">Welcome back to your E-Sign dashboard.</p>
             </section>
 
-            <KycBanner :status="user.kyc_status" />
+            <KycBanner :status="kycStatus" />
 
             <StatsGrid :stats="stats" />
 
-            <CertificateStatusCard :status="user.kyc_status" :expiry="certificateExpiry" />
+            <CertificateStatusCard :status="kycStatus" :expiry="certificateExpiry" />
 
             <section v-if="isVerified" class="card border border-base-200 bg-base-100 shadow-sm">
                 <div class="card-body gap-4">
@@ -107,7 +107,9 @@ import { formatApiError } from '../utils/errors';
 const authStore = useAuthStore();
 const toastStore = useToastStore();
 const user = computed(() => authStore.user || {});
-const isVerified = computed(() => user.value?.kyc_status === 'verified');
+const kycStatus = computed(() => (user.value?.kyc_status ?? user.value?.kycStatus ?? 'unverified').toLowerCase());
+const hasSignature = computed(() => user.value?.has_signature ?? user.value?.hasSignature ?? false);
+const isVerified = computed(() => kycStatus.value === 'verified');
 
 const dragActive = ref(false);
 const documents = ref([]);
@@ -121,7 +123,7 @@ const verifyModalResult = ref(null);
 const signedCount = computed(() => documents.value.filter(d => d.status === 'signed' || d.status === 'COMPLETED').length);
 const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending' || d.status === 'IN_PROGRESS').length);
 const certificateExpiry = computed(() => {
-    const expiresAt = user.value?.certificate?.expires_at;
+    const expiresAt = user.value?.certificate?.expires_at ?? user.value?.certificate?.expiresAt;
     if (!expiresAt) return '-';
     const date = new Date(expiresAt);
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -132,6 +134,7 @@ const isAssignedToMe = (doc) => {
         return Number(doc?.user_id ?? doc?.userId) === Number(user.value?.id);
     }
     return doc.signers.some((s) =>
+        (s.user_id && Number(s.user_id) === Number(user.value?.id)) ||
         (s.userId && Number(s.userId) === Number(user.value?.id)) ||
         (s.email && s.email.toLowerCase() === user.value?.email?.toLowerCase())
     );
@@ -140,17 +143,17 @@ const isAssignedToMe = (doc) => {
 const hasISigned = (doc) => {
     if (!doc?.signers) return false;
     const mySigner = doc.signers.find((s) =>
+        (s.user_id && Number(s.user_id) === Number(user.value?.id)) ||
         (s.userId && Number(s.userId) === Number(user.value?.id)) ||
         (s.email && s.email.toLowerCase() === user.value?.email?.toLowerCase())
     );
-    return Boolean(mySigner?.signedAt);
+    return Boolean(mySigner?.signed_at ?? mySigner?.signedAt);
 };
 
 const canSign = (doc) => {
     const status = String(doc?.status || '').toLowerCase();
     if (status === 'signed' || status === 'completed') return false;
-    const kycStatus = user.value?.kyc_status?.toLowerCase();
-    if (kycStatus !== 'verified' || !user.value?.has_signature) return false;
+    if (kycStatus.value !== 'verified' || !hasSignature.value) return false;
     return isAssignedToMe(doc) && !hasISigned(doc);
 };
 
@@ -195,6 +198,21 @@ const handleDrop = (e) => {
     uploadFile(e.dataTransfer.files[0]);
 };
 
+const getUploadBlockMessage = (payload) => {
+    if (!payload || typeof payload !== 'object') return null;
+    const requiresKyc = payload.requires_kyc ?? payload.requiresKyc;
+    const requiresSignature = payload.requires_signature ?? payload.requiresSignature;
+    const requiresCertificate = payload.requires_certificate ?? payload.requiresCertificate;
+
+    const missing = [];
+    if (requiresKyc === true) missing.push('KYC');
+    if (requiresSignature === true) missing.push('tanda tangan');
+    if (requiresCertificate === true) missing.push('sertifikat');
+
+    if (missing.length === 0) return null;
+    return `Upload ditolak: ${missing.join(', ')} belum lengkap.`;
+};
+
 const uploadFile = async (file) => {
     if (!file) return;
     if (file.size > MAX_UPLOAD_BYTES) {
@@ -209,6 +227,16 @@ const uploadFile = async (file) => {
         await fetchDocuments();
         toastStore.success('Document uploaded successfully.');
     } catch (e) {
+        const payload = e?.response?.data?.data ?? e?.response?.data ?? null;
+        const requirementMessage = getUploadBlockMessage(payload);
+        if (requirementMessage) {
+            toastStore.error(requirementMessage);
+            return;
+        }
+        if (payload?.message) {
+            toastStore.error(payload.message);
+            return;
+        }
         toastStore.error(formatApiError('Upload failed', e));
     }
 };
@@ -285,14 +313,14 @@ const verifyDocument = async (id) => {
             statusLabel: isValid ? 'VALID' : 'INVALID',
             summary: verifyData?.message || (isValid ? 'Document signature verified successfully.' : 'Document verification failed.'),
             fields: [
-                { label: 'Document ID', value: verifyData?.documentId || id },
-                { label: 'File', value: verifyData?.fileName || 'Document' },
-                { label: 'Completed At', value: formatDateTime(verifyData?.completedAt) },
+                { label: 'Document ID', value: verifyData?.document_id || verifyData?.documentId || id },
+                { label: 'File', value: verifyData?.file_name || verifyData?.fileName || 'Document' },
+                { label: 'Completed At', value: formatDateTime(verifyData?.completed_at ?? verifyData?.completedAt) },
             ],
             signers: (verifyData?.signers || []).map((signer) => ({
                 name: signer.name,
                 status: signer.status,
-                signedAt: formatDateTime(signer.signedAt),
+                signedAt: formatDateTime(signer.signed_at ?? signer.signedAt),
             })),
         };
         verifyModalOpen.value = true;
@@ -355,7 +383,13 @@ const downloadDocument = async (id) => {
 const getFileName = (docOrPath) => {
     if (!docOrPath) return 'document.pdf';
     if (typeof docOrPath === 'string') return docOrPath.split('/').pop();
-    return docOrPath.title || docOrPath.original_filename || (docOrPath.file_path ? docOrPath.file_path.split('/').pop() : 'document.pdf');
+    return (
+        docOrPath.title ||
+        docOrPath.original_filename ||
+        docOrPath.originalFilename ||
+        (docOrPath.file_path ? docOrPath.file_path.split('/').pop() : null) ||
+        (docOrPath.filePath ? docOrPath.filePath.split('/').pop() : 'document.pdf')
+    );
 };
 const formatDate = (dateString) => {
     if (!dateString) return '';

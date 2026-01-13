@@ -57,7 +57,7 @@
                                         <span class="break-words font-semibold">{{ signer.name || 'Signer' }}</span>
                                         <span class="badge badge-outline badge-xs uppercase">{{ signer.status || 'unknown' }}</span>
                                     </div>
-                                    <p class="mt-1 text-xs text-base-content/60">Signed at: {{ signer.signedAt || '-' }}</p>
+                                    <p class="mt-1 text-xs text-base-content/60">Signed at: {{ signer.signedAt || signer.signed_at || '-' }}</p>
                                 </div>
                             </div>
                         </div>

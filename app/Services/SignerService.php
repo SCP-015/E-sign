@@ -25,8 +25,9 @@ class SignerService
             
             $signers = [];
             foreach ($signersInput as $signerData) {
-                $email = $signerData['email'];
-                $user = User::where('email', $email)->first();
+                $email = strtolower(trim((string) $signerData['email']));
+                $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+                $displayName = $user?->name ?? $signerData['name'];
 
                 do {
                     $inviteToken = Str::random(16);
@@ -34,17 +35,40 @@ class SignerService
                 
                 $inviteExpiresAt = now()->addDays(7);
 
-                $signer = DocumentSigner::create([
-                    'document_id' => $document->id,
-                    'user_id' => $user?->id,
-                    'email' => $email,
-                    'name' => $signerData['name'],
-                    'invite_token' => $inviteToken,
-                    'invite_expires_at' => $inviteExpiresAt,
-                    'invite_accepted_at' => null,
-                    'order' => $signerData['order'] ?? null,
-                    'status' => 'PENDING',
-                ]);
+                $existingSigner = DocumentSigner::where('document_id', $document->id)
+                    ->where(function ($q) use ($user, $email) {
+                        if ($user) {
+                            $q->where('user_id', $user->id);
+                        }
+                        $q->orWhereRaw('LOWER(email) = ?', [$email]);
+                    })
+                    ->first();
+
+                if ($existingSigner) {
+                    $existingSigner->update([
+                        'user_id' => $user?->id,
+                        'email' => $email,
+                        'name' => $displayName,
+                        'invite_token' => $inviteToken,
+                        'invite_expires_at' => $inviteExpiresAt,
+                        'invite_accepted_at' => null,
+                        'order' => $signerData['order'] ?? $existingSigner->order,
+                        'status' => 'PENDING',
+                    ]);
+                    $signer = $existingSigner;
+                } else {
+                    $signer = DocumentSigner::create([
+                        'document_id' => $document->id,
+                        'user_id' => $user?->id,
+                        'email' => $email,
+                        'name' => $displayName,
+                        'invite_token' => $inviteToken,
+                        'invite_expires_at' => $inviteExpiresAt,
+                        'invite_accepted_at' => null,
+                        'order' => $signerData['order'] ?? null,
+                        'status' => 'PENDING',
+                    ]);
+                }
 
                 $signers[] = $signer;
 
@@ -99,14 +123,15 @@ class SignerService
                 'code' => 200,
                 'message' => 'OK',
                 'data' => [
-                    'documentId' => $document->id,
+                    'document_id' => $document->id,
                     'status' => $document->status,
                     'signers' => $signers->map(fn ($s) => [
                         'id' => $s->id,
-                        'userId' => $s->user_id,
-                        'name' => $s->name,
+                        'user_id' => $s->user_id,
+                        'email' => $s->email,
+                        'name' => $s->user?->name ?? $s->name,
                         'order' => $s->order,
-                        'signedAt' => $s->signed_at?->toIso8601String(),
+                        'signed_at' => $s->signed_at?->toIso8601String(),
                     ])->toArray(),
                 ],
             ];

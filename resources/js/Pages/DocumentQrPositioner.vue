@@ -129,7 +129,11 @@ onBeforeUnmount(() => {
 async function loadPosition() {
   try {
     const response = await axios.get(`/api/documents/${props.documentId}/qr-position`);
-    const pos = response.data.qr_position;
+    const payload = response.data?.data ?? response.data;
+    const pos = payload?.qr_position ?? payload?.qrPosition ?? payload;
+    if (!pos) {
+      throw new Error('Missing QR position data');
+    }
     
     qrPosition.x = pos.x;
     qrPosition.y = pos.y;

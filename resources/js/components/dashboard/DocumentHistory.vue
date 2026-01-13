@@ -15,7 +15,7 @@
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div class="min-w-0">
                             <p class="text-xs text-base-content/40">
-                                {{ formatDate(doc.created_at || doc.created_at) }}
+                                {{ formatDate(doc.created_at || doc.createdAt) }}
                             </p>
                             <h4 class="wrap-break-word font-semibold">{{ getFileName(doc) }}</h4>
                         </div>
@@ -33,7 +33,7 @@
                         </span>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <button v-if="shouldShowSign(doc)" @click="emit('sign', doc.id, doc.page_count)" class="btn btn-primary btn-sm w-full sm:w-auto">
+                        <button v-if="shouldShowSign(doc)" @click="emit('sign', doc.id, doc.page_count ?? doc.pageCount)" class="btn btn-primary btn-sm w-full sm:w-auto">
                             Sign Now
                         </button>
                         <button v-if="doc.status === 'signed' || doc.status === 'COMPLETED'" @click="emit('verify', doc.id)" class="btn btn-outline btn-sm w-full sm:w-auto">

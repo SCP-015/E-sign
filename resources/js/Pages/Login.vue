@@ -206,7 +206,8 @@ const handleInviteCode = async (code) => {
 
         isInvite.value = true;
         inviteCode.value = code;
-        inviteEmail.value = validateResp.data?.email ?? '';
+        const validatePayload = validateResp.data?.data ?? validateResp.data;
+        inviteEmail.value = validatePayload?.email ?? '';
         sessionStorage.setItem('invite_code', code);
         if (inviteEmail.value) {
             sessionStorage.setItem('invite_email', inviteEmail.value);
@@ -305,7 +306,8 @@ onMounted(async () => {
             const exchangeResponse = await axios.get('/api/auth/exchange', {
                 params: { code: String(authCode) },
             });
-            const exchangedToken = exchangeResponse.data?.token;
+            const exchangePayload = exchangeResponse.data?.data ?? exchangeResponse.data;
+            const exchangedToken = exchangePayload?.token;
             if (!exchangedToken) {
                 throw new Error('Missing token from exchange');
             }
