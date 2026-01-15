@@ -141,6 +141,7 @@ const verifyFile = async () => {
         const signers = Array.isArray(payload?.signers)
             ? payload.signers.map((signer) => ({
                 name: signer?.name,
+                email: signer?.email,
                 status: signer?.status,
                 signedAt: formatDateTime(signer?.signedAt ?? signer?.signed_at),
             }))

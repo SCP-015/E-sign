@@ -72,7 +72,10 @@
                             <div class="space-y-2">
                                 <div v-for="signer in result.signers" :key="signer.name + signer.status" class="rounded-xl border border-base-200 bg-base-100 p-3 text-sm">
                                     <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                        <span class="wrap-break-word font-semibold">{{ signer.name || 'Signer' }}</span>
+                                        <div class="min-w-0">
+                                            <span class="wrap-break-word font-semibold block">{{ signer.name || 'Signer' }}</span>
+                                            <span class="wrap-break-word text-xs text-base-content/60">{{ signer.email || '-' }}</span>
+                                        </div>
                                         <span class="badge badge-outline badge-xs uppercase">{{ signer.status || 'unknown' }}</span>
                                     </div>
                                     <p class="mt-1 text-xs text-base-content/60">Signed at: {{ signer.signedAt || signer.signed_at || '-' }}</p>

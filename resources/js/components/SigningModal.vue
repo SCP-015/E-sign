@@ -109,10 +109,26 @@
                   <input v-model="includeOwner" type="checkbox" class="checkbox checkbox-xs">
                   <span class="font-semibold">Include me as signer</span>
                 </label>
-                <label v-if="includeOwner" class="flex items-center gap-2">
+                <label v-if="includeOwner && assignees.length > 0 && signingMode === 'PARALLEL'" class="flex items-center gap-2">
                   <input v-model="ownerFirst" type="checkbox" class="checkbox checkbox-xs">
                   <span class="font-semibold">I sign first</span>
                 </label>
+                <div v-if="includeOwner && assignees.length > 0 && signingMode === 'SEQUENTIAL'" class="space-y-1">
+                  <label class="flex items-center gap-2">
+                    <input v-model="ownerFirst" type="checkbox" class="checkbox checkbox-xs">
+                    <span class="font-semibold">I sign first</span>
+                  </label>
+                  <div v-if="!ownerFirst" class="ml-6">
+                    <label class="text-xs font-semibold block mb-1">My signing order</label>
+                    <input
+                      v-model.number="ownerOrder"
+                      type="number"
+                      min="1"
+                      :max="assignees.length + 1"
+                      class="input input-bordered input-xs w-16"
+                    >
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -123,23 +139,53 @@
                 </select>
               </div>
 
-              <div>
-                <label class="text-xs font-semibold">Signer Email</label>
-                <input
-                  v-model="assignEmail"
-                  type="email"
-                  placeholder="Enter signer's email"
-                  class="input input-bordered input-sm w-full"
-                >
+              <div class="space-y-2">
+                <label class="text-xs font-semibold">Add Signers</label>
+                <div class="flex gap-2">
+                  <input
+                    v-model="newAssigneeEmail"
+                    type="email"
+                    placeholder="Email"
+                    class="input input-bordered input-sm flex-1"
+                  >
+                  <button
+                    @click="addAssignee"
+                    :disabled="!newAssigneeEmail"
+                    class="btn btn-primary btn-sm"
+                  >
+                    Add
+                  </button>
+                </div>
               </div>
-              <div>
-                <label class="text-xs font-semibold">Signer Name</label>
-                <input
-                  v-model="assignName"
-                  type="text"
-                  placeholder="Enter signer's name"
-                  class="input input-bordered input-sm w-full"
-                >
+
+              <div v-if="assignees.length > 0" class="space-y-2">
+                <label class="text-xs font-semibold">Signers List</label>
+                <div class="space-y-2 rounded-xl border border-base-200 bg-base-200/40 p-3">
+                  <div v-for="(signer, idx) in assignees" :key="idx" class="flex items-center gap-2 text-xs">
+                    <div v-if="signingMode === 'SEQUENTIAL'" class="flex items-center gap-1">
+                      <input
+                        v-model.number="signer.order"
+                        type="number"
+                        :min="includeOwner && ownerFirst ? 2 : 1"
+                        :disabled="includeOwner && ownerFirst"
+                        class="input input-bordered input-xs w-12"
+                      >
+                    </div>
+                    <div v-else class="w-12 text-center font-semibold text-base-content/60">
+                      —
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-semibold truncate">{{ signer.name }}</div>
+                      <div class="text-base-content/60 truncate">{{ signer.email }}</div>
+                    </div>
+                    <button
+                      @click="removeAssignee(idx)"
+                      class="btn btn-ghost btn-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -185,7 +231,7 @@
           v-else
           @click="assignToOther"
           class="btn btn-primary"
-          :disabled="!assignEmail || !assignName || saving || finalizing"
+          :disabled="assignees.length === 0 || saving || finalizing"
         >
           {{ saving ? 'Assigning...' : '📧 Send Invitation' }}
         </button>
@@ -240,11 +286,13 @@ const saving = ref(false);
 const finalizing = ref(false);
 
 const assignMode = ref(false);
-const assignEmail = ref('');
-const assignName = ref('');
+const assignees = ref([]);
+const newAssigneeEmail = ref('');
+const newAssigneeName = ref('');
 
 const includeOwner = ref(true);
 const ownerFirst = ref(true);
+const ownerOrder = ref(null);
 const signingMode = ref('PARALLEL');
 
 const isDocumentOwner = computed(() => {
@@ -572,9 +620,50 @@ async function saveSignature() {
   }
 }
 
+function addAssignee() {
+  if (!newAssigneeEmail.value) {
+    toastStore.error('Please fill in email.');
+    return;
+  }
+
+  let nextOrder = 1;
+  if (signingMode.value === 'SEQUENTIAL') {
+    // For SEQUENTIAL, auto-assign order avoiding owner's order
+    const usedOrders = new Set(assignees.value.map(s => s.order || 0));
+    
+    // If owner is included and signing first, start from order 2
+    if (includeOwner.value && ownerFirst.value) {
+      usedOrders.add(1); // Owner takes order 1
+      nextOrder = 2;
+    } else if (includeOwner.value && !ownerFirst.value && ownerOrder.value) {
+      usedOrders.add(ownerOrder.value);
+    }
+    
+    while (usedOrders.has(nextOrder)) {
+      nextOrder++;
+    }
+  } else {
+    // For PARALLEL, order doesn't matter
+    nextOrder = assignees.value.length + 1;
+  }
+
+  assignees.value.push({
+    email: newAssigneeEmail.value,
+    name: newAssigneeName.value || newAssigneeEmail.value.split('@')[0],
+    order: nextOrder,
+  });
+
+  newAssigneeEmail.value = '';
+  newAssigneeName.value = '';
+}
+
+function removeAssignee(idx) {
+  assignees.value.splice(idx, 1);
+}
+
 async function assignToOther() {
-  if (!assignEmail.value || !assignName.value) {
-    toastStore.error('Please fill in email and name.');
+  if (assignees.value.length === 0) {
+    toastStore.error('Please add at least one signer.');
     return;
   }
 
@@ -590,42 +679,66 @@ async function assignToOther() {
     const modePayload = normalizedMode === 'SEQUENTIAL' ? 'SEQUENTIAL' : 'PARALLEL';
 
     const includeMe = !!includeOwner.value;
-    const ownerOrder = includeMe ? (ownerFirst.value ? 1 : 2) : null;
-    const assigneeOrder = includeMe ? (ownerFirst.value ? 2 : 1) : 1;
+    let finalOwnerOrder = null;
+    let finalSigners = [...assignees.value];
+    
+    if (includeMe) {
+      if (modePayload === 'SEQUENTIAL') {
+        if (ownerFirst.value) {
+          finalOwnerOrder = 1;
+          // Shift all assignee orders down by 1
+          finalSigners = finalSigners.map(s => ({
+            ...s,
+            order: (s.order || 1) + 1
+          }));
+        } else if (ownerOrder.value) {
+          finalOwnerOrder = ownerOrder.value;
+          // Adjust assignee orders to avoid collision with owner order
+          finalSigners = finalSigners.map(s => {
+            let newOrder = s.order || 1;
+            if (newOrder >= finalOwnerOrder) {
+              newOrder++;
+            }
+            return { ...s, order: newOrder };
+          });
+        } else {
+          finalOwnerOrder = Math.max(...assignees.value.map(s => s.order || 0)) + 1;
+        }
+      } else {
+        // PARALLEL mode: owner order doesn't matter
+        finalOwnerOrder = null;
+      }
+    }
 
     await axios.post(`/api/documents/${props.documentId}/signers`, {
       includeOwner: includeMe,
-      ownerOrder,
+      ownerOrder: finalOwnerOrder,
       signingMode: modePayload,
-      signers: [
-        {
-          email: assignEmail.value,
-          name: assignName.value,
-          order: assigneeOrder,
-        },
-      ],
+      signers: finalSigners,
     });
 
-    await axios.post(`/api/documents/${props.documentId}/placements`, {
-      email: assignEmail.value,
-      placements: [
-        {
-          page: placementPage.value,
-          x: coords.xNorm,
-          y: coords.yNorm,
-          w: coords.wNorm,
-          h: coords.hNorm,
-        },
-      ],
-    });
+    for (const signer of assignees.value) {
+      await axios.post(`/api/documents/${props.documentId}/placements`, {
+        email: signer.email,
+        placements: [
+          {
+            page: placementPage.value,
+            x: coords.xNorm,
+            y: coords.yNorm,
+            w: coords.wNorm,
+            h: coords.hNorm,
+          },
+        ],
+      });
+    }
 
-    toastStore.success('Invitation sent successfully.');
+    toastStore.success('Invitations sent successfully.');
     setTimeout(() => {
       emit('signed');
       close();
     }, 1500);
   } catch (e) {
-    toastStore.error(formatApiError('Failed to send invitation', e));
+    toastStore.error(formatApiError('Failed to send invitations', e));
   } finally {
     saving.value = false;
   }
@@ -670,6 +783,12 @@ function goToSignatureSetup() {
 }
 
 function close() {
+  assignees.value = [];
+  newAssigneeEmail.value = '';
+  newAssigneeName.value = '';
+  assignMode.value = false;
+  ownerOrder.value = null;
+  ownerFirst.value = true;
   emit('close');
 }
 </script>

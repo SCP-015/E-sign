@@ -147,6 +147,7 @@ const verifyDocument = async (id) => {
                 const signers = Array.isArray(payload?.signers)
                     ? payload.signers.map((signer) => ({
                         name: signer?.name,
+                        email: signer?.email,
                         status: signer?.status,
                         signedAt: formatDateTime(signer?.signed_at ?? signer?.signedAt),
                     }))
@@ -211,8 +212,9 @@ const verifyDocument = async (id) => {
         const signers = Array.isArray(verifyData?.signers)
             ? verifyData.signers.map((signer) => ({
                 name: signer?.name,
+                email: signer?.email,
                 status: signer?.status,
-                signedAt: formatDateTime(signer?.signed_at ?? signer?.signedAt),
+                signedAt: formatDateTime(signer?.signed_at?? signer?.signedAt),
             }))
             : [];
         const signedBy = !signers.length ? (verifyData?.signed_by ?? verifyData?.signedBy) : null;
