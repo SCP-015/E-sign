@@ -86,6 +86,34 @@ class DocumentController extends Controller
         }
     }
 
+    public function getQrPosition(Request $request, $id)
+    {
+        $user = $request->user();
+        $document = Document::where('id', $id)
+            ->where(function($query) use ($user) {
+                $query->where('user_id', $user->id)
+                      ->orWhereHas('signers', function($q) use ($user) {
+                          $q->where('user_id', $user->id)
+                            ->orWhere('email', $user->email);
+                      });
+            })
+            ->firstOrFail();
+
+        // Return default QR config that will be used during finalization
+        $qrConfig = [
+            'page' => 'LAST',
+            'position' => 'BOTTOM_RIGHT',
+            'marginBottom' => 15,
+            'marginRight' => 15,
+            'size' => 35,
+        ];
+
+        return ApiResponse::success([
+            'qr_position' => $qrConfig,
+            'document_id' => $document->id,
+        ]);
+    }
+
     public function finalize(Request $request, $id)
     {
         $request->validate([

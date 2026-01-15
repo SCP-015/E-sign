@@ -53,6 +53,28 @@
                       Assigned to: {{ assignEmail || assignName || 'Signer' }}
                     </div>
                   </div>
+
+                  <div
+                    v-if="showQrPreview"
+                    class="absolute pointer-events-none z-10"
+                    :style="qrOverlayStyle"
+                    data-qr-preview="true"
+                  >
+                    <div class="relative h-full w-full rounded border-2 border-dashed border-warning/60 bg-warning/10 flex items-center justify-center shadow-lg">
+                      <svg viewBox="0 0 100 100" class="h-full w-full text-warning/70 p-1">
+                        <rect x="10" y="10" width="30" height="30" fill="currentColor" />
+                        <rect x="60" y="10" width="30" height="30" fill="currentColor" />
+                        <rect x="10" y="60" width="30" height="30" fill="currentColor" />
+                        <rect x="65" y="65" width="8" height="8" fill="currentColor" />
+                        <rect x="78" y="65" width="8" height="8" fill="currentColor" />
+                        <rect x="65" y="78" width="8" height="8" fill="currentColor" />
+                        <rect x="78" y="78" width="8" height="8" fill="currentColor" />
+                      </svg>
+                      <div class="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-warning/90 px-2 py-0.5 text-[10px] font-semibold text-warning-content shadow">
+                        QR Preview
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -295,6 +317,8 @@ const ownerFirst = ref(true);
 const ownerOrder = ref(null);
 const signingMode = ref('PARALLEL');
 
+const qrPositionConfig = ref(null);
+
 const isDocumentOwner = computed(() => {
   if (!documentOwnerId.value || !authStore.user?.id) return false;
   return Number(documentOwnerId.value) === Number(authStore.user.id);
@@ -324,6 +348,8 @@ const isDragging = ref(false);
 const dragOffsetX = ref(0);
 const dragOffsetY = ref(0);
 
+const pdfPageSizeMm = ref(null);
+
 onMounted(async () => {
   await loadSignatures();
 });
@@ -337,6 +363,7 @@ watch(() => props.isOpen, async (newVal) => {
   if (newVal && props.documentId) {
     await loadSignatures();
     await loadPdf();
+    await loadQrPosition();
     await nextTick();
   } else if (!newVal) {
     cleanupPdf();
@@ -346,6 +373,8 @@ watch(() => props.isOpen, async (newVal) => {
 watch(() => placementPage.value, async () => {
   if (props.isOpen) {
     resetSignaturePosition();
+    await nextTick();
+    await updatePdfPageSize();
   }
 });
 
@@ -395,6 +424,31 @@ function cleanupPdf() {
   pdfSource.value = null;
 }
 
+async function loadQrPosition() {
+  try {
+    const res = await axios.get(`/api/documents/${props.documentId}/qr-position`);
+    console.log('[QR Position] Raw response:', res.data);
+    
+    // Parse response structure from Postman: { data: { qrPosition: {...}, documentId: 14 } }
+    const payload = res.data?.data ?? res.data;
+    console.log('[QR Position] Payload:', payload);
+    
+    // Try both snake_case and camelCase
+    const qrConfig = payload?.qrPosition ?? payload?.qr_position ?? null;
+    console.log('[QR Position] QR Config:', qrConfig);
+    
+    if (qrConfig) {
+      qrPositionConfig.value = qrConfig;
+    } else {
+      console.warn('[QR Position] No QR config found in response');
+      qrPositionConfig.value = null;
+    }
+  } catch (e) {
+    console.error('[QR Position] Failed to load:', e);
+    qrPositionConfig.value = null;
+  }
+}
+
 function prevPage() {
   if (placementPage.value > 1) placementPage.value -= 1;
 }
@@ -427,7 +481,37 @@ function getPdfBounds() {
 function onPdfLoaded() {
   nextTick(() => {
     clampSignature();
+    updatePdfPageSize();
   });
+}
+
+async function updatePdfPageSize() {
+  try {
+    if (!pdf.value || !placementPage.value) {
+      pdfPageSizeMm.value = null;
+      return;
+    }
+
+    const documentProxy = await pdf.value?.promise;
+    if (!documentProxy) {
+      pdfPageSizeMm.value = null;
+      return;
+    }
+
+    const page = await documentProxy.getPage(placementPage.value);
+    // pdf.js viewport at scale=1 matches PDF points (1 pt = 1/72 inch)
+    const viewport = page.getViewport({ scale: 1 });
+    const widthMm = (viewport.width * 25.4) / 72;
+    const heightMm = (viewport.height * 25.4) / 72;
+
+    pdfPageSizeMm.value = {
+      widthMm,
+      heightMm,
+    };
+  } catch (e) {
+    console.error('[QR Preview] Failed to resolve PDF page size:', e);
+    pdfPageSizeMm.value = null;
+  }
 }
 
 async function loadSignatureImage(signatureId) {
@@ -541,6 +625,59 @@ const signatureOverlayStyle = computed(() => {
     width: sigW.value + 'px',
     height: sigH.value + 'px',
     transform: `translate(${sigX.value}px, ${sigY.value}px)`,
+  };
+});
+
+const showQrPreview = computed(() => {
+  // Check all conditions
+  const hasPdf = !!pdf.value;
+  const totalPages = pages.value || 0;
+  const currentPage = placementPage.value || 0;
+  const hasConfig = !!qrPositionConfig.value;
+  const isLastPage = totalPages > 0 && currentPage === totalPages;
+  
+  const shouldShow = hasPdf && isLastPage && hasConfig;
+  
+  console.log('[QR Preview] Should show:', shouldShow, {
+    hasPdf,
+    totalPages,
+    currentPage,
+    isLastPage,
+    hasConfig,
+    configDetails: qrPositionConfig.value
+  });
+  
+  return shouldShow;
+});
+
+const qrOverlayStyle = computed(() => {
+  const bounds = getPdfBounds();
+  if (!bounds || !qrPositionConfig.value || !pdfPageSizeMm.value) return { display: 'none' };
+  
+  const config = qrPositionConfig.value;
+  
+  // Get QR config values from API (these are in PDF units)
+  const qrSize = config.size ?? 35;
+  const marginRight = config.marginRight ?? 15;
+  const marginBottom = config.marginBottom ?? 15;
+  
+  // Convert mm (TCPDF default unit in finalize) to pixels using actual rendered page size
+  const pxPerMmX = bounds.width / pdfPageSizeMm.value.widthMm;
+  const pxPerMmY = bounds.height / pdfPageSizeMm.value.heightMm;
+  
+  const qrSizePx = qrSize * pxPerMmX;
+  const marginRightPx = marginRight * pxPerMmX;
+  const marginBottomPx = marginBottom * pxPerMmY;
+  
+  // Position from bottom-right corner
+  const qrX = bounds.x + bounds.width - qrSizePx - marginRightPx;
+  const qrY = bounds.y + bounds.height - qrSizePx - marginBottomPx;
+  
+  return {
+    left: `${qrX}px`,
+    top: `${qrY}px`,
+    width: `${qrSizePx}px`,
+    height: `${qrSizePx}px`,
   };
 });
 
