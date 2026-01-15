@@ -1,5 +1,9 @@
 <template>
-  <Head title="Signature Setup" />
+  <Head title="Signature Setup">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Allura&family=Dancing+Script:wght@400;600&family=Great+Vibes&family=Homemade+Apple&family=Pacifico&family=Sacramento&display=swap" rel="stylesheet">
+  </Head>
   <div class="min-h-screen">
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10">
       <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -15,27 +19,122 @@
         <div class="card border border-base-200 bg-base-100/90 shadow-sm">
           <div class="card-body gap-4">
             <div>
-              <h3 class="text-lg font-semibold">Draw Your Signature</h3>
-              <p class="text-sm text-base-content/60">Use your mouse, trackpad, or touch to sign.</p>
+              <h3 class="text-lg font-semibold">Create Signature</h3>
+              <p class="text-sm text-base-content/60">Draw, type with stylish fonts, or upload.</p>
             </div>
 
-            <div class="rounded-2xl border border-base-200 bg-base-100 p-2">
-              <canvas
-                ref="signatureCanvas"
-                class="h-56 w-full cursor-crosshair rounded-xl touch-none sm:h-72"
-                @pointerdown="startDrawing"
-                @pointermove="draw"
-                @pointerup="stopDrawing"
-                @pointerleave="stopDrawing"
-                @pointercancel="stopDrawing"
-              ></canvas>
-            </div>
-
-            <div class="flex flex-wrap gap-3">
-              <button @click="clearCanvas" class="btn btn-ghost btn-sm">Clear</button>
-              <button @click="saveSignature" class="btn btn-primary btn-sm" :disabled="!isDrawn">
-                Save Signature
+            <div class="flex flex-wrap items-center gap-2 rounded-full border border-base-200 bg-base-200/60 p-1 text-xs font-semibold">
+              <button
+                type="button"
+                class="flex-1 rounded-full px-3 py-2 transition"
+                :class="createMode === 'draw' ? 'bg-base-100 shadow text-base-content' : 'text-base-content/60'"
+                @click="setCreateMode('draw')"
+              >
+                Draw
               </button>
+              <button
+                type="button"
+                class="flex-1 rounded-full px-3 py-2 transition"
+                :class="createMode === 'type' ? 'bg-base-100 shadow text-base-content' : 'text-base-content/60'"
+                @click="setCreateMode('type')"
+              >
+                Type
+              </button>
+              <button
+                type="button"
+                class="flex-1 rounded-full px-3 py-2 transition"
+                :class="createMode === 'upload' ? 'bg-base-100 shadow text-base-content' : 'text-base-content/60'"
+                @click="setCreateMode('upload')"
+              >
+                Upload
+              </button>
+            </div>
+
+            <div v-if="createMode === 'draw'" class="space-y-3">
+              <div class="rounded-2xl border border-base-200 bg-base-100 p-2">
+                <canvas
+                  ref="signatureCanvas"
+                  class="h-56 w-full cursor-crosshair rounded-xl touch-none sm:h-72"
+                  @pointerdown="startDrawing"
+                  @pointermove="draw"
+                  @pointerup="stopDrawing"
+                  @pointerleave="stopDrawing"
+                  @pointercancel="stopDrawing"
+                ></canvas>
+              </div>
+
+              <div class="flex flex-wrap gap-3">
+                <button @click="clearCanvas" class="btn btn-ghost btn-sm">Clear</button>
+                <button @click="saveSignature" class="btn btn-primary btn-sm" :disabled="!isDrawn || savingSignature">
+                  {{ savingSignature ? 'Saving...' : 'Save Signature' }}
+                </button>
+              </div>
+            </div>
+
+            <div v-else-if="createMode === 'type'" class="space-y-3">
+              <div class="space-y-2">
+                <label class="text-xs font-semibold">Type your name</label>
+                <input
+                  v-model="typedName"
+                  type="text"
+                  placeholder="Enter your name"
+                  class="input input-bordered input-sm w-full"
+                >
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-xs font-semibold">Choose a style</label>
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <button
+                    v-for="font in typedFonts"
+                    :key="font.family"
+                    type="button"
+                    class="rounded-xl border border-base-200 bg-base-100 px-3 py-3 text-left transition"
+                    :class="selectedTypedFont === font.family ? 'ring-2 ring-primary' : ''"
+                    @click="selectTypedFont(font.family)"
+                  >
+                    <div class="text-xs font-semibold text-base-content/60">{{ font.label }}</div>
+                    <div
+                      class="mt-1 truncate text-2xl"
+                      :style="{ fontFamily: font.cssFamily }"
+                    >
+                      {{ typedPreviewText }}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-3">
+                <button @click="clearTyped" class="btn btn-ghost btn-sm">Clear</button>
+                <button @click="saveSignature" class="btn btn-primary btn-sm" :disabled="!typedName.trim() || savingSignature">
+                  {{ savingSignature ? 'Saving...' : 'Save Signature' }}
+                </button>
+              </div>
+            </div>
+
+            <div v-else class="space-y-3">
+              <div class="space-y-2">
+                <label class="text-xs font-semibold">Upload signature image</label>
+                <input
+                  ref="uploadInput"
+                  type="file"
+                  accept="image/png,image/svg+xml"
+                  class="file-input file-input-bordered file-input-sm w-full"
+                  @change="onUploadChange"
+                >
+                <p class="text-xs text-base-content/60">Supported: PNG or SVG (max 2MB)</p>
+              </div>
+
+              <div v-if="uploadPreviewUrl" class="flex h-24 items-center justify-center rounded-xl border border-base-200 bg-base-100 p-2">
+                <img :src="uploadPreviewUrl" alt="Upload preview" class="max-h-20 max-w-full object-contain" />
+              </div>
+
+              <div class="flex flex-wrap gap-3">
+                <button @click="clearUpload" class="btn btn-ghost btn-sm">Clear</button>
+                <button @click="saveSignature" class="btn btn-primary btn-sm" :disabled="!uploadFile || savingSignature">
+                  {{ savingSignature ? 'Saving...' : 'Save Signature' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -139,13 +238,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useToastStore } from '../stores/toast';
 import { formatApiError } from '../utils/errors';
 
 const signatureCanvas = ref(null);
+const uploadInput = ref(null);
 const signatures = ref([]);
 const isDrawing = ref(false);
 const isDrawn = ref(false);
@@ -153,6 +253,23 @@ const toastStore = useToastStore();
 const showDeleteModal = ref(false);
 const pendingDelete = ref(null);
 const deleting = ref(false);
+const savingSignature = ref(false);
+
+const createMode = ref('draw');
+
+const typedName = ref('');
+const typedFonts = ref([
+  { family: 'Dancing Script', label: 'Dancing Script', cssFamily: "'Dancing Script', cursive" },
+  { family: 'Great Vibes', label: 'Great Vibes', cssFamily: "'Great Vibes', cursive" },
+  { family: 'Pacifico', label: 'Pacifico', cssFamily: "'Pacifico', cursive" },
+  { family: 'Allura', label: 'Allura', cssFamily: "'Allura', cursive" },
+  { family: 'Sacramento', label: 'Sacramento', cssFamily: "'Sacramento', cursive" },
+  { family: 'Homemade Apple', label: 'Homemade Apple', cssFamily: "'Homemade Apple', cursive" },
+]);
+const selectedTypedFont = ref(typedFonts.value[0].family);
+
+const uploadFile = ref(null);
+const uploadPreviewUrl = ref('');
 
 let ctx = null;
 let lastX = 0;
@@ -225,10 +342,19 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   revokeSignatureUrls(signatures.value);
+  cleanupUploadPreview();
+});
+
+watch(() => createMode.value, async (newVal) => {
+  if (newVal === 'draw') {
+    await nextTick();
+    initCanvas();
+  }
 });
 
 function initCanvas() {
   const canvas = signatureCanvas.value;
+  if (!canvas) return;
   canvas.width = canvas.offsetWidth;
   canvas.height = canvas.offsetHeight;
   
@@ -290,33 +416,173 @@ function clearCanvas() {
 }
 
 async function saveSignature() {
-  if (!isDrawn.value) {
-    toastStore.error('Please draw a signature first.');
-    return;
-  }
+  if (savingSignature.value) return;
 
+  savingSignature.value = true;
   try {
-    const blob = await canvasToCroppedPngBlob(signatureCanvas.value, { padding: 8, alphaThreshold: 1 });
+    let imageFile = null;
+    let name = null;
 
-    if (!blob) {
-      toastStore.error('Failed to create image from canvas.');
-      return;
+    if (createMode.value === 'draw') {
+      if (!isDrawn.value) {
+        toastStore.error('Please draw a signature first.');
+        return;
+      }
+
+      const blob = await canvasToCroppedPngBlob(signatureCanvas.value, { padding: 8, alphaThreshold: 1 });
+      if (!blob) {
+        toastStore.error('Failed to create image from canvas.');
+        return;
+      }
+      imageFile = new File([blob], 'signature.png', { type: 'image/png' });
+      name = `Signature ${new Date().toLocaleDateString()}`;
+    } else if (createMode.value === 'type') {
+      const typedValue = String(typedName.value || '').trim();
+      if (!typedValue) {
+        toastStore.error('Please type your name first.');
+        return;
+      }
+
+      const blob = await typedSignatureToCroppedPngBlob(typedValue, selectedTypedFont.value);
+      if (!blob) {
+        toastStore.error('Failed to create image from typed signature.');
+        return;
+      }
+      imageFile = new File([blob], 'signature.png', { type: 'image/png' });
+      name = `Typed Signature (${selectedTypedFont.value})`;
+    } else {
+      if (!uploadFile.value) {
+        toastStore.error('Please choose an image to upload.');
+        return;
+      }
+      imageFile = uploadFile.value;
+      name = uploadFile.value?.name || 'Uploaded Signature';
     }
 
     const formData = new FormData();
-    formData.append('image', blob, 'signature.png');
-    formData.append('name', `Signature ${new Date().toLocaleDateString()}`);
+    formData.append('image', imageFile);
+    formData.append('name', name);
     formData.append('is_default', signatures.value.length === 0 ? '1' : '0');
-    
+
     await axios.post('/api/signatures', formData);
-    
+
     toastStore.success('Signature saved successfully.');
-    clearCanvas();
+
+    if (createMode.value === 'draw') {
+      clearCanvas();
+    } else if (createMode.value === 'type') {
+      clearTyped();
+    } else {
+      clearUpload();
+    }
+
     await loadSignatures();
   } catch (e) {
     console.error('Failed to save signature:', e);
     console.error('Response data:', e.response?.data);
     toastStore.error(formatApiError('Failed to save signature', e));
+  } finally {
+    savingSignature.value = false;
+  }
+}
+
+const typedPreviewText = computed(() => {
+  const v = String(typedName.value || '').trim();
+  return v || 'Your Name';
+});
+
+function selectTypedFont(fontFamily) {
+  selectedTypedFont.value = fontFamily;
+}
+
+function clearTyped() {
+  typedName.value = '';
+  selectedTypedFont.value = typedFonts.value[0].family;
+}
+
+function cleanupUploadPreview() {
+  if (uploadPreviewUrl.value) {
+    URL.revokeObjectURL(uploadPreviewUrl.value);
+    uploadPreviewUrl.value = '';
+  }
+}
+
+function clearUpload() {
+  uploadFile.value = null;
+  cleanupUploadPreview();
+  if (uploadInput.value) {
+    uploadInput.value.value = '';
+  }
+}
+
+function onUploadChange(e) {
+  const file = e?.target?.files?.[0] || null;
+  cleanupUploadPreview();
+  uploadFile.value = null;
+
+  if (!file) return;
+
+  const mime = String(file.type || '').toLowerCase();
+  const allowed = mime === 'image/png' || mime === 'image/svg+xml';
+  if (!allowed) {
+    toastStore.error('Only PNG or SVG files are allowed.');
+    return;
+  }
+
+  const maxBytes = 2 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    toastStore.error('File is too large. Maximum is 2MB.');
+    return;
+  }
+
+  uploadFile.value = file;
+  uploadPreviewUrl.value = URL.createObjectURL(file);
+}
+
+function setCreateMode(mode) {
+  createMode.value = mode;
+}
+
+async function typedSignatureToCroppedPngBlob(text, fontFamily) {
+  try {
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = 1000;
+    outCanvas.height = 260;
+
+    const outCtx = outCanvas.getContext('2d');
+    outCtx.clearRect(0, 0, outCanvas.width, outCanvas.height);
+    outCtx.fillStyle = '#000';
+    outCtx.textBaseline = 'middle';
+
+    const safeText = String(text || '').trim();
+
+    const paddingX = 40;
+    const maxW = outCanvas.width - paddingX * 2;
+
+    let fontSize = 120;
+    const cssFamily = `'${fontFamily}', cursive`;
+
+    if (document.fonts && document.fonts.load) {
+      try {
+        await document.fonts.load(`${fontSize}px ${cssFamily}`);
+      } catch (e) {
+      }
+    }
+
+    while (fontSize > 28) {
+      outCtx.font = `${fontSize}px ${cssFamily}`;
+      const measured = outCtx.measureText(safeText);
+      if ((measured?.width || 0) <= maxW) break;
+      fontSize -= 6;
+    }
+
+    outCtx.font = `${fontSize}px ${cssFamily}`;
+    outCtx.fillText(safeText, paddingX, outCanvas.height / 2);
+
+    const blob = await canvasToCroppedPngBlob(outCanvas, { padding: 10, alphaThreshold: 1 });
+    return blob;
+  } catch (e) {
+    return null;
   }
 }
 
