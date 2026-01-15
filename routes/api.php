@@ -44,6 +44,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/documents', [\App\Http\Controllers\DocumentController::class, 'index']);
     Route::get('/documents/{document}', [\App\Http\Controllers\DocumentController::class, 'show']);
     Route::get('/documents/{document}/view-url', [\App\Http\Controllers\DocumentController::class, 'viewUrl']);
+    Route::get('/documents/{document}/qr-position', [\App\Http\Controllers\DocumentController::class, 'getQrPosition']);
     Route::get('/documents/{document}/download', [\App\Http\Controllers\DocumentController::class, 'download']);
     
     // Document Signers
