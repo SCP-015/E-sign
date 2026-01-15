@@ -41,11 +41,28 @@
                     :style="signatureOverlayStyle"
                     @pointerdown.prevent="onSigPointerDown"
                   >
+                    <div class="absolute inset-0 rounded-lg border-2 border-dashed border-primary/60 pointer-events-none"></div>
                     <img
                       :src="signatureImageUrl"
                       class="h-full w-full rounded-lg object-contain"
                       :alt="assignMode ? 'Signature placeholder' : 'Signature'"
                     />
+                    <div
+                      class="absolute -left-1.5 -top-1.5 h-3 w-3 rounded border border-primary bg-base-100 cursor-nwse-resize"
+                      @pointerdown.stop.prevent="onResizePointerDown('tl', $event)"
+                    ></div>
+                    <div
+                      class="absolute -right-1.5 -top-1.5 h-3 w-3 rounded border border-primary bg-base-100 cursor-nesw-resize"
+                      @pointerdown.stop.prevent="onResizePointerDown('tr', $event)"
+                    ></div>
+                    <div
+                      class="absolute -left-1.5 -bottom-1.5 h-3 w-3 rounded border border-primary bg-base-100 cursor-nesw-resize"
+                      @pointerdown.stop.prevent="onResizePointerDown('bl', $event)"
+                    ></div>
+                    <div
+                      class="absolute -right-1.5 -bottom-1.5 h-3 w-3 rounded border border-primary bg-base-100 cursor-nwse-resize"
+                      @pointerdown.stop.prevent="onResizePointerDown('br', $event)"
+                    ></div>
                     <div
                       v-if="assignMode"
                       class="absolute -top-6 left-0 rounded-full bg-primary/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow"
@@ -344,9 +361,22 @@ const sigX = ref(24);
 const sigY = ref(24);
 const sigW = ref(160);
 const sigH = ref(60);
+const sigRatio = ref(sigW.value / sigH.value);
+const sigMinW = 60;
+const sigMinH = 24;
+const sigMaxW = ref(600);
+const sigMaxH = ref(240);
 const isDragging = ref(false);
+const isResizing = ref(false);
 const dragOffsetX = ref(0);
 const dragOffsetY = ref(0);
+const resizeHandle = ref(null);
+const resizeStartW = ref(0);
+const resizeStartH = ref(0);
+const resizeStartX = ref(0);
+const resizeStartY = ref(0);
+const resizeStartSigX = ref(0);
+const resizeStartSigY = ref(0);
 
 const pdfPageSizeMm = ref(null);
 
@@ -375,6 +405,7 @@ watch(() => placementPage.value, async () => {
     resetSignaturePosition();
     await nextTick();
     await updatePdfPageSize();
+    refreshSigSizeLimits();
   }
 });
 
@@ -482,6 +513,7 @@ function onPdfLoaded() {
   nextTick(() => {
     clampSignature();
     updatePdfPageSize();
+    refreshSigSizeLimits();
   });
 }
 
@@ -540,6 +572,7 @@ async function loadSignatureImage(signatureId) {
 
         sigH.value = targetH;
         sigW.value = targetW;
+        if (sigH.value) sigRatio.value = sigW.value / sigH.value;
         resolve();
       };
       img.onerror = () => resolve();
@@ -566,6 +599,32 @@ function resetSignaturePosition() {
   clampSignature();
 }
 
+function refreshSigSizeLimits() {
+  const bounds = getPdfBounds();
+  const wrapW = bounds?.width || 0;
+  const wrapH = bounds?.height || 0;
+
+  sigMaxW.value = wrapW ? Math.max(sigMinW, Math.floor(wrapW * 0.95)) : 600;
+  sigMaxH.value = wrapH ? Math.max(sigMinH, Math.floor(wrapH * 0.95)) : 240;
+
+  applySignatureSize(sigW.value, sigH.value);
+}
+
+function clampSize(nextW, nextH) {
+  const w = Math.min(Math.max(Math.round(nextW), sigMinW), sigMaxW.value);
+  const h = Math.min(Math.max(Math.round(nextH), sigMinH), sigMaxH.value);
+  return { w, h };
+}
+
+function applySignatureSize(nextW, nextH) {
+  const w = Number.isFinite(nextW) ? nextW : sigW.value;
+  const h = Number.isFinite(nextH) ? nextH : sigH.value;
+
+  sigW.value = Math.min(Math.max(Math.round(w), sigMinW), sigMaxW.value);
+  sigH.value = Math.min(Math.max(Math.round(h), sigMinH), sigMaxH.value);
+  clampSignature();
+}
+
 function clampSignature() {
   const bounds = getPdfBounds();
   if (!bounds) return;
@@ -581,6 +640,7 @@ function onSigPointerDown(e) {
   if (!wrapEl || !viewerEl) return;
 
   isDragging.value = true;
+  isResizing.value = false;
   const wrapRect = wrapEl.getBoundingClientRect();
   const localX = e.clientX - wrapRect.left;
   const localY = e.clientY - wrapRect.top;
@@ -589,8 +649,27 @@ function onSigPointerDown(e) {
   attachDragListeners();
 }
 
+function onResizePointerDown(handle, e) {
+  const wrapEl = pageWrap.value;
+  const viewerEl = pdfViewer.value;
+  if (!wrapEl || !viewerEl) return;
+
+  isResizing.value = true;
+  isDragging.value = false;
+  resizeHandle.value = handle;
+
+  const wrapRect = wrapEl.getBoundingClientRect();
+  resizeStartX.value = e.clientX - wrapRect.left;
+  resizeStartY.value = e.clientY - wrapRect.top;
+  resizeStartW.value = sigW.value;
+  resizeStartH.value = sigH.value;
+  resizeStartSigX.value = sigX.value;
+  resizeStartSigY.value = sigY.value;
+
+  attachDragListeners();
+}
+
 function onPointerMove(e) {
-  if (!isDragging.value) return;
   const wrapEl = pageWrap.value;
   const viewerEl = pdfViewer.value;
   if (!wrapEl || !viewerEl) return;
@@ -599,14 +678,43 @@ function onPointerMove(e) {
   const localX = e.clientX - wrapRect.left;
   const localY = e.clientY - wrapRect.top;
 
-  sigX.value = localX - dragOffsetX.value;
-  sigY.value = localY - dragOffsetY.value;
-  clampSignature();
+  if (isResizing.value) {
+    const dx = localX - resizeStartX.value;
+    const dy = localY - resizeStartY.value;
+    const handle = String(resizeHandle.value || 'br');
+
+    const ratio = Number(sigRatio.value) || (resizeStartH.value ? resizeStartW.value / resizeStartH.value : 1);
+    const signX = handle.includes('l') ? -1 : 1;
+
+    const delta = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+    const nextWRaw = resizeStartW.value + delta * signX;
+    const nextHRaw = ratio ? nextWRaw / ratio : resizeStartH.value;
+    const { w: nextW, h: nextH } = clampSize(nextWRaw, nextHRaw);
+
+    sigW.value = nextW;
+    sigH.value = nextH;
+
+    if (handle.includes('l')) {
+      sigX.value = resizeStartSigX.value + (resizeStartW.value - nextW);
+    }
+    if (handle.includes('t')) {
+      sigY.value = resizeStartSigY.value + (resizeStartH.value - nextH);
+    }
+    clampSignature();
+    return;
+  }
+
+  if (isDragging.value) {
+    sigX.value = localX - dragOffsetX.value;
+    sigY.value = localY - dragOffsetY.value;
+    clampSignature();
+  }
 }
 
 function onPointerUp() {
-  if (!isDragging.value) return;
+  if (!isDragging.value && !isResizing.value) return;
   isDragging.value = false;
+  isResizing.value = false;
   detachDragListeners();
 }
 
