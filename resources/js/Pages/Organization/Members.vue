@@ -1,6 +1,5 @@
 <template>
-    <AppLayout>
-        <div class="p-6">
+    <div class="p-6">
             <div class="mb-6 flex items-center justify-between">
                 <div>
                     <h1 class="text-2xl font-bold">Member Management</h1>
@@ -150,13 +149,11 @@
                 <div class="modal-backdrop" @click="memberToRemove = null"></div>
             </div>
         </div>
-    </AppLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
-import AppLayout from '../../Layouts/AppLayout.vue';
 import { useToastStore } from '../../stores/toast';
 
 const toastStore = useToastStore();

@@ -1,6 +1,5 @@
 <template>
-    <AppLayout>
-        <div class="p-6 max-w-6xl mx-auto">
+    <div class="p-6 max-w-6xl mx-auto">
             <div class="mb-8">
                 <h1 class="text-3xl font-bold">Billing & Plans</h1>
                 <p class="text-base-content/60">Manage your organization's subscription and track usage limits.</p>
@@ -124,13 +123,11 @@
                 </div>
             </template>
         </div>
-    </AppLayout>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
-import AppLayout from '../../Layouts/AppLayout.vue';
 import { useToastStore } from '../../stores/toast';
 
 const toastStore = useToastStore();

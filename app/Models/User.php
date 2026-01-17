@@ -106,7 +106,7 @@ class User extends Authenticatable
      */
     public function getCurrentTenant()
     {
-        $tenantId = session('current_tenant_id');
+        $tenantId = session('current_tenant_id') ?? $this->current_tenant_id;
         if ($tenantId) {
             return $this->tenants()->where('tenants.id', $tenantId)->first();
         }

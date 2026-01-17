@@ -1,6 +1,5 @@
 <template>
-    <AppLayout>
-        <div class="mx-auto max-w-4xl px-4 py-8">
+    <div class="mx-auto max-w-4xl px-4 py-8">
             <!-- Header -->
             <div class="mb-6 flex items-center justify-between">
                 <div>
@@ -178,14 +177,12 @@
                 </form>
             </dialog>
         </div>
-    </AppLayout>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import axios from 'axios';
-import AppLayout from '../../Layouts/AppLayout.vue';
 import { useToastStore } from '../../stores/toast';
 
 const toastStore = useToastStore();

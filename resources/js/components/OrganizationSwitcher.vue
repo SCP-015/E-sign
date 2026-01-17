@@ -96,7 +96,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useToastStore } from '../stores/toast';
@@ -106,6 +106,7 @@ const emit = defineEmits(['organization-changed']);
 const organizations = ref([]);
 const currentOrganization = ref(null);
 const canCreate = ref(true);
+const isSwitching = ref(false);
 const toastStore = useToastStore();
 
 const roleLabel = computed(() => {
@@ -120,6 +121,18 @@ function getRoleLabel(role) {
         user: 'Member',
     };
     return labels[role] || role;
+}
+
+function closeDropdown() {
+    try {
+        const el = document.activeElement;
+        if (el && typeof el.blur === 'function') {
+            el.blur();
+        }
+        document.body.click();
+    } catch (e) {
+        // noop
+    }
 }
 
 async function fetchOrganizations() {
@@ -148,43 +161,66 @@ async function fetchCurrentOrganization() {
 }
 
 async function switchOrganization(org) {
-    router.post('/organization/switch', {
-        organization_id: org.id,
-    }, {
-        preserveState: false,
-        preserveScroll: false,
-        onSuccess: (page) => {
-            toastStore.success('Berhasil beralih ke ' + org.name);
-            emit('organization-changed', org);
-        },
-        onError: (errors) => {
-            toastStore.error(Object.values(errors)[0] || 'Gagal beralih organization');
+    if (isSwitching.value) return;
+    isSwitching.value = true;
+    closeDropdown();
+    try {
+        const response = await axios.post('/api/organizations/switch', {
+            organization_id: org.id,
+        });
+        if (!response.data?.success) {
+            throw new Error(response.data?.message || 'Gagal beralih organization');
         }
-    });
+        await fetchCurrentOrganization();
+        toastStore.success('Berhasil beralih ke ' + org.name);
+        emit('organization-changed', currentOrganization.value);
+        router.reload({ preserveScroll: true });
+    } catch (error) {
+        const message = error.response?.data?.message || error.message || 'Gagal beralih organization';
+        toastStore.error(message);
+    } finally {
+        isSwitching.value = false;
+    }
 }
 
 async function switchToPersonal() {
-    router.post('/organization/switch', {
-        organization_id: null,
-    }, {
-        preserveState: false,
-        preserveScroll: false,
-        onSuccess: () => {
-            toastStore.success('Berhasil beralih ke mode personal');
-            emit('organization-changed', null);
-        },
-        onError: (errors) => {
-            toastStore.error(Object.values(errors)[0] || 'Gagal beralih ke mode personal');
+    if (isSwitching.value) return;
+    isSwitching.value = true;
+    closeDropdown();
+    try {
+        const response = await axios.post('/api/organizations/switch', {
+            organization_id: null,
+        });
+        if (!response.data?.success) {
+            throw new Error(response.data?.message || 'Gagal beralih ke mode personal');
         }
-    });
+        await fetchCurrentOrganization();
+        toastStore.success('Berhasil beralih ke mode personal');
+        emit('organization-changed', currentOrganization.value);
+        router.reload({ preserveScroll: true });
+    } catch (error) {
+        const message = error.response?.data?.message || error.message || 'Gagal beralih ke mode personal';
+        toastStore.error(message);
+    } finally {
+        isSwitching.value = false;
+    }
 }
 
 function handleSetupOrganization() {
+    closeDropdown();
     router.visit('/organization/setup');
 }
 
 onMounted(() => {
     fetchOrganizations();
     fetchCurrentOrganization();
+
+    window.addEventListener('organizations-updated', fetchOrganizations);
+    window.addEventListener('organizations-updated', fetchCurrentOrganization);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('organizations-updated', fetchOrganizations);
+    window.removeEventListener('organizations-updated', fetchCurrentOrganization);
 });
 </script>

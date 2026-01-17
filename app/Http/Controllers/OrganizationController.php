@@ -222,21 +222,58 @@ class OrganizationController extends Controller
         $user = Auth::user();
         $tenantId = $request->input('organization_id');
 
+        $shouldReturnJson = $request->is('api/*') || $request->expectsJson();
+
         // If null, switch to personal mode
         if (empty($tenantId)) {
             session()->forget('current_tenant_id');
             session()->save();
+
+            $user->current_tenant_id = null;
+            $user->save();
+
+            if ($shouldReturnJson) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Berhasil beralih ke mode personal.',
+                    'data' => null,
+                    'mode' => 'personal',
+                ]);
+            }
             return back()->with('success', 'Berhasil beralih ke mode personal.');
         }
 
         // Check if user is member of the tenant
         $tenant = $user->tenants()->where('tenants.id', $tenantId)->first();
         if (!$tenant) {
+            if ($shouldReturnJson) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anda bukan anggota organization ini.',
+                ], 403);
+            }
             return back()->withErrors(['error' => 'Anda bukan anggota organization ini.']);
         }
 
         session(['current_tenant_id' => $tenantId]);
         session()->save();
+
+        $user->current_tenant_id = $tenantId;
+        $user->save();
+
+        if ($shouldReturnJson) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Berhasil beralih ke ' . $tenant->name,
+                'data' => [
+                    'id' => $tenant->id,
+                    'name' => $tenant->name,
+                    'slug' => $tenant->slug,
+                    'role' => $tenant->pivot->role,
+                ],
+                'mode' => 'organization',
+            ]);
+        }
 
         return back()->with('success', 'Berhasil beralih ke ' . $tenant->name);
     }

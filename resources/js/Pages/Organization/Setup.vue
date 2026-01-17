@@ -253,6 +253,7 @@ const createOrganization = async () => {
         if (response.data.success) {
             resultOrganization.value = response.data.data;
             toastStore.success('Organization created successfully!');
+            window.dispatchEvent(new Event('organizations-updated'));
             step.value = 3;
         }
     } catch (error) {
@@ -284,6 +285,7 @@ const joinOrganization = async () => {
         if (response.data.success) {
             resultOrganization.value = response.data.data;
             toastStore.success('Joined organization successfully!');
+            window.dispatchEvent(new Event('organizations-updated'));
             step.value = 3;
         }
     } catch (error) {
@@ -303,6 +305,7 @@ const goToDashboard = async () => {
         await axios.post('/api/organizations/switch', {
             organization_id: resultOrganization.value.id,
         });
+        window.dispatchEvent(new Event('organizations-updated'));
     }
     router.visit('/dashboard');
 };

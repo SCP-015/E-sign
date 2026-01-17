@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -32,14 +33,6 @@ return new class extends Migration
                 $table->string('plan')->default('free')->after('owner_id');
             }
         });
-
-        // Add foreign key in separate statement to avoid issues
-        Schema::table('tenants', function (Blueprint $table) {
-            if (Schema::hasColumn('tenants', 'owner_id')) {
-                // Check if foreign key doesn't already exist
-                $table->foreign('owner_id')->references('id')->on('users')->nullOnDelete();
-            }
-        });
     }
 
     /**
@@ -47,8 +40,9 @@ return new class extends Migration
      */
     public function down(): void
     {
+        DB::statement('ALTER TABLE tenants DROP CONSTRAINT IF EXISTS tenants_owner_id_foreign');
+
         Schema::table('tenants', function (Blueprint $table) {
-            $table->dropForeign(['owner_id']);
             $table->dropColumn(['name', 'code', 'slug', 'description', 'owner_id', 'plan']);
         });
     }
