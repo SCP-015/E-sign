@@ -113,3 +113,15 @@ Route::get('/organization/billing', function () {
 })->name('organization.billing');
 
 Route::post('/organization/switch', [App\Http\Controllers\OrganizationController::class, 'switch'])->name('organization.switch');
+
+Route::get('/profile', function () {
+    return Inertia::render('Profile');
+})->name('profile');
+
+Route::get('/organization/settings', function () {
+    return Inertia::render('Organization/Settings');
+})->name('organization.settings');
+
+Route::get('/organization/quota', function () {
+    return Inertia::render('Organization/Quota');
+})->name('organization.quota');

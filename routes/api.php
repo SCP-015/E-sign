@@ -87,6 +87,23 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{organization}/invitations', [\App\Http\Controllers\OrganizationInvitationController::class, 'store']);
         Route::delete('/{organization}/invitations/{invitation}', [\App\Http\Controllers\OrganizationInvitationController::class, 'destroy']);
     });
+
+    // Quota Management (Owner only)
+    Route::prefix('quota')->group(function () {
+        Route::get('/', [\App\Http\Controllers\QuotaController::class, 'index']);
+        Route::put('/', [\App\Http\Controllers\QuotaController::class, 'update']);
+    });
+
+    // Portal Settings
+    Route::prefix('portal-settings')->group(function () {
+        Route::get('/', [\App\Http\Controllers\PortalSettingsController::class, 'show']);
+        Route::put('/', [\App\Http\Controllers\PortalSettingsController::class, 'update']);
+        Route::post('/logo', [\App\Http\Controllers\PortalSettingsController::class, 'uploadLogo']);
+        Route::post('/banner', [\App\Http\Controllers\PortalSettingsController::class, 'uploadBanner']);
+    });
+
+    // User Profile
+    Route::get('/profile', [\App\Http\Controllers\UserController::class, 'profile']);
 });
 
 // Public verify endpoint (no auth required)

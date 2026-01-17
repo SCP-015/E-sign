@@ -17,12 +17,15 @@ class HandleInertiaRequests extends Middleware
         $tenant = $user ? $user->getCurrentTenant() : null;
 
         $organization = null;
-        if ($tenant) {
+        if ($tenant && $user) {
+            $aclRole = $user->getRoleInTenant($tenant->id);
+            $roleName = $aclRole ? $aclRole->name : ($tenant->pivot->role ?? 'user');
+            
             $organization = [
                 'id' => $tenant->id,
                 'name' => $tenant->name,
                 'slug' => $tenant->slug,
-                'role' => $tenant->pivot->role ?? null,
+                'role' => $roleName,
             ];
         }
 

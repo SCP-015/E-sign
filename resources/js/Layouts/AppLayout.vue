@@ -35,8 +35,9 @@
                             </div>
                         </label>
                         <ul tabindex="0" class="menu dropdown-content mt-3 w-48 rounded-box border border-base-200 bg-base-100 p-2 shadow">
+                            <li><Link href="/profile">My Profile</Link></li>
                             <li><Link href="/signature-setup">Setup Signature</Link></li>
-                            <li><button type="button" @click="logout">Logout</button></li>
+                            <li class="border-t border-base-200 mt-1 pt-1"><button type="button" @click="logout">Logout</button></li>
                         </ul>
                     </div>
 

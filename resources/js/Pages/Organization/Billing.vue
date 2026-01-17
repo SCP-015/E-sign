@@ -147,6 +147,10 @@ const limits = ref({
     members: 5,
 });
 
+const isApiSuccess = (payload) => {
+    return payload?.success === true || payload?.status === 'success';
+};
+
 // Available plans
 const plans = ref([
     {
@@ -194,14 +198,30 @@ const fetchData = async () => {
     try {
         // Get current organization
         const orgRes = await axios.get('/api/organizations/current');
-        if (orgRes.data.success && orgRes.data.data) {
-            organization.value = orgRes.data.data;
-            
-            // Get member count for usage
-            const membersRes = await axios.get(`/api/organizations/${organization.value.id}/members`);
-            if (membersRes.data.success) {
-                usage.value.members = membersRes.data.data.length;
+        const orgPayload = orgRes?.data;
+        if (!isApiSuccess(orgPayload) || !orgPayload?.data) {
+            throw new Error(orgPayload?.message || 'Gagal memuat organisasi');
+        }
+
+        organization.value = orgPayload.data;
+
+        // Get quota settings to sync limits
+        const quotaRes = await axios.get('/api/quota');
+        const quotaPayload = quotaRes?.data;
+        if (isApiSuccess(quotaPayload)) {
+            const quotaSettings = quotaPayload?.data?.quota_settings ?? quotaPayload?.data?.quotaSettings ?? null;
+            if (quotaSettings) {
+                limits.value.signatures = quotaSettings.max_signatures_per_user ?? limits.value.signatures;
+                limits.value.documents = quotaSettings.max_documents_per_user ?? limits.value.documents;
             }
+        }
+
+        // Get member count for usage
+        const membersRes = await axios.get(`/api/organizations/${organization.value.id}/members`);
+        const membersPayload = membersRes?.data;
+        if (isApiSuccess(membersPayload)) {
+            const members = membersPayload?.data ?? [];
+            usage.value.members = Array.isArray(members) ? members.length : 0;
         }
     } catch (error) {
         console.error('Failed to fetch billing data:', error);

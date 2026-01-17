@@ -21,4 +21,47 @@ class UserController extends Controller
 
         return ApiResponse::fromService($this->userService->profile((int) $user->id));
     }
+
+    public function profile(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return ApiResponse::error('Unauthenticated', 401);
+        }
+
+        $user->load(['signatures', 'certificate', 'tenants']);
+
+        $tenantId = session('current_tenant_id') ?? $user->current_tenant_id;
+        $currentTenant = null;
+        $role = null;
+        $permissions = [];
+
+        if ($tenantId) {
+            $currentTenant = $user->tenants()->where('tenants.id', $tenantId)->first();
+            if ($currentTenant) {
+                $aclRole = $user->getRoleInTenant($currentTenant->id);
+                $role = $aclRole ? $aclRole->name : ($currentTenant->pivot->role ?? 'user');
+            }
+            $permissions = $user->getPermissionsInTenant($tenantId);
+        }
+
+        return ApiResponse::success([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'avatar' => $user->avatar,
+            'kyc_status' => $user->kyc_status,
+            'email_verified_at' => $user->email_verified_at,
+            'created_at' => $user->created_at,
+            'signatures_count' => $user->signatures->count(),
+            'has_certificate' => $user->certificate !== null,
+            'organizations_count' => $user->tenants->count(),
+            'current_organization' => $currentTenant ? [
+                'id' => $currentTenant->id,
+                'name' => $currentTenant->name,
+                'role' => $role,
+            ] : null,
+            'permissions' => $permissions,
+        ]);
+    }
 }

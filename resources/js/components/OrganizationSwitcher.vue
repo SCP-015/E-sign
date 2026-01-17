@@ -116,11 +116,13 @@ const roleLabel = computed(() => {
 
 function getRoleLabel(role) {
     const labels = {
+        owner: 'Owner',
         admin: 'Admin',
+        administrator: 'Admin',
         manager: 'Manager',
         user: 'Member',
     };
-    return labels[role] || role;
+    return labels[role?.toLowerCase()] || role;
 }
 
 function closeDropdown() {

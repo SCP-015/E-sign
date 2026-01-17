@@ -31,6 +31,9 @@ class OrganizationController extends Controller
         return response()->json([
             'success' => true,
             'data' => $tenants->map(function ($tenant) use ($user) {
+                $aclRole = $user->getRoleInTenant($tenant->id);
+                $roleName = $aclRole ? $aclRole->name : ($tenant->pivot->role ?? 'user');
+                
                 return [
                     'id' => $tenant->id,
                     'name' => $tenant->name,
@@ -39,7 +42,7 @@ class OrganizationController extends Controller
                     'description' => $tenant->description,
                     'plan' => $tenant->plan,
                     'is_owner' => $tenant->owner_id === $user->id,
-                    'role' => $tenant->pivot->role,
+                    'role' => $roleName,
                 ];
             }),
             'can_create' => $user->canCreateTenant(),
@@ -294,13 +297,16 @@ class OrganizationController extends Controller
             ]);
         }
 
+        $aclRole = $user->getRoleInTenant($tenant->id);
+        $roleName = $aclRole ? $aclRole->name : ($tenant->pivot->role ?? 'user');
+
         return response()->json([
             'success' => true,
             'data' => [
                 'id' => $tenant->id,
                 'name' => $tenant->name,
                 'slug' => $tenant->slug,
-                'role' => $tenant->pivot->role,
+                'role' => $roleName,
             ],
             'mode' => 'organization',
         ]);

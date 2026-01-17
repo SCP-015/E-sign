@@ -21,8 +21,8 @@
                         <div class="badge badge-primary">{{ organization.role || 'Member' }}</div>
                     </div>
                     
-                    <div class="grid gap-3 md:grid-cols-3">
-                        <!-- Manage Members -->
+                    <div class="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
+                        <!-- Manage Members (all roles can view) -->
                         <a href="/organization/members" class="card card-compact border border-base-200 bg-base-100 shadow-sm transition-all hover:border-primary hover:shadow-md">
                             <div class="card-body items-center text-center">
                                 <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -38,8 +38,8 @@
                             </div>
                         </a>
 
-                        <!-- Invite Users -->
-                        <a href="/organization/invitations" class="card card-compact border border-base-200 bg-base-100 shadow-sm transition-all hover:border-secondary hover:shadow-md">
+                        <!-- Invite Users (manager, admin, owner) -->
+                        <a v-if="canInviteMembers" href="/organization/invitations" class="card card-compact border border-base-200 bg-base-100 shadow-sm transition-all hover:border-secondary hover:shadow-md">
                             <div class="card-body items-center text-center">
                                 <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
                                     <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
@@ -54,14 +54,40 @@
                             </div>
                         </a>
 
-                        <!-- Billing -->
-                        <a href="/organization/billing" class="card card-compact border border-base-200 bg-base-100 shadow-sm transition-all hover:border-accent hover:shadow-md">
+                        <!-- Portal Settings (admin, owner) -->
+                        <a v-if="canEditPortalSettings" href="/organization/settings" class="card card-compact border border-base-200 bg-base-100 shadow-sm transition-all hover:border-info hover:shadow-md">
+                            <div class="card-body items-center text-center">
+                                <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-info/10 text-info">
+                                    <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                                    </svg>
+                                </div>
+                                <h4 class="font-semibold">Portal Settings</h4>
+                                <p class="text-xs text-base-content/60">Customize branding</p>
+                            </div>
+                        </a>
+
+                        <!-- Quota Management (owner only) -->
+                        <a v-if="isOwner" href="/organization/quota" class="card card-compact border border-base-200 bg-base-100 shadow-sm transition-all hover:border-warning hover:shadow-md">
+                            <div class="card-body items-center text-center">
+                                <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-warning/10 text-warning">
+                                    <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                    </svg>
+                                </div>
+                                <h4 class="font-semibold">Quota Management</h4>
+                                <p class="text-xs text-base-content/60">Manage limits</p>
+                            </div>
+                        </a>
+
+                        <!-- Billing (owner only) -->
+                        <a v-if="isOwner" href="/organization/billing" class="card card-compact border border-base-200 bg-base-100 shadow-sm transition-all hover:border-accent hover:shadow-md">
                             <div class="card-body items-center text-center">
                                 <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
                                     <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
-                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                        <line x1="3" y1="9" x2="21" y2="9"></line>
-                                        <line x1="9" y1="21" x2="9" y2="9"></line>
+                                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                                        <line x1="1" y1="10" x2="23" y2="10"></line>
                                     </svg>
                                 </div>
                                 <h4 class="font-semibold">Billing & Plans</h4>
@@ -184,6 +210,19 @@ const documentsLocked = computed(() => !isVerified.value);
 const dragActive = ref(false);
 const documents = ref([]);
 const organization = ref(page.props.auth?.organization ?? null);
+
+const userRole = computed(() => {
+    const role = organization.value?.role?.toLowerCase() || '';
+    return role;
+});
+
+const isOwner = computed(() => userRole.value === 'owner');
+const isAdmin = computed(() => userRole.value === 'admin' || userRole.value === 'administrator');
+const isManager = computed(() => userRole.value === 'manager');
+
+const canInviteMembers = computed(() => isOwner.value || isAdmin.value || isManager.value);
+const canEditPortalSettings = computed(() => isOwner.value || isAdmin.value);
+
 const recentDocuments = computed(() => documents.value.slice(0, 5));
 const hasMoreDocuments = computed(() => documents.value.length > 5);
 const fileInput = ref(null);
@@ -269,10 +308,13 @@ const fetchCurrentOrganization = async () => {
         const response = await axios.get('/api/organizations/current');
         if (response.data?.success && response.data?.data) {
             organization.value = response.data.data;
+            console.log('Current organization loaded:', organization.value);
             return;
         }
         organization.value = null;
+        console.log('No current organization');
     } catch (e) {
+        console.error('Failed to fetch organization:', e);
         organization.value = null;
     }
 };
