@@ -65,4 +65,51 @@ class User extends Authenticatable
     {
         return $this->hasOne(\App\Models\Certificate::class)->latest();
     }
+
+    /**
+     * Get the tenants that the user belongs to.
+     */
+    public function tenants()
+    {
+        return $this->belongsToMany(Tenant::class, 'tenant_users')
+            ->withPivot('role', 'is_owner', 'joined_at')
+            ->withTimestamps();
+    }
+
+    /**
+     * Get tenant user records for this user.
+     */
+    public function tenantUsers()
+    {
+        return $this->hasMany(TenantUser::class);
+    }
+
+    /**
+     * Get tenants owned by this user.
+     */
+    public function ownedTenants()
+    {
+        return $this->hasMany(Tenant::class, 'owner_id');
+    }
+
+    /**
+     * Check if user can create more tenants.
+     * Max limit is 5 owned tenants per user.
+     */
+    public function canCreateTenant(): bool
+    {
+        return $this->ownedTenants()->count() < 5;
+    }
+
+    /**
+     * Get the current active tenant from session.
+     */
+    public function getCurrentTenant()
+    {
+        $tenantId = session('current_tenant_id');
+        if ($tenantId) {
+            return $this->tenants()->where('tenants.id', $tenantId)->first();
+        }
+        return null;
+    }
 }

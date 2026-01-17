@@ -10,6 +10,68 @@
 
             <KycBanner :status="kycStatus" />
 
+            <!-- Organization Menu (only show when in organization mode) -->
+            <section v-if="$page.props.auth?.organization" class="card border border-base-200 bg-base-100 shadow-sm">
+                <div class="card-body">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="text-lg font-semibold">Organization Management</h3>
+                            <p class="text-sm text-base-content/60">{{ $page.props.auth.organization.name }}</p>
+                        </div>
+                        <div class="badge badge-primary">{{ $page.props.auth.organization.role || 'Member' }}</div>
+                    </div>
+                    
+                    <div class="grid gap-3 md:grid-cols-3">
+                        <!-- Manage Members -->
+                        <a href="/organization/members" class="card card-compact border border-base-200 bg-base-100 shadow-sm transition-all hover:border-primary hover:shadow-md">
+                            <div class="card-body items-center text-center">
+                                <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                    <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="9" cy="7" r="4"></circle>
+                                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                    </svg>
+                                </div>
+                                <h4 class="font-semibold">Manage Members</h4>
+                                <p class="text-xs text-base-content/60">View and manage team</p>
+                            </div>
+                        </a>
+
+                        <!-- Invite Users -->
+                        <a href="/organization/invitations" class="card card-compact border border-base-200 bg-base-100 shadow-sm transition-all hover:border-secondary hover:shadow-md">
+                            <div class="card-body items-center text-center">
+                                <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
+                                    <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="8.5" cy="7" r="4"></circle>
+                                        <line x1="20" y1="8" x2="20" y2="14"></line>
+                                        <line x1="17" y1="11" x2="23" y2="11"></line>
+                                    </svg>
+                                </div>
+                                <h4 class="font-semibold">Invite Users</h4>
+                                <p class="text-xs text-base-content/60">Generate invite codes</p>
+                            </div>
+                        </a>
+
+                        <!-- Billing -->
+                        <a href="/organization/billing" class="card card-compact border border-base-200 bg-base-100 shadow-sm transition-all hover:border-accent hover:shadow-md">
+                            <div class="card-body items-center text-center">
+                                <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                                    <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="3" y1="9" x2="21" y2="9"></line>
+                                        <line x1="9" y1="21" x2="9" y2="9"></line>
+                                    </svg>
+                                </div>
+                                <h4 class="font-semibold">Billing & Plans</h4>
+                                <p class="text-xs text-base-content/60">Manage subscription</p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </section>
+
             <StatsGrid :stats="stats" />
 
             <CertificateStatusCard :status="kycStatus" :expiry="certificateExpiry" />
@@ -98,7 +160,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
 import { useToastStore } from '../stores/toast';
@@ -112,6 +174,7 @@ import { formatApiError } from '../utils/errors';
 
 const authStore = useAuthStore();
 const toastStore = useToastStore();
+const page = usePage();
 const user = computed(() => authStore.user || {});
 const kycStatus = computed(() => (user.value?.kyc_status ?? user.value?.kycStatus ?? 'unverified').toLowerCase());
 const hasSignature = computed(() => user.value?.has_signature ?? user.value?.hasSignature ?? false);
@@ -120,6 +183,7 @@ const documentsLocked = computed(() => !isVerified.value);
 
 const dragActive = ref(false);
 const documents = ref([]);
+const currentOrganization = computed(() => page.props.auth?.organization);
 const recentDocuments = computed(() => documents.value.slice(0, 5));
 const hasMoreDocuments = computed(() => documents.value.length > 5);
 const fileInput = ref(null);

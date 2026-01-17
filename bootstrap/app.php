@@ -33,6 +33,15 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
         ]);
 
+        $middleware->validateCsrfTokens(except: [
+            'organization/switch',
+        ]);
+
+        // Add session to API routes for organization switching
+        $middleware->api(prepend: [
+            \Illuminate\Session\Middleware\StartSession::class,
+        ]);
+
         $middleware->alias([
             'kyc.verified' => \App\Http\Middleware\RestrictIfNoKyc::class,
         ]);

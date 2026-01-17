@@ -64,6 +64,29 @@ Route::middleware('auth:api')->group(function () {
 
     // Mobile KYC
     Route::post('/kyc/submit', [\App\Http\Controllers\KycController::class, 'submit']);
+
+    // Organization Routes
+    Route::prefix('organizations')->group(function () {
+        Route::get('/', [\App\Http\Controllers\OrganizationController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\OrganizationController::class, 'store']);
+        Route::get('/current', [\App\Http\Controllers\OrganizationController::class, 'current']);
+        Route::post('/join', [\App\Http\Controllers\OrganizationController::class, 'join']);
+        Route::post('/switch', [\App\Http\Controllers\OrganizationController::class, 'switch']);
+        
+        Route::get('/{organization}', [\App\Http\Controllers\OrganizationController::class, 'show']);
+        Route::put('/{organization}', [\App\Http\Controllers\OrganizationController::class, 'update']);
+        Route::delete('/{organization}', [\App\Http\Controllers\OrganizationController::class, 'destroy']);
+        
+        // Members management
+        Route::get('/{organization}/members', [\App\Http\Controllers\OrganizationMemberController::class, 'index']);
+        Route::put('/{organization}/members/{member}', [\App\Http\Controllers\OrganizationMemberController::class, 'update']);
+        Route::delete('/{organization}/members/{member}', [\App\Http\Controllers\OrganizationMemberController::class, 'destroy']);
+        
+        // Invitations management
+        Route::get('/{organization}/invitations', [\App\Http\Controllers\OrganizationInvitationController::class, 'index']);
+        Route::post('/{organization}/invitations', [\App\Http\Controllers\OrganizationInvitationController::class, 'store']);
+        Route::delete('/{organization}/invitations/{invitation}', [\App\Http\Controllers\OrganizationInvitationController::class, 'destroy']);
+    });
 });
 
 // Public verify endpoint (no auth required)

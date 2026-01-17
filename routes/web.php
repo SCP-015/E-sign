@@ -95,3 +95,24 @@ Route::get('/qr-positioner/{documentId}', function (int $documentId) {
         'documentId' => $documentId,
     ]);
 })->name('qr.positioner');
+
+// Organization Routes (must be authenticated)
+Route::middleware('auth')->group(function () {
+    Route::get('/organization/setup', function () {
+        return Inertia::render('Organization/Setup');
+    })->name('organization.setup');
+
+    Route::get('/organization/members', function () {
+        return Inertia::render('Organization/Members');
+    })->name('organization.members');
+
+    Route::get('/organization/invitations', function () {
+        return Inertia::render('Organization/Invitations');
+    })->name('organization.invitations');
+
+    Route::get('/organization/billing', function () {
+        return Inertia::render('Organization/Billing');
+    })->name('organization.billing');
+
+    Route::post('/organization/switch', [App\Http\Controllers\OrganizationController::class, 'switch'])->name('organization.switch');
+});

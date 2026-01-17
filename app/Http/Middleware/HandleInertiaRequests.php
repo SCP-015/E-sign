@@ -13,6 +13,10 @@ class HandleInertiaRequests extends Middleware
     {
         return array_merge(parent::share($request), [
             'appName' => config('app.name'),
+            'auth' => [
+                'user' => $request->user(),
+                'organization' => $request->user() ? $request->user()->getCurrentTenant() : null,
+            ],
         ]);
     }
 }

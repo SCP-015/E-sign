@@ -22,9 +22,7 @@
 
                 <div class="flex items-center gap-3">
                     <div v-if="isAuthenticated" class="hidden items-center gap-2 text-sm text-base-content/70 sm:flex">
-                        <span class="font-semibold text-base-content">{{ userName }}</span>
-                        <span class="text-base-content/40">•</span>
-                        <span>{{ userEmail }}</span>
+                        <OrganizationSwitcher @organization-changed="handleOrganizationChanged" />
                     </div>
 
                     <div v-if="isAuthenticated" class="dropdown dropdown-end">
@@ -137,11 +135,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
 import ToastContainer from '../components/ToastContainer.vue';
+import OrganizationSwitcher from '../components/OrganizationSwitcher.vue';
 import { useToastStore } from '../stores/toast';
 
 const props = defineProps({
@@ -162,6 +161,12 @@ const userEmail = computed(() => authStore.user?.email || '');
 const userAvatar = computed(() => authStore.user?.avatar || '');
 const userInitial = computed(() => authStore.user?.name?.charAt(0)?.toUpperCase() || 'U');
 const toastStore = useToastStore();
+
+const currentOrganization = ref(null);
+
+const handleOrganizationChanged = (org) => {
+    currentOrganization.value = org;
+};
 
 const logout = async () => {
     try {
