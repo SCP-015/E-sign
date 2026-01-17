@@ -172,6 +172,7 @@ async function switchOrganization(org) {
             throw new Error(response.data?.message || 'Gagal beralih organization');
         }
         await fetchCurrentOrganization();
+        window.dispatchEvent(new Event('organizations-updated'));
         toastStore.success('Berhasil beralih ke ' + org.name);
         emit('organization-changed', currentOrganization.value);
         router.reload({ preserveScroll: true });
@@ -195,6 +196,7 @@ async function switchToPersonal() {
             throw new Error(response.data?.message || 'Gagal beralih ke mode personal');
         }
         await fetchCurrentOrganization();
+        window.dispatchEvent(new Event('organizations-updated'));
         toastStore.success('Berhasil beralih ke mode personal');
         emit('organization-changed', currentOrganization.value);
         router.reload({ preserveScroll: true });

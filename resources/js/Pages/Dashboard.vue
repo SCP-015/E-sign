@@ -11,14 +11,14 @@
             <KycBanner :status="kycStatus" />
 
             <!-- Organization Menu (only show when in organization mode) -->
-            <section v-if="$page.props.auth?.organization" class="card border border-base-200 bg-base-100 shadow-sm">
+            <section v-if="organization" class="card border border-base-200 bg-base-100 shadow-sm">
                 <div class="card-body">
                     <div class="flex items-center justify-between mb-4">
                         <div>
                             <h3 class="text-lg font-semibold">Organization Management</h3>
-                            <p class="text-sm text-base-content/60">{{ $page.props.auth.organization.name }}</p>
+                            <p class="text-sm text-base-content/60">{{ organization.name }}</p>
                         </div>
-                        <div class="badge badge-primary">{{ $page.props.auth.organization.role || 'Member' }}</div>
+                        <div class="badge badge-primary">{{ organization.role || 'Member' }}</div>
                     </div>
                     
                     <div class="grid gap-3 md:grid-cols-3">
@@ -159,7 +159,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
@@ -183,7 +183,7 @@ const documentsLocked = computed(() => !isVerified.value);
 
 const dragActive = ref(false);
 const documents = ref([]);
-const currentOrganization = computed(() => page.props.auth?.organization);
+const organization = ref(page.props.auth?.organization ?? null);
 const recentDocuments = computed(() => documents.value.slice(0, 5));
 const hasMoreDocuments = computed(() => documents.value.length > 5);
 const fileInput = ref(null);
@@ -264,13 +264,33 @@ const quickTips = [
     },
 ];
 
+const fetchCurrentOrganization = async () => {
+    try {
+        const response = await axios.get('/api/organizations/current');
+        if (response.data?.success && response.data?.data) {
+            organization.value = response.data.data;
+            return;
+        }
+        organization.value = null;
+    } catch (e) {
+        organization.value = null;
+    }
+};
+
 onMounted(async () => {
     try {
         await authStore.fetchUser();
+        await fetchCurrentOrganization();
         await fetchDocuments();
+
+        window.addEventListener('organizations-updated', fetchCurrentOrganization);
     } catch (e) {
         console.error('Failed to init dashboard:', e);
     }
+});
+
+onUnmounted(() => {
+    window.removeEventListener('organizations-updated', fetchCurrentOrganization);
 });
 
 const handleFileSelect = (e) => uploadFile(e.target.files[0]);
