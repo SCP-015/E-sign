@@ -34,11 +34,11 @@ class TenantService
                 'plan' => $data['plan'] ?? 'free',
             ]);
 
-            // Add owner as admin
+            // Add owner as owner
             TenantUser::create([
                 'tenant_id' => $tenant->id,
                 'user_id' => $owner->id,
-                'role' => 'admin',
+                'role' => 'owner',
                 'is_owner' => true,
                 'joined_at' => now(),
             ]);

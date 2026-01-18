@@ -25,16 +25,16 @@ class OrganizationInvitationController extends Controller
     {
         $user = Auth::user();
 
-        // Check if user is admin or manager
+        // Check if user is owner, admin or manager
         $membership = $organization->tenantUsers()
             ->where('user_id', $user->id)
-            ->whereIn('role', ['admin', 'manager'])
+            ->whereIn('role', ['owner', 'admin', 'manager'])
             ->first();
 
         if (!$membership) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hanya admin atau manager yang dapat melihat undangan.',
+                'message' => 'Hanya owner, admin atau manager yang dapat melihat undangan.',
             ], 403);
         }
 
@@ -69,16 +69,16 @@ class OrganizationInvitationController extends Controller
     {
         $user = Auth::user();
 
-        // Check if user is admin or manager
+        // Check if user is owner, admin or manager
         $membership = $organization->tenantUsers()
             ->where('user_id', $user->id)
-            ->whereIn('role', ['admin', 'manager'])
+            ->whereIn('role', ['owner', 'admin', 'manager'])
             ->first();
 
         if (!$membership) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hanya admin atau manager yang dapat membuat undangan.',
+                'message' => 'Hanya owner, admin atau manager yang dapat membuat undangan.',
             ], 403);
         }
 
@@ -114,16 +114,16 @@ class OrganizationInvitationController extends Controller
     {
         $user = Auth::user();
 
-        // Check if user is admin
+        // Check if user is owner or admin
         $membership = $organization->tenantUsers()
             ->where('user_id', $user->id)
-            ->where('role', 'admin')
+            ->whereIn('role', ['owner', 'admin'])
             ->first();
 
         if (!$membership) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hanya admin yang dapat menghapus undangan.',
+                'message' => 'Hanya owner atau admin yang dapat menghapus undangan.',
             ], 403);
         }
 
