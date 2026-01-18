@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -80,6 +81,125 @@ return new class extends Migration
             $table->index(['model_id', 'model_type']);
             $table->primary(['permission_id', 'model_id', 'model_type', 'tenant_id'], 'model_has_permissions_primary');
         });
+
+        // Auto-seed roles, permissions, dan mappings
+        $this->seedAclData();
+    }
+
+    /**
+     * Seed ACL data otomatis ketika migration dijalankan
+     */
+    private function seedAclData(): void
+    {
+        $now = now();
+        
+        // 1. Seed Permissions dari config
+        $this->seedPermissions($now);
+        
+        // 2. Seed Roles
+        $this->seedRoles($now);
+        
+        // 3. Seed Role-Permission Mappings
+        $this->seedRolePermissions();
+    }
+
+    private function seedPermissions($now): void
+    {
+        $permissionGroups = config('permissions');
+        $permissions = [];
+
+        foreach ($permissionGroups as $group => $items) {
+            // Skip role permission mappings
+            if (str_ends_with($group, '_permissions')) {
+                continue;
+            }
+
+            if (is_array($items)) {
+                foreach ($items as $key => $permission) {
+                    if (is_string($permission)) {
+                        $permissions[] = [
+                            'name' => $permission,
+                            'guard_name' => 'api',
+                            'description' => ucfirst(str_replace(['_', '.'], ' ', $permission)),
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    }
+                }
+            }
+        }
+
+        // Insert permissions
+        foreach ($permissions as $permission) {
+            DB::table('acl_permissions')->insertOrIgnore($permission);
+        }
+    }
+
+    private function seedRoles($now): void
+    {
+        $roles = [
+            [
+                'name' => 'owner',
+                'guard_name' => 'api',
+                'description' => 'Organization owner with full access',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'name' => 'admin',
+                'guard_name' => 'api',
+                'description' => 'Administrator with almost full access',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'name' => 'manager',
+                'guard_name' => 'api',
+                'description' => 'Manager who can manage team documents',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'name' => 'user',
+                'guard_name' => 'api',
+                'description' => 'Regular user with basic access',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+        ];
+
+        foreach ($roles as $role) {
+            DB::table('acl_roles')->insertOrIgnore($role);
+        }
+    }
+
+    private function seedRolePermissions(): void
+    {
+        $rolePermissionMappings = [
+            'owner' => config('permissions.owner_permissions', []),
+            'admin' => config('permissions.admin_permissions', []),
+            'manager' => config('permissions.manager_permissions', []),
+            'user' => config('permissions.user_permissions', []),
+        ];
+
+        foreach ($rolePermissionMappings as $roleName => $permissionNames) {
+            $role = DB::table('acl_roles')->where('name', $roleName)->first();
+            if (!$role) {
+                continue;
+            }
+
+            foreach ($permissionNames as $permissionName) {
+                $permission = DB::table('acl_permissions')->where('name', $permissionName)->first();
+                if (!$permission) {
+                    continue;
+                }
+
+                DB::table('acl_role_has_permissions')->insertOrIgnore([
+                    'role_id' => $role->id,
+                    'permission_id' => $permission->id,
+                ]);
+            }
+        }
     }
 
     /**
