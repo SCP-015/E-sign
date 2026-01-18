@@ -75,6 +75,10 @@ class StoragePathHelper
      */
     public static function ensureDirectoryExists(?string $tenantId): void
     {
+        if ($tenantId === null) {
+            return;
+        }
+
         $paths = [
             self::getDocumentPath($tenantId, 'original'),
             self::getDocumentPath($tenantId, 'final'),

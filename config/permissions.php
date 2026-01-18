@@ -188,6 +188,7 @@ return [
     'user_permissions' => [
         // Documents - basic (hanya dokumen sendiri)
         'documents.view',
+        'documents.view_all',
         'documents.upload',
         'documents.sign',
         'documents.download',

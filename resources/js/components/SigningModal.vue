@@ -428,6 +428,41 @@ watch(() => assignMode.value, (newVal) => {
   }
 });
 
+function normalizeAssigneeOrders() {
+  if (signingMode.value !== 'SEQUENTIAL') return;
+  if (!assignees.value || assignees.value.length === 0) return;
+
+  const includeMe = !!includeOwner.value;
+
+  // If I am included and signing first, invitees must start from order 2.
+  if (includeMe && ownerFirst.value) {
+    let next = 2;
+    assignees.value = assignees.value.map((s) => ({
+      ...s,
+      order: next++,
+    }));
+    return;
+  }
+
+  // Otherwise, normalize to a clean 1..N sequence (skipping my order if set).
+  const reserved = includeMe && ownerOrder.value ? Number(ownerOrder.value) : null;
+  let next = 1;
+  assignees.value = assignees.value.map((s) => {
+    while (reserved !== null && next === reserved) next++;
+    return {
+      ...s,
+      order: next++,
+    };
+  });
+}
+
+watch(
+  () => [signingMode.value, includeOwner.value, ownerFirst.value, ownerOrder.value],
+  () => {
+    normalizeAssigneeOrders();
+  }
+);
+
 async function loadPdf() {
   pdfLoading.value = true;
   try {
@@ -932,10 +967,13 @@ async function assignToOther() {
         if (ownerFirst.value) {
           finalOwnerOrder = 1;
           // Shift all assignee orders down by 1
-          finalSigners = finalSigners.map(s => ({
-            ...s,
-            order: (s.order || 1) + 1
-          }));
+          const minAssigneeOrder = Math.min(...finalSigners.map(s => (s.order || 1)));
+          if (minAssigneeOrder <= 1) {
+            finalSigners = finalSigners.map(s => ({
+              ...s,
+              order: (s.order || 1) + 1
+            }));
+          }
         } else if (ownerOrder.value) {
           finalOwnerOrder = ownerOrder.value;
           // Adjust assignee orders to avoid collision with owner order

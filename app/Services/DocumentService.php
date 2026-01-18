@@ -9,6 +9,7 @@ use App\Models\Certificate;
 use App\Models\Document;
 use App\Models\DocumentSigningEvidence;
 use App\Models\Signature;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
@@ -139,19 +140,32 @@ class DocumentService
      */
     public function uploadWithMetadata($file, $user, $title = null, $tenantId = null)
     {
-        // Ensure storage directory exists
-        StoragePathHelper::ensureDirectoryExists($tenantId);
-        
-        // Generate temp filename
-        $filename = StoragePathHelper::generateDocumentFilename(
-            $tenantId,
-            $user->id,
-            $file->getClientOriginalName()
-        );
-        
-        // Store file
-        $storagePath = StoragePathHelper::getDocumentPath($tenantId, 'original');
-        $path = $file->storeAs($storagePath, $filename);
+        // Tenant docs go to documents/{tenantId}/..., personal docs go to {email}/documents/...
+        $email = strtolower((string) $user->email);
+        $isTenantMode = $tenantId !== null;
+
+        if ($isTenantMode) {
+            // Ensure storage directory exists
+            StoragePathHelper::ensureDirectoryExists($tenantId);
+
+            // Generate temp filename
+            $filename = StoragePathHelper::generateDocumentFilename(
+                $tenantId,
+                $user->id,
+                $file->getClientOriginalName()
+            );
+
+            // Store file under tenant folder
+            $storagePath = StoragePathHelper::getDocumentPath($tenantId, 'original');
+            $path = $file->storeAs($storagePath, $filename, 'private');
+        } else {
+            // Personal mode: store under user's email folder
+            $timestamp = now()->format('YmdHis');
+            $extension = pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION) ?: 'pdf';
+            $filename = "{$user->id}_{$timestamp}_original.{$extension}";
+            $storagePath = "{$email}/documents/original";
+            $path = $file->storeAs($storagePath, $filename, 'private');
+        }
         
         // Get page count using FPDI
         $pageCount = 0;
@@ -176,12 +190,17 @@ class DocumentService
             'page_count' => $pageCount,
             'status' => 'pending',
         ]);
-        
-        // Rename file dengan document ID untuk tenant mode
-        if ($tenantId !== null) {
-            $finalFilename = "{$document->id}_original.pdf";
+
+        // Rename file dengan document ID (tenant & personal) for consistency
+        $finalFilename = "{$document->id}_original.pdf";
+        if ($isTenantMode) {
             $finalPath = StoragePathHelper::getFullPath($tenantId, 'original', $finalFilename);
-            Storage::move($path, $finalPath);
+        } else {
+            $finalPath = "{$email}/documents/original/{$finalFilename}";
+        }
+
+        if ($path !== $finalPath) {
+            Storage::disk('private')->move($path, $finalPath);
             $document->update(['file_path' => $finalPath]);
         }
         
@@ -191,11 +210,21 @@ class DocumentService
     public function indexResult(int $userId, ?string $tenantId = null): array
     {
         try {
+            $user = User::findOrFail($userId);
+
             // STRICT ISOLATION: filter by tenant context
-            $documents = Document::with(['signers', 'tenant'])
-                ->accessibleByUser($userId, $tenantId)
-                ->latest()
-                ->get();
+            // Tenant mode: members with documents.view_all can see all tenant docs
+            if ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
+                $documents = Document::with(['signers', 'tenant'])
+                    ->forCurrentContext($tenantId)
+                    ->latest()
+                    ->get();
+            } else {
+                $documents = Document::with(['signers', 'tenant'])
+                    ->accessibleByUser($userId, $tenantId, $user->email)
+                    ->latest()
+                    ->get();
+            }
 
             return [
                 'status' => 'success',
@@ -273,16 +302,26 @@ class DocumentService
     public function showResult(int $documentId, int $userId, ?string $tenantId = null): array
     {
         try {
-            $document = Document::with(['signers', 'tenant'])
-                ->where('id', $documentId)
-                ->forCurrentContext($tenantId)
-                ->where(function($query) use ($userId) {
-                    $query->where('user_id', $userId)
-                          ->orWhereHas('signers', function($q) use ($userId) {
-                              $q->where('user_id', $userId);
-                          });
-                })
-                ->firstOrFail();
+            $user = User::findOrFail($userId);
+
+            // Tenant members with documents.view_all can access all tenant docs
+            if ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
+                $document = Document::with(['signers', 'tenant'])
+                    ->where('id', $documentId)
+                    ->forCurrentContext($tenantId)
+                    ->firstOrFail();
+            } else {
+                $document = Document::with(['signers', 'tenant'])
+                    ->where('id', $documentId)
+                    ->forCurrentContext($tenantId)
+                    ->where(function($query) use ($userId) {
+                        $query->where('user_id', $userId)
+                              ->orWhereHas('signers', function($q) use ($userId) {
+                                  $q->where('user_id', $userId);
+                              });
+                    })
+                    ->firstOrFail();
+            }
 
             return [
                 'status' => 'success',
@@ -446,16 +485,19 @@ class DocumentService
         }
         
         // Save final PDF
-        $finalFileName = 'final_' . basename($document->file_path);
-        $email = strtolower($document->user->email);
-        $finalPath = "private/{$email}/documents/final/{$finalFileName}";
-        
-        $finalDir = storage_path("app/private/{$email}/documents/final");
-        if (!is_dir($finalDir)) {
-            mkdir($finalDir, 0755, true);
+        $tenantId = $document->tenant_id;
+        $email = strtolower((string) $document->user->email);
+        $finalFileName = "{$document->id}_final.pdf";
+
+        if ($tenantId) {
+            StoragePathHelper::ensureDirectoryExists($tenantId);
+            $finalPath = StoragePathHelper::getFullPath($tenantId, 'final', $finalFileName);
+        } else {
+            $finalPath = "{$email}/documents/final/{$finalFileName}";
+            Storage::disk('private')->makeDirectory("{$email}/documents/final");
         }
-        
-        $fullFinalPath = storage_path("app/{$finalPath}");
+
+        $fullFinalPath = Storage::disk('private')->path($finalPath);
         $pdf->Output($fullFinalPath, 'F');
         
         // Clean up

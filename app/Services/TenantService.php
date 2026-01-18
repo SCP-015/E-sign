@@ -43,6 +43,9 @@ class TenantService
                 'joined_at' => now(),
             ]);
 
+            // Sync role to ACL so permission checks work in tenant context
+            $owner->assignRoleInTenant('owner', $tenant->id);
+
             return $tenant;
         });
     }

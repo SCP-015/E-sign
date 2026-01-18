@@ -85,14 +85,22 @@ class Document extends Model
     /**
      * Scope: Dokumen yang bisa diakses user di context tertentu
      */
-    public function scopeAccessibleByUser($query, int $userId, ?string $tenantId)
+    public function scopeAccessibleByUser($query, int $userId, ?string $tenantId, ?string $userEmail = null)
     {
+        $email = is_string($userEmail) ? strtolower(trim($userEmail)) : null;
+
         return $query->forCurrentContext($tenantId)
-            ->where(function($q) use ($userId) {
+            ->where(function($q) use ($userId, $email) {
                 $q->where('user_id', $userId)
                   ->orWhereHas('signers', function($sq) use ($userId) {
                       $sq->where('user_id', $userId);
                   });
+
+                if ($email) {
+                    $q->orWhereHas('signers', function ($sq) use ($email) {
+                        $sq->whereRaw('LOWER(email) = ?', [$email]);
+                    });
+                }
             });
     }
 

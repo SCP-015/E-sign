@@ -63,16 +63,23 @@ class DocumentController extends Controller
             $tenantId = $this->getCurrentTenantId($request);
             
             // STRICT: filter by tenant context
-            $document = Document::where('id', $id)
-                ->forCurrentContext($tenantId)
-                ->where(function($query) use ($user) {
-                    $query->where('user_id', $user->id)
-                          ->orWhereHas('signers', function($q) use ($user) {
-                              $q->where('user_id', $user->id)
-                                ->orWhere('email', $user->email);
-                          });
-                })
-                ->firstOrFail();
+            // Tenant members with documents.view_all can access all tenant docs
+            if ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
+                $document = Document::where('id', $id)
+                    ->forCurrentContext($tenantId)
+                    ->firstOrFail();
+            } else {
+                $document = Document::where('id', $id)
+                    ->forCurrentContext($tenantId)
+                    ->where(function($query) use ($user) {
+                        $query->where('user_id', $user->id)
+                              ->orWhereHas('signers', function($q) use ($user) {
+                                  $q->where('user_id', $user->id)
+                                    ->orWhere('email', $user->email);
+                              });
+                    })
+                    ->firstOrFail();
+            }
 
             $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($document->file_path);
 
@@ -99,16 +106,23 @@ class DocumentController extends Controller
         $user = $request->user();
         $tenantId = $this->getCurrentTenantId($request);
         
-        $document = Document::where('id', $id)
-            ->forCurrentContext($tenantId)
-            ->where(function($query) use ($user) {
-                $query->where('user_id', $user->id)
-                      ->orWhereHas('signers', function($q) use ($user) {
-                          $q->where('user_id', $user->id)
-                            ->orWhere('email', $user->email);
-                      });
-            })
-            ->firstOrFail();
+        // Tenant members with documents.view_all can access all tenant docs
+        if ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
+            $document = Document::where('id', $id)
+                ->forCurrentContext($tenantId)
+                ->firstOrFail();
+        } else {
+            $document = Document::where('id', $id)
+                ->forCurrentContext($tenantId)
+                ->where(function($query) use ($user) {
+                    $query->where('user_id', $user->id)
+                          ->orWhereHas('signers', function($q) use ($user) {
+                              $q->where('user_id', $user->id)
+                                ->orWhere('email', $user->email);
+                          });
+                })
+                ->firstOrFail();
+        }
 
         // Return default QR config that will be used during finalization
         $qrConfig = [
@@ -258,16 +272,23 @@ class DocumentController extends Controller
         $user = $request->user();
         $tenantId = $this->getCurrentTenantId($request);
         
-        $document = Document::where('id', $id)
-            ->forCurrentContext($tenantId)
-            ->where(function($query) use ($user) {
-                $query->where('user_id', $user->id)
-                      ->orWhereHas('signers', function($q) use ($user) {
-                          $q->where('user_id', $user->id)
-                            ->orWhere('email', $user->email);
-                      });
-            })
-            ->firstOrFail();
+        // Tenant members with documents.view_all can access all tenant docs
+        if ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
+            $document = Document::where('id', $id)
+                ->forCurrentContext($tenantId)
+                ->firstOrFail();
+        } else {
+            $document = Document::where('id', $id)
+                ->forCurrentContext($tenantId)
+                ->where(function($query) use ($user) {
+                    $query->where('user_id', $user->id)
+                          ->orWhereHas('signers', function($q) use ($user) {
+                              $q->where('user_id', $user->id)
+                                ->orWhere('email', $user->email);
+                          });
+                })
+                ->firstOrFail();
+        }
 
         $hasSigners = $document->signers()->exists();
 
@@ -282,11 +303,13 @@ class DocumentController extends Controller
         // Check if final PDF exists (from finalize), otherwise use signed_path (legacy)
         $filePath = null;
         
-        if ($document->final_pdf_path && file_exists(storage_path('app/' . $document->final_pdf_path))) {
-            $filePath = storage_path('app/' . $document->final_pdf_path);
+        if ($document->final_pdf_path && \Illuminate\Support\Facades\Storage::disk('private')->exists($document->final_pdf_path)) {
+            $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($document->final_pdf_path);
         } elseif ($document->signed_path) {
-            $relativePath = str_replace('private/', '', $document->signed_path);
-            $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($relativePath);
+            $signedRelPath = str_replace('private/', '', $document->signed_path);
+            if (\Illuminate\Support\Facades\Storage::disk('private')->exists($signedRelPath)) {
+                $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($signedRelPath);
+            }
         }
 
         if (!$filePath || !file_exists($filePath)) {
@@ -323,7 +346,7 @@ class DocumentController extends Controller
                     $this->documentService->upsertSigningEvidence($document, $cert, $document->final_pdf_path, $document->completed_at ?? now());
                 }
                 
-                $filePath = storage_path('app/' . $finalPdfPath);
+                $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($finalPdfPath);
             } catch (\Exception $e) {
                 return ApiResponse::error('Failed to generate PDF: ' . $e->getMessage(), 500);
             }
