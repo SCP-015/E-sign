@@ -92,6 +92,7 @@ Route::middleware('auth:api')->group(function () {
     Route::prefix('quota')->group(function () {
         Route::get('/', [\App\Http\Controllers\QuotaController::class, 'index']);
         Route::put('/', [\App\Http\Controllers\QuotaController::class, 'update']);
+        Route::put('/users/{userId}', [\App\Http\Controllers\QuotaController::class, 'updateUserOverride']);
     });
 
     // Portal Settings

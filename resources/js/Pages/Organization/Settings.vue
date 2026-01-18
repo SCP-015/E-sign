@@ -334,12 +334,17 @@ const uploadLogo = async (event) => {
                 'Content-Type': 'multipart/form-data'
             }
         });
-        if (response.data.success) {
-            settings.value.logo = response.data.data.logo;
-            showToast('Logo uploaded successfully!');
+        const payload = response?.data;
+        if (!isApiSuccess(payload)) {
+            throw new Error(payload?.message || 'Gagal upload logo');
         }
+        if (settings.value) {
+            settings.value.logo = payload?.data?.logo ?? payload?.data?.path ?? settings.value.logo;
+        }
+        showToast('Logo uploaded successfully!');
     } catch (error) {
-        showToast(error.response?.data?.message || 'Failed to upload logo', 'error');
+        const message = error.response?.data?.message || error.message || 'Failed to upload logo';
+        showToast(message, 'error');
     } finally {
         uploading.value = false;
     }
@@ -359,12 +364,17 @@ const uploadBanner = async (event) => {
                 'Content-Type': 'multipart/form-data'
             }
         });
-        if (response.data.success) {
-            settings.value.banner = response.data.data.banner;
-            showToast('Banner uploaded successfully!');
+        const payload = response?.data;
+        if (!isApiSuccess(payload)) {
+            throw new Error(payload?.message || 'Gagal upload banner');
         }
+        if (settings.value) {
+            settings.value.banner = payload?.data?.banner ?? payload?.data?.path ?? settings.value.banner;
+        }
+        showToast('Banner uploaded successfully!');
     } catch (error) {
-        showToast(error.response?.data?.message || 'Failed to upload banner', 'error');
+        const message = error.response?.data?.message || error.message || 'Failed to upload banner';
+        showToast(message, 'error');
     } finally {
         uploading.value = false;
     }

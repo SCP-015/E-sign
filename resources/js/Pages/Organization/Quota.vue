@@ -185,26 +185,31 @@
                                         </td>
                                         <td>
                                             <div class="flex flex-col">
-                                                <span class="font-medium">{{ member.documents_uploaded }} / {{ quotaSettings.max_documents_per_user }}</span>
+                                                <span class="font-medium">{{ member.documents_uploaded }} / {{ member.effective_limits?.max_documents_per_user ?? quotaSettings.max_documents_per_user }}</span>
                                                 <progress 
                                                     class="progress progress-primary w-20 h-2" 
-                                                    :value="member.documents_uploaded" 
-                                                    :max="quotaSettings.max_documents_per_user"
+                                                    :value="Number(member.documents_uploaded) || 0" 
+                                                    :max="Math.max(1, Number(member.effective_limits?.max_documents_per_user ?? quotaSettings.max_documents_per_user) || 1)"
                                                 ></progress>
                                             </div>
                                         </td>
                                         <td>
                                             <div class="flex flex-col">
-                                                <span class="font-medium">{{ member.signatures_created }} / {{ quotaSettings.max_signatures_per_user }}</span>
+                                                <span class="font-medium">{{ member.signatures_created }} / {{ member.effective_limits?.max_signatures_per_user ?? quotaSettings.max_signatures_per_user }}</span>
                                                 <progress 
                                                     class="progress progress-secondary w-20 h-2" 
-                                                    :value="member.signatures_created" 
-                                                    :max="quotaSettings.max_signatures_per_user"
+                                                    :value="Number(member.signatures_created) || 0" 
+                                                    :max="Math.max(1, Number(member.effective_limits?.max_signatures_per_user ?? quotaSettings.max_signatures_per_user) || 1)"
                                                 ></progress>
                                             </div>
                                         </td>
                                         <td>
-                                            <span class="font-medium">{{ member.storage_used_mb }} MB</span>
+                                            <div class="flex items-center justify-between gap-2">
+                                                <span class="font-medium">{{ member.storage_used_mb }} MB</span>
+                                                <button class="btn btn-ghost btn-xs" @click="openUserOverride(member)" title="Atur kuota user">
+                                                    Edit
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                     <tr v-if="usageData.length === 0">
@@ -218,6 +223,45 @@
                     </div>
                 </div>
             </template>
+
+            <dialog ref="overrideModal" class="modal">
+                <div class="modal-box">
+                    <h3 class="font-bold text-lg">Quota Override (Per User)</h3>
+                    <p class="text-sm text-base-content/60 mt-1">
+                        {{ selectedMember?.user?.name }} ({{ selectedMember?.user?.email }})
+                    </p>
+
+                    <div class="grid gap-4 mt-4">
+                        <div class="form-control">
+                            <label class="label"><span class="label-text">Max Documents</span></label>
+                            <input type="number" class="input input-bordered" v-model.number="overrideForm.max_documents_per_user" min="1" max="10000" />
+                            <label class="label"><span class="label-text-alt text-base-content/60">Kosongkan untuk ikut global</span></label>
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text">Max Signatures</span></label>
+                            <input type="number" class="input input-bordered" v-model.number="overrideForm.max_signatures_per_user" min="1" max="10000" />
+                            <label class="label"><span class="label-text-alt text-base-content/60">Kosongkan untuk ikut global</span></label>
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text">Max Storage (MB)</span></label>
+                            <input type="number" class="input input-bordered" v-model.number="overrideForm.max_total_storage_mb" min="100" max="100000" />
+                            <label class="label"><span class="label-text-alt text-base-content/60">Kosongkan untuk ikut global</span></label>
+                        </div>
+                    </div>
+
+                    <div class="modal-action">
+                        <button class="btn" type="button" @click="closeOverrideModal">Cancel</button>
+                        <button class="btn btn-outline" type="button" @click="clearOverride" :disabled="overrideSaving">Reset to Global</button>
+                        <button class="btn btn-primary" type="button" @click="saveUserOverride" :disabled="overrideSaving">
+                            <span v-if="overrideSaving" class="loading loading-spinner loading-sm"></span>
+                            Save
+                        </button>
+                    </div>
+                </div>
+                <form method="dialog" class="modal-backdrop">
+                    <button>close</button>
+                </form>
+            </dialog>
 
             <!-- Toast -->
             <div class="toast toast-end">
@@ -246,6 +290,15 @@ const quotaSettings = ref({
 });
 const usageData = ref([]);
 
+const overrideModal = ref(null);
+const selectedMember = ref(null);
+const overrideSaving = ref(false);
+const overrideForm = reactive({
+    max_documents_per_user: null,
+    max_signatures_per_user: null,
+    max_total_storage_mb: null,
+});
+
 const form = reactive({
     max_documents_per_user: 50,
     max_signatures_per_user: 100,
@@ -270,6 +323,96 @@ const isApiSuccess = (payload) => {
     return payload?.success === true || payload?.status === 'success';
 };
 
+const normalizeQuotaSettings = (raw) => {
+    if (!raw || typeof raw !== 'object') return null;
+
+    return {
+        max_documents_per_user: raw.max_documents_per_user ?? raw.maxDocumentsPerUser ?? 50,
+        max_signatures_per_user: raw.max_signatures_per_user ?? raw.maxSignaturesPerUser ?? 100,
+        max_document_size_mb: raw.max_document_size_mb ?? raw.maxDocumentSizeMb ?? 10,
+        max_total_storage_mb: raw.max_total_storage_mb ?? raw.maxTotalStorageMb ?? 500,
+    };
+};
+
+const normalizeUsageRow = (raw) => {
+    const docs = Number(raw?.documents_uploaded ?? raw?.documentsUploaded ?? 0);
+    const sigs = Number(raw?.signatures_created ?? raw?.signaturesCreated ?? 0);
+    const storage = Number(raw?.storage_used_mb ?? raw?.storageUsedMb ?? 0);
+
+    const overrideRaw = raw?.override ?? null;
+    const effectiveRaw = raw?.effective_limits ?? raw?.effectiveLimits ?? null;
+
+    const override = overrideRaw ? {
+        max_documents_per_user: overrideRaw.max_documents_per_user ?? overrideRaw.maxDocumentsPerUser ?? null,
+        max_signatures_per_user: overrideRaw.max_signatures_per_user ?? overrideRaw.maxSignaturesPerUser ?? null,
+        max_total_storage_mb: overrideRaw.max_total_storage_mb ?? overrideRaw.maxTotalStorageMb ?? null,
+    } : null;
+
+    const effective_limits = effectiveRaw ? {
+        max_documents_per_user: effectiveRaw.max_documents_per_user ?? effectiveRaw.maxDocumentsPerUser ?? null,
+        max_signatures_per_user: effectiveRaw.max_signatures_per_user ?? effectiveRaw.maxSignaturesPerUser ?? null,
+        max_total_storage_mb: effectiveRaw.max_total_storage_mb ?? effectiveRaw.maxTotalStorageMb ?? null,
+    } : null;
+
+    return {
+        user_id: raw?.user_id ?? raw?.userId,
+        user: raw?.user ?? null,
+        role: raw?.role ?? raw?.role_name ?? raw?.roleName ?? null,
+        documents_uploaded: Number.isFinite(docs) ? docs : 0,
+        signatures_created: Number.isFinite(sigs) ? sigs : 0,
+        storage_used_mb: Number.isFinite(storage) ? storage : 0,
+        override,
+        effective_limits,
+    };
+};
+
+const openUserOverride = (member) => {
+    selectedMember.value = member;
+    overrideForm.max_documents_per_user = member?.override?.max_documents_per_user ?? null;
+    overrideForm.max_signatures_per_user = member?.override?.max_signatures_per_user ?? null;
+    overrideForm.max_total_storage_mb = member?.override?.max_total_storage_mb ?? null;
+    overrideModal.value?.showModal?.();
+};
+
+const closeOverrideModal = () => {
+    overrideModal.value?.close?.();
+    selectedMember.value = null;
+};
+
+const saveUserOverride = async () => {
+    if (!selectedMember.value?.user_id) return;
+    try {
+        overrideSaving.value = true;
+        const payload = {
+            max_documents_per_user: overrideForm.max_documents_per_user || null,
+            max_signatures_per_user: overrideForm.max_signatures_per_user || null,
+            max_total_storage_mb: overrideForm.max_total_storage_mb || null,
+        };
+
+        const res = await axios.put(`/api/quota/users/${selectedMember.value.user_id}`, payload);
+        const api = res?.data;
+        if (!(api?.success === true || api?.status === 'success')) {
+            throw new Error(api?.message || 'Gagal menyimpan quota user');
+        }
+
+        showToast('User quota updated successfully!');
+        closeOverrideModal();
+        await fetchQuota();
+        window.dispatchEvent(new Event('quota-updated'));
+    } catch (e) {
+        showToast(e?.response?.data?.message || e?.message || 'Failed to save user quota', 'error');
+    } finally {
+        overrideSaving.value = false;
+    }
+};
+
+const clearOverride = async () => {
+    overrideForm.max_documents_per_user = null;
+    overrideForm.max_signatures_per_user = null;
+    overrideForm.max_total_storage_mb = null;
+    await saveUserOverride();
+};
+
 const getRoleBadgeClass = (role) => {
     switch (role?.toLowerCase()) {
         case 'owner': return 'badge badge-primary';
@@ -288,9 +431,14 @@ const fetchQuota = async () => {
             throw new Error(payload?.message || 'Gagal memuat quota');
         }
         const data = payload?.data ?? {};
-        quotaSettings.value = data.quota_settings ?? data.quotaSettings ?? quotaSettings.value;
-        usageData.value = data.usage ?? [];
-        Object.assign(form, quotaSettings.value);
+        const normalizedSettings = normalizeQuotaSettings(data.quota_settings ?? data.quotaSettings);
+        if (normalizedSettings) {
+            quotaSettings.value = normalizedSettings;
+            Object.assign(form, normalizedSettings);
+        }
+
+        const usage = Array.isArray(data.usage) ? data.usage : [];
+        usageData.value = usage.map(normalizeUsageRow);
         hasAccess.value = true;
     } catch (error) {
         if (error.response?.status === 403) {
@@ -311,10 +459,15 @@ const saveQuota = async () => {
             throw new Error(payload?.message || 'Gagal menyimpan quota');
         }
 
-        quotaSettings.value = payload?.data ?? quotaSettings.value;
-        Object.assign(form, quotaSettings.value);
+        const normalizedSaved = normalizeQuotaSettings(payload?.data);
+        if (normalizedSaved) {
+            quotaSettings.value = normalizedSaved;
+            Object.assign(form, normalizedSaved);
+        }
         editing.value = false;
         showToast('Quota settings saved successfully!');
+
+        window.dispatchEvent(new CustomEvent('quota-updated', { detail: quotaSettings.value }));
 
         // Refresh usage agar tabel/progress ikut update
         await fetchQuota();

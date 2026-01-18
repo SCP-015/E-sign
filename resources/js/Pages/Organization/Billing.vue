@@ -126,7 +126,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import { useToastStore } from '../../stores/toast';
 
@@ -149,6 +149,15 @@ const limits = ref({
 
 const isApiSuccess = (payload) => {
     return payload?.success === true || payload?.status === 'success';
+};
+
+const normalizeQuotaSettings = (raw) => {
+    if (!raw || typeof raw !== 'object') return null;
+
+    return {
+        max_documents_per_user: raw.max_documents_per_user ?? raw.maxDocumentsPerUser ?? null,
+        max_signatures_per_user: raw.max_signatures_per_user ?? raw.maxSignaturesPerUser ?? null,
+    };
 };
 
 // Available plans
@@ -209,7 +218,8 @@ const fetchData = async () => {
         const quotaRes = await axios.get('/api/quota');
         const quotaPayload = quotaRes?.data;
         if (isApiSuccess(quotaPayload)) {
-            const quotaSettings = quotaPayload?.data?.quota_settings ?? quotaPayload?.data?.quotaSettings ?? null;
+            const quotaSettingsRaw = quotaPayload?.data?.quota_settings ?? quotaPayload?.data?.quotaSettings ?? null;
+            const quotaSettings = normalizeQuotaSettings(quotaSettingsRaw);
             if (quotaSettings) {
                 limits.value.signatures = quotaSettings.max_signatures_per_user ?? limits.value.signatures;
                 limits.value.documents = quotaSettings.max_documents_per_user ?? limits.value.documents;
@@ -231,5 +241,16 @@ const fetchData = async () => {
     }
 };
 
-onMounted(fetchData);
+const handleQuotaUpdated = () => {
+    fetchData();
+};
+
+onMounted(() => {
+    fetchData();
+    window.addEventListener('quota-updated', handleQuotaUpdated);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('quota-updated', handleQuotaUpdated);
+});
 </script>

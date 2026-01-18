@@ -116,7 +116,7 @@
             </div>
             <div class="border-t border-base-200">
                 <div class="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-3 text-xs text-base-content/60 sm:flex-row sm:items-center sm:justify-between">
-                    <p>&copy; 2023 E-SIGN SECURE. All rights reserved.</p>
+                    <p>&copy; 2026 E-SIGN SECURE. All rights reserved.</p>
                     <div class="flex items-center gap-2">
                         <a class="btn btn-ghost btn-xs btn-circle" href="#" aria-label="LinkedIn">
                             <svg viewBox="0 0 24 24" class="h-3 w-3" fill="currentColor">
