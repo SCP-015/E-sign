@@ -3,10 +3,23 @@
     <div class="min-h-screen bg-base-100">
         <main class="mx-auto w-full max-w-7xl space-y-6 px-4 py-6">
             <section class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">Documents</p>
-                    <h2 class="mt-1 text-2xl font-bold">Document History</h2>
-                    <p class="text-sm text-base-content/60">All documents you own or are assigned to.</p>
+                <div class="flex-1">
+                    <div class="flex items-center gap-3">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">Documents</p>
+                            <h2 class="mt-1 text-2xl font-bold">Document History</h2>
+                        </div>
+                        <ContextIndicator :tenant-id="currentTenantId" :tenant-name="currentTenantName" />
+                    </div>
+                    <div class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-[13px] text-blue-800">
+                            <strong>{{ isPersonalMode ? 'Mode Personal' : 'Mode Organisasi' }}:</strong>
+                            {{ isPersonalMode 
+                                ? 'Dokumen pribadi Anda. Tidak akan terlihat saat Anda berada di mode organisasi.' 
+                                : 'Dokumen yang Anda upload di sini hanya terlihat di organisasi ini.'
+                            }}
+                        </p>
+                    </div>
                 </div>
                 <Link href="/dashboard" class="btn btn-outline btn-sm w-full sm:w-auto">
                     Back to Dashboard
@@ -43,21 +56,29 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
 import { useToastStore } from '../stores/toast';
 import SigningModal from '../components/SigningModal.vue';
 import VerifyResultModal from '../components/VerifyResultModal.vue';
 import DocumentHistory from '../components/dashboard/DocumentHistory.vue';
+import ContextIndicator from '../components/ContextIndicator.vue';
 import { formatApiError } from '../utils/errors';
+
+const page = usePage();
 
 const authStore = useAuthStore();
 const toastStore = useToastStore();
 const user = computed(() => authStore.user || {});
 const kycStatus = computed(() => (user.value?.kyc_status ?? user.value?.kycStatus ?? 'unverified').toLowerCase());
 const hasSignature = computed(() => user.value?.has_signature ?? user.value?.hasSignature ?? false);
+
+const currentOrganization = computed(() => page.props.organization || null);
+const currentTenantId = computed(() => currentOrganization.value?.id || null);
+const currentTenantName = computed(() => currentOrganization.value?.name || null);
+const isPersonalMode = computed(() => !currentTenantId.value);
 
 const documents = ref([]);
 const showSigningModal = ref(false);
@@ -66,13 +87,22 @@ const selectedDocPageCount = ref(0);
 const verifyModalOpen = ref(false);
 const verifyModalResult = ref(null);
 
+const handleOrganizationUpdate = async () => {
+    await fetchDocuments();
+};
+
 onMounted(async () => {
     try {
         await authStore.fetchUser();
         await fetchDocuments();
+        window.addEventListener('organization-updated', handleOrganizationUpdate);
     } catch (e) {
         console.error('Failed to init documents:', e);
     }
+});
+
+onUnmounted(() => {
+    window.removeEventListener('organization-updated', handleOrganizationUpdate);
 });
 
 const openSigningModal = (docId, pageCount) => {
@@ -269,9 +299,17 @@ const verifyDocument = async (id) => {
 
 const fetchDocuments = async () => {
     try {
-        const res = await axios.get('/api/documents');
+        const res = await axios.get('/api/documents', {
+            params: { tenant_id: currentTenantId.value }
+        });
         const list = res.data?.data ?? res.data;
         documents.value = Array.isArray(list) ? list : [];
+        
+        console.log('Documents fetched:', {
+            mode: isPersonalMode.value ? 'personal' : 'tenant',
+            tenant_id: currentTenantId.value,
+            count: documents.value.length
+        });
     } catch (e) {
         console.error('Failed to fetch documents:', e);
         documents.value = [];

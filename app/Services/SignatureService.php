@@ -9,9 +9,11 @@ use Illuminate\Support\Facades\Storage;
 
 class SignatureService
 {
-    public function index(int $userId): array
+    public function index(int $userId, ?string $tenantId = null): array
     {
-        $signatures = Signature::where('user_id', $userId)
+        // STRICT ISOLATION: filter by tenant context
+        $signatures = Signature::availableForContext($userId, $tenantId)
+            ->with('tenant')
             ->orderBy('is_default', 'desc')
             ->orderBy('created_at', 'desc')
             ->get()
@@ -21,6 +23,8 @@ class SignatureService
                     'name' => $signature->name,
                     'image_type' => $signature->image_type,
                     'is_default' => $signature->is_default,
+                    'is_portable' => $signature->isPortable(),
+                    'tenant_id' => $signature->tenant_id,
                     'created_at' => $signature->created_at,
                 ];
             });
@@ -30,10 +34,15 @@ class SignatureService
             'code' => 200,
             'message' => 'OK',
             'data' => $signatures,
+            'context' => [
+                'mode' => $tenantId ? 'tenant' : 'personal',
+                'tenant_id' => $tenantId,
+                'portable_count' => $signatures->where('is_portable', true)->count(),
+            ],
         ];
     }
 
-    public function store(int $userId, string $userEmail, UploadedFile $image, ?string $name, bool $isDefault): array
+    public function store(int $userId, string $userEmail, UploadedFile $image, ?string $name, bool $isDefault, ?string $tenantId = null): array
     {
         $extension = strtolower($image->getClientOriginalExtension());
         $imageType = $extension === 'svg' ? 'svg' : 'png';
@@ -60,6 +69,7 @@ class SignatureService
 
         $signature = Signature::create([
             'user_id' => $userId,
+            'tenant_id' => $tenantId,
             'name' => $name ?: 'My Signature',
             'image_path' => "private/{$path}",
             'image_type' => $imageType,
@@ -76,6 +86,9 @@ class SignatureService
                     'name' => $signature->name,
                     'image_type' => $signature->image_type,
                     'is_default' => $signature->is_default,
+                    'is_portable' => $signature->isPortable(),
+                    'tenant_id' => $signature->tenant_id,
+                    'mode' => $signature->isPersonal() ? 'personal' : 'tenant',
                     'created_at' => $signature->created_at,
                 ],
             ],

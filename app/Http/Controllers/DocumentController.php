@@ -22,7 +22,8 @@ class DocumentController extends Controller
 
     public function index(Request $request)
     {
-        $result = $this->documentService->indexResult((int) $request->user()->id);
+        $tenantId = $this->getCurrentTenantId($request);
+        $result = $this->documentService->indexResult((int) $request->user()->id, $tenantId);
         return ApiResponse::fromService($result);
     }
 
@@ -31,11 +32,13 @@ class DocumentController extends Controller
         $user = $request->user();
         $file = $request->file('file');
         $title = $request->input('title', $file->getClientOriginalName());
+        $tenantId = $this->getCurrentTenantId($request);
 
         $result = $this->documentService->uploadWithMetadataResult(
             (int) $user->id,
             $file,
-            $title
+            $title,
+            $tenantId
         );
 
         return ApiResponse::fromService($result);
@@ -43,9 +46,11 @@ class DocumentController extends Controller
 
     public function show(Request $request, $id)
     {
+        $tenantId = $this->getCurrentTenantId($request);
         $result = $this->documentService->showResult(
             (int) $id,
-            (int) $request->user()->id
+            (int) $request->user()->id,
+            $tenantId
         );
 
         return ApiResponse::fromService($result);
@@ -55,8 +60,11 @@ class DocumentController extends Controller
     {
         try {
             $user = $request->user();
+            $tenantId = $this->getCurrentTenantId($request);
             
+            // STRICT: filter by tenant context
             $document = Document::where('id', $id)
+                ->forCurrentContext($tenantId)
                 ->where(function($query) use ($user) {
                     $query->where('user_id', $user->id)
                           ->orWhereHas('signers', function($q) use ($user) {
@@ -89,7 +97,10 @@ class DocumentController extends Controller
     public function getQrPosition(Request $request, $id)
     {
         $user = $request->user();
+        $tenantId = $this->getCurrentTenantId($request);
+        
         $document = Document::where('id', $id)
+            ->forCurrentContext($tenantId)
             ->where(function($query) use ($user) {
                 $query->where('user_id', $user->id)
                       ->orWhereHas('signers', function($q) use ($user) {
@@ -124,7 +135,12 @@ class DocumentController extends Controller
         ]);
 
         $user = $request->user();
-        $document = Document::where('id', $id)->where('user_id', $user->id)->firstOrFail();
+        $tenantId = $this->getCurrentTenantId($request);
+        
+        $document = Document::where('id', $id)
+            ->forCurrentContext($tenantId)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
 
         // Check if all signers have signed
         if (!$document->isAllSigned()) {
@@ -188,7 +204,12 @@ class DocumentController extends Controller
         // Legacy method for backward compatibility
         // In MVP flow, use PlacementController instead
         $user = $request->user();
-        $document = Document::where('id', $id)->where('user_id', $user->id)->firstOrFail();
+        $tenantId = $this->getCurrentTenantId($request);
+        
+        $document = Document::where('id', $id)
+            ->forCurrentContext($tenantId)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
 
         $validated = $request->validate([
             'signature_id' => 'required|integer|exists:signatures,id',
@@ -235,7 +256,10 @@ class DocumentController extends Controller
     public function download(Request $request, $id)
     {
         $user = $request->user();
+        $tenantId = $this->getCurrentTenantId($request);
+        
         $document = Document::where('id', $id)
+            ->forCurrentContext($tenantId)
             ->where(function($query) use ($user) {
                 $query->where('user_id', $user->id)
                       ->orWhereHas('signers', function($q) use ($user) {
@@ -340,5 +364,13 @@ class DocumentController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
+    }
+
+    /**
+     * Get current tenant ID from session or user
+     */
+    private function getCurrentTenantId(Request $request): ?string
+    {
+        return session('current_tenant_id') ?? $request->user()->current_tenant_id;
     }
 }

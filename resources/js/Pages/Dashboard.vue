@@ -319,20 +319,27 @@ const fetchCurrentOrganization = async () => {
     }
 };
 
+const handleOrganizationUpdate = async () => {
+    await fetchCurrentOrganization();
+    await fetchDocuments();
+};
+
 onMounted(async () => {
     try {
         await authStore.fetchUser();
         await fetchCurrentOrganization();
         await fetchDocuments();
 
-        window.addEventListener('organizations-updated', fetchCurrentOrganization);
+        window.addEventListener('organizations-updated', handleOrganizationUpdate);
+        window.addEventListener('organization-updated', handleOrganizationUpdate);
     } catch (e) {
         console.error('Failed to init dashboard:', e);
     }
 });
 
 onUnmounted(() => {
-    window.removeEventListener('organizations-updated', fetchCurrentOrganization);
+    window.removeEventListener('organizations-updated', handleOrganizationUpdate);
+    window.removeEventListener('organization-updated', handleOrganizationUpdate);
 });
 
 const handleFileSelect = (e) => uploadFile(e.target.files[0]);
@@ -552,9 +559,18 @@ const verifyDocument = async (id) => {
 
 const fetchDocuments = async () => {
     try {
-        const res = await axios.get('/api/documents');
+        const tenantId = organization.value?.id || null;
+        const res = await axios.get('/api/documents', {
+            params: { tenant_id: tenantId }
+        });
         const list = res.data?.data ?? res.data;
         documents.value = Array.isArray(list) ? list : [];
+        
+        console.log('Dashboard documents fetched:', {
+            mode: tenantId ? 'tenant' : 'personal',
+            tenant_id: tenantId,
+            count: documents.value.length
+        });
     } catch (e) {
         console.error('Failed to fetch documents:', e);
         documents.value = [];

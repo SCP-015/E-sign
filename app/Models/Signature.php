@@ -12,6 +12,7 @@ class Signature extends Model
 
     protected $fillable = [
         'user_id',
+        'tenant_id',
         'name',
         'image_path',
         'image_type',
@@ -25,5 +26,47 @@ class Signature extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    /**
+     * Scope: Signature yang bisa dipakai di context tertentu
+     * 
+     * LOGIC:
+     * - Personal mode: HANYA signature personal (tenant_id = NULL)
+     * - Tenant mode: signature personal (portable) + signature tenant ini
+     */
+    public function scopeAvailableForContext($query, int $userId, ?string $tenantId)
+    {
+        $query->where('user_id', $userId);
+
+        if ($tenantId === null) {
+            return $query->whereNull('tenant_id');
+        }
+
+        return $query->where(function($q) use ($tenantId) {
+            $q->whereNull('tenant_id')
+              ->orWhere('tenant_id', $tenantId);
+        });
+    }
+
+    /**
+     * Helper: Check apakah signature personal (portable)
+     */
+    public function isPersonal(): bool
+    {
+        return $this->tenant_id === null;
+    }
+
+    /**
+     * Helper: Check apakah signature portable
+     */
+    public function isPortable(): bool
+    {
+        return $this->isPersonal();
     }
 }

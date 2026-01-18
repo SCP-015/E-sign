@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Helpers\StoragePathHelper;
 use App\Http\Resources\DocumentResource;
 use Carbon\Carbon;
 use App\Models\Certificate;
@@ -134,25 +135,37 @@ class DocumentService
     }
 
     /**
-     * Upload PDF with metadata (MVP flow)
+     * Upload PDF with metadata (MVP flow) - TENANT AWARE
      */
-    public function uploadWithMetadata($file, $user, $title = null)
+    public function uploadWithMetadata($file, $user, $title = null, $tenantId = null)
     {
-        $email = strtolower($user->email);
-        $path = $file->store("{$email}/documents/original", 'private');
+        // Ensure storage directory exists
+        StoragePathHelper::ensureDirectoryExists($tenantId);
+        
+        // Generate temp filename
+        $filename = StoragePathHelper::generateDocumentFilename(
+            $tenantId,
+            $user->id,
+            $file->getClientOriginalName()
+        );
+        
+        // Store file
+        $storagePath = StoragePathHelper::getDocumentPath($tenantId, 'original');
+        $path = $file->storeAs($storagePath, $filename);
         
         // Get page count using FPDI
         $pageCount = 0;
         try {
-            $fullPath = Storage::disk('private')->path($path);
+            $fullPath = Storage::path($path);
             $pdf = new Fpdi();
             $pageCount = $pdf->setSourceFile($fullPath);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::warning('Failed to get page count: ' . $e->getMessage());
         }
         
-        return Document::create([
+        $document = Document::create([
             'user_id' => $user->id,
+            'tenant_id' => $tenantId,
             'title' => $title ?? $file->getClientOriginalName(),
             'file_path' => $path,
             'original_filename' => $file->getClientOriginalName(),
@@ -163,24 +176,24 @@ class DocumentService
             'page_count' => $pageCount,
             'status' => 'pending',
         ]);
+        
+        // Rename file dengan document ID untuk tenant mode
+        if ($tenantId !== null) {
+            $finalFilename = "{$document->id}_original.pdf";
+            $finalPath = StoragePathHelper::getFullPath($tenantId, 'original', $finalFilename);
+            Storage::move($path, $finalPath);
+            $document->update(['file_path' => $finalPath]);
+        }
+        
+        return $document;
     }
 
-    public function indexResult(int $userId): array
+    public function indexResult(int $userId, ?string $tenantId = null): array
     {
         try {
-            $documents = Document::with(['signers'])
-                ->where(function($query) use ($userId) {
-                    $query->where('user_id', $userId)
-                          ->orWhereHas('signers', function($q) use ($userId) {
-                              $q->where('user_id', $userId)
-                                ->orWhereExists(function($subQuery) use ($userId) {
-                                    $subQuery->selectRaw(1)
-                                        ->from('users')
-                                        ->whereColumn('users.id', '=', 'document_signers.user_id')
-                                        ->where('users.id', '=', $userId);
-                                });
-                          });
-                })
+            // STRICT ISOLATION: filter by tenant context
+            $documents = Document::with(['signers', 'tenant'])
+                ->accessibleByUser($userId, $tenantId)
                 ->latest()
                 ->get();
 
@@ -189,6 +202,10 @@ class DocumentService
                 'code' => 200,
                 'message' => 'OK',
                 'data' => DocumentResource::collection($documents)->resolve(),
+                'context' => [
+                    'mode' => $tenantId ? 'tenant' : 'personal',
+                    'tenant_id' => $tenantId,
+                ],
             ];
         } catch (\Exception $e) {
             return [
@@ -200,7 +217,7 @@ class DocumentService
         }
     }
 
-    public function uploadWithMetadataResult(int $userId, UploadedFile $file, ?string $title = null): array
+    public function uploadWithMetadataResult(int $userId, UploadedFile $file, ?string $title = null, ?string $tenantId = null): array
     {
         try {
             $cert = Certificate::where('user_id', $userId)->where('status', 'active')->first();
@@ -214,7 +231,18 @@ class DocumentService
             }
 
             $user = \App\Models\User::findOrFail($userId);
-            $doc = $this->uploadWithMetadata($file, $user, $title ?? $file->getClientOriginalName());
+            
+            // Validate tenant membership jika tenant mode
+            if ($tenantId && !$user->tenants()->where('tenants.id', $tenantId)->exists()) {
+                return [
+                    'status' => 'error',
+                    'code' => 403,
+                    'message' => 'You are not a member of this organization',
+                    'data' => null,
+                ];
+            }
+            
+            $doc = $this->uploadWithMetadata($file, $user, $title ?? $file->getClientOriginalName(), $tenantId);
 
             return [
                 'status' => 'success',
@@ -227,6 +255,8 @@ class DocumentService
                     'fileSizeBytes' => $doc->file_size_bytes,
                     'pageCount' => $doc->page_count,
                     'status' => $doc->status,
+                    'tenantId' => $doc->tenant_id,
+                    'mode' => $doc->isPersonal() ? 'personal' : 'tenant',
                     'createdAt' => $doc->created_at->toIso8601String(),
                 ],
             ];
@@ -240,11 +270,12 @@ class DocumentService
         }
     }
 
-    public function showResult(int $documentId, int $userId): array
+    public function showResult(int $documentId, int $userId, ?string $tenantId = null): array
     {
         try {
-            $document = Document::with(['signers'])
+            $document = Document::with(['signers', 'tenant'])
                 ->where('id', $documentId)
+                ->forCurrentContext($tenantId)
                 ->where(function($query) use ($userId) {
                     $query->where('user_id', $userId)
                           ->orWhereHas('signers', function($q) use ($userId) {

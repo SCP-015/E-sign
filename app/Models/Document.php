@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Helpers\StoragePathHelper;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -11,6 +12,7 @@ class Document extends Model
 
     protected $fillable = [
         'user_id',
+        'tenant_id',
         'title',
         'file_path',
         'original_filename',
@@ -41,6 +43,11 @@ class Document extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
     public function signers()
     {
         return $this->hasMany(DocumentSigner::class);
@@ -59,5 +66,57 @@ class Document extends Model
     public function isAllSigned()
     {
         return $this->signers()->where('status', 'PENDING')->count() === 0;
+    }
+
+    /**
+     * Scope: Filter dokumen berdasarkan context saat ini (STRICT ISOLATION)
+     * - Personal mode: HANYA dokumen dengan tenant_id = NULL
+     * - Tenant mode: HANYA dokumen dengan tenant_id = {tenant_uuid}
+     */
+    public function scopeForCurrentContext($query, ?string $tenantId)
+    {
+        if ($tenantId === null) {
+            return $query->whereNull('tenant_id');
+        }
+        
+        return $query->where('tenant_id', $tenantId);
+    }
+
+    /**
+     * Scope: Dokumen yang bisa diakses user di context tertentu
+     */
+    public function scopeAccessibleByUser($query, int $userId, ?string $tenantId)
+    {
+        return $query->forCurrentContext($tenantId)
+            ->where(function($q) use ($userId) {
+                $q->where('user_id', $userId)
+                  ->orWhereHas('signers', function($sq) use ($userId) {
+                      $sq->where('user_id', $userId);
+                  });
+            });
+    }
+
+    /**
+     * Helper: Get storage path untuk dokumen ini
+     */
+    public function getStoragePath(string $type = 'original'): string
+    {
+        return StoragePathHelper::getDocumentPath($this->tenant_id, $type);
+    }
+
+    /**
+     * Helper: Check apakah dokumen personal
+     */
+    public function isPersonal(): bool
+    {
+        return $this->tenant_id === null;
+    }
+
+    /**
+     * Helper: Check apakah dokumen tenant
+     */
+    public function isTenant(): bool
+    {
+        return $this->tenant_id !== null;
     }
 }
