@@ -235,6 +235,24 @@ class DocumentService
         try {
             $user = User::findOrFail($userId);
 
+            if ($tenantId === null) {
+                $documents = Document::with(['signers', 'tenant'])
+                    ->accessibleByUserAnyContextForPersonal($userId, $user->email)
+                    ->latest()
+                    ->get();
+
+                return [
+                    'status' => 'success',
+                    'code' => 200,
+                    'message' => 'OK',
+                    'data' => DocumentResource::collection($documents)->resolve(),
+                    'context' => [
+                        'mode' => 'personal',
+                        'tenant_id' => null,
+                    ],
+                ];
+            }
+
             // STRICT ISOLATION: filter by tenant context
             // Tenant mode: members with documents.view_all can see all tenant docs
             if ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
@@ -376,6 +394,20 @@ class DocumentService
     {
         try {
             $user = User::findOrFail($userId);
+
+            if ($tenantId === null) {
+                $document = Document::with(['signers', 'tenant'])
+                    ->where('id', $documentId)
+                    ->accessibleByUserAnyContextForPersonal($userId, $user->email)
+                    ->firstOrFail();
+
+                return [
+                    'status' => 'success',
+                    'code' => 200,
+                    'message' => 'OK',
+                    'data' => (new \App\Http\Resources\DocumentResource($document))->resolve(),
+                ];
+            }
 
             // Tenant members with documents.view_all can access all tenant docs
             if ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {

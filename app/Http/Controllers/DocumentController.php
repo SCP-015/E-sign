@@ -68,10 +68,12 @@ class DocumentController extends Controller
         try {
             $user = $request->user();
             $tenantId = $this->getCurrentTenantId($request);
-            
-            // STRICT: filter by tenant context
-            // Tenant members with documents.view_all can access all tenant docs
-            if ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
+
+            if ($tenantId === null) {
+                $document = Document::where('id', $id)
+                    ->accessibleByUserAnyContextForPersonal((int) $user->id, (string) $user->email)
+                    ->firstOrFail();
+            } elseif ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
                 $document = Document::where('id', $id)
                     ->forCurrentContext($tenantId)
                     ->firstOrFail();
@@ -112,9 +114,12 @@ class DocumentController extends Controller
     {
         $user = $request->user();
         $tenantId = $this->getCurrentTenantId($request);
-        
-        // Tenant members with documents.view_all can access all tenant docs
-        if ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
+
+        if ($tenantId === null) {
+            $document = Document::where('id', $id)
+                ->accessibleByUserAnyContextForPersonal((int) $user->id, (string) $user->email)
+                ->firstOrFail();
+        } elseif ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
             $document = Document::where('id', $id)
                 ->forCurrentContext($tenantId)
                 ->firstOrFail();
@@ -282,9 +287,12 @@ class DocumentController extends Controller
     {
         $user = $request->user();
         $tenantId = $this->getCurrentTenantId($request);
-        
-        // Tenant members with documents.view_all can access all tenant docs
-        if ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
+
+        if ($tenantId === null) {
+            $document = Document::where('id', $id)
+                ->accessibleByUserAnyContextForPersonal((int) $user->id, (string) $user->email)
+                ->firstOrFail();
+        } elseif ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
             $document = Document::where('id', $id)
                 ->forCurrentContext($tenantId)
                 ->firstOrFail();

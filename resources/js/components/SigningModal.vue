@@ -1,6 +1,6 @@
 <template>
   <div v-if="isOpen" class="modal modal-open" @click.self="close">
-    <div class="modal-box w-11/12 max-w-5xl p-0 max-h-[95vh] overflow-hidden flex flex-col sm:max-h-[90vh]">
+    <div class="modal-box w-11/12 max-w-7xl p-0 max-h-[95vh] overflow-hidden flex flex-col sm:max-h-[90vh]">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-base-200 px-4 py-4 sm:px-6">
         <div>
           <h2 class="text-lg font-semibold">Sign Document</h2>
@@ -9,7 +9,7 @@
         <button @click="close" class="btn btn-ghost btn-sm">✕</button>
       </div>
 
-      <div class="grid flex-1 min-h-0 gap-4 overflow-y-auto px-4 py-4 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div class="grid flex-1 min-h-0 gap-4 overflow-y-auto px-4 py-4 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div class="min-w-0 space-y-3">
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h3 class="text-sm font-semibold">Document Preview</h3>
@@ -21,7 +21,7 @@
           </div>
 
           <div class="rounded-2xl border border-base-200 bg-base-200/40 p-2 sm:p-3">
-            <div class="relative min-h-64 max-h-[50vh] overflow-auto rounded-xl bg-white sm:max-h-[55vh] lg:max-h-[65vh]" ref="pdfViewer">
+            <div class="relative min-h-64 max-h-[60vh] overflow-auto rounded-xl bg-white sm:max-h-[65vh] lg:max-h-[75vh]" ref="pdfViewer">
               <div v-if="pdfLoading" class="flex h-full items-center justify-center text-sm text-base-content/60">
                 Loading PDF...
               </div>
@@ -148,10 +148,6 @@
                   <input v-model="includeOwner" type="checkbox" class="checkbox checkbox-xs">
                   <span class="font-semibold">Include me as signer</span>
                 </label>
-                <label v-if="includeOwner && assignees.length > 0 && signingMode === 'PARALLEL'" class="flex items-center gap-2">
-                  <input v-model="ownerFirst" type="checkbox" class="checkbox checkbox-xs">
-                  <span class="font-semibold">I sign first</span>
-                </label>
                 <div v-if="includeOwner && assignees.length > 0 && signingMode === 'SEQUENTIAL'" class="space-y-1">
                   <label class="flex items-center gap-2">
                     <input v-model="ownerFirst" type="checkbox" class="checkbox checkbox-xs">
@@ -180,20 +176,61 @@
 
               <div class="space-y-2">
                 <label class="text-xs font-semibold">Add Signers</label>
+                <div class="flex items-center gap-2 rounded-full border border-base-200 bg-base-200/60 p-1 text-[11px] font-semibold">
+                  <button
+                    type="button"
+                    class="flex-1 rounded-full px-3 py-2 transition"
+                    :class="assigneeInputMode === 'tenant' ? 'bg-base-100 shadow text-base-content' : 'text-base-content/60'"
+                    @click="assigneeInputMode = 'tenant'"
+                  >
+                    Tenant Member
+                  </button>
+                  <button
+                    type="button"
+                    class="flex-1 rounded-full px-3 py-2 transition"
+                    :class="assigneeInputMode === 'email' ? 'bg-base-100 shadow text-base-content' : 'text-base-content/60'"
+                    @click="assigneeInputMode = 'email'"
+                  >
+                    Email
+                  </button>
+                </div>
+                <div class="space-y-2">
+                  <select
+                    v-model="selectedTenantMemberEmail"
+                    class="select select-bordered select-sm w-full"
+                    :disabled="assigneeInputMode !== 'tenant' || tenantMembersLoading || selectableTenantMembers.length === 0"
+                  >
+                    <option value="">-- Select a tenant member --</option>
+                    <option v-for="m in selectableTenantMembers" :key="m.email" :value="m.email">
+                      {{ m.name }} ({{ m.email }})
+                    </option>
+                  </select>
+                  <div v-if="tenantMembersLoading" class="text-[11px] text-base-content/60">Loading members...</div>
+                </div>
                 <div class="flex gap-2">
                   <input
                     v-model="newAssigneeEmail"
                     type="email"
                     placeholder="Email"
                     class="input input-bordered input-sm flex-1"
+                    :disabled="assigneeInputMode !== 'email'"
                   >
                   <button
                     @click="addAssignee"
-                    :disabled="!newAssigneeEmail"
+                    :disabled="!newAssigneeEmail || isSelfAssigneeEmail || isDuplicateAssigneeEmail"
                     class="btn btn-primary btn-sm"
                   >
                     Add
                   </button>
+                </div>
+                <div v-if="isSelfAssigneeEmail" class="text-[11px] text-warning">
+                  You cannot assign a document to your own email.
+                </div>
+                <div v-else-if="isDuplicateAssigneeEmail" class="text-[11px] text-warning">
+                  This signer is already in the list.
+                </div>
+                <div v-if="sequentialOrderError" class="text-[11px] text-warning">
+                  {{ sequentialOrderError }}
                 </div>
               </div>
 
@@ -270,7 +307,7 @@
           v-else
           @click="assignToOther"
           class="btn btn-primary"
-          :disabled="assignees.length === 0 || saving || finalizing"
+          :disabled="(!canSendInvitationsFinal) || saving || finalizing"
         >
           {{ saving ? 'Assigning...' : '📧 Send Invitation' }}
         </button>
@@ -329,6 +366,12 @@ const assignees = ref([]);
 const newAssigneeEmail = ref('');
 const newAssigneeName = ref('');
 
+const currentOrganizationId = ref(null);
+const tenantMembers = ref([]);
+const tenantMembersLoading = ref(false);
+const selectedTenantMemberEmail = ref('');
+const assigneeInputMode = ref('tenant');
+
 const includeOwner = ref(true);
 const ownerFirst = ref(true);
 const ownerOrder = ref(null);
@@ -356,6 +399,100 @@ const hasOtherSigners = computed(() => {
   });
 });
 const shouldAutoFinalize = computed(() => isDocumentOwner.value && !hasOtherSigners.value);
+
+const normalizedCurrentUserEmail = computed(() => String(authStore.user?.email || '').trim().toLowerCase());
+const normalizedNewAssigneeEmail = computed(() => String(newAssigneeEmail.value || '').trim().toLowerCase());
+const isSelfAssigneeEmail = computed(() => {
+  if (!normalizedCurrentUserEmail.value) return false;
+  return normalizedNewAssigneeEmail.value === normalizedCurrentUserEmail.value;
+});
+const isDuplicateAssigneeEmail = computed(() => {
+  const email = normalizedNewAssigneeEmail.value;
+  if (!email) return false;
+  return assignees.value.some((a) => String(a?.email || '').trim().toLowerCase() === email);
+});
+
+const canSendInvitations = computed(() => {
+  if (assignees.value.length > 0) return true;
+
+  const hasPending = !!String(newAssigneeEmail.value || '').trim();
+  if (!hasPending) return false;
+  if (isSelfAssigneeEmail.value) return false;
+  if (isDuplicateAssigneeEmail.value) return false;
+  return true;
+});
+
+const sequentialOrderError = computed(() => {
+  if (String(signingMode.value || '').toUpperCase() !== 'SEQUENTIAL') return '';
+
+  const list = Array.isArray(assignees.value) ? assignees.value : [];
+  const assigneeOrders = list
+    .map((s) => Number(s?.order))
+    .filter((n) => Number.isFinite(n) && n >= 1);
+
+  let ownerOrderActual = null;
+  if (includeOwner.value) {
+    if (ownerFirst.value) {
+      ownerOrderActual = 1;
+    } else {
+      const val = Number(ownerOrder.value);
+      if (!Number.isFinite(val) || val < 1) {
+        return 'Please set your signing order.';
+      }
+      ownerOrderActual = val;
+    }
+  }
+
+  const combined = [...assigneeOrders];
+  if (ownerOrderActual !== null) combined.push(ownerOrderActual);
+
+  if (combined.length === 0) return '';
+
+  const unique = new Set(combined);
+  if (unique.size !== combined.length) {
+    return 'Signing order must be unique.';
+  }
+
+  const expectedMax = combined.length;
+  for (let i = 1; i <= expectedMax; i++) {
+    if (!unique.has(i)) {
+      return `Signing order must be sequential without gaps (1-${expectedMax}).`;
+    }
+  }
+
+  return '';
+});
+
+const canSendInvitationsFinal = computed(() => {
+  if (!canSendInvitations.value) return false;
+  if (String(signingMode.value || '').toUpperCase() === 'SEQUENTIAL' && sequentialOrderError.value) return false;
+  return true;
+});
+
+const selectableTenantMembers = computed(() => {
+  const currentUserId = Number(authStore.user?.id);
+  const currentEmail = normalizedCurrentUserEmail.value;
+  return (Array.isArray(tenantMembers.value) ? tenantMembers.value : [])
+    .filter((m) => {
+      const id = Number(m?.userId ?? m?.user_id ?? m?.id);
+      const email = String(m?.email || m?.user?.email || '').trim().toLowerCase();
+      if (currentUserId && id && id === currentUserId) return false;
+      if (currentEmail && email && email === currentEmail) return false;
+      return true;
+    })
+    .map((m) => {
+      const user = m?.user || {};
+      const email = m?.email || user?.email || '';
+      const name = m?.name || user?.name || email;
+      return {
+        userId: m?.userId ?? m?.user_id ?? null,
+        name,
+        email,
+        role: m?.role,
+      };
+    })
+    .filter((m) => !!m.email);
+});
 
 const sigX = ref(24);
 const sigY = ref(24);
@@ -393,6 +530,7 @@ watch(() => props.isOpen, async (newVal) => {
   if (newVal && props.documentId) {
     await loadSignatures();
     await loadPdf();
+    await loadTenantMembers();
     await loadQrPosition();
     await nextTick();
   } else if (!newVal) {
@@ -906,6 +1044,16 @@ function addAssignee() {
     return;
   }
 
+  if (isSelfAssigneeEmail.value) {
+    toastStore.error('You cannot assign a document to your own email.');
+    return;
+  }
+
+  if (isDuplicateAssigneeEmail.value) {
+    toastStore.error('This signer is already in the list.');
+    return;
+  }
+
   let nextOrder = 1;
   if (signingMode.value === 'SEQUENTIAL') {
     // For SEQUENTIAL, auto-assign order avoiding owner's order
@@ -935,13 +1083,68 @@ function addAssignee() {
 
   newAssigneeEmail.value = '';
   newAssigneeName.value = '';
+  selectedTenantMemberEmail.value = '';
 }
+
+async function loadTenantMembers() {
+  tenantMembersLoading.value = true;
+  try {
+    const currentOrgRes = await axios.get('/api/organizations/current');
+    const payload = currentOrgRes?.data;
+    const org = payload?.data ?? null;
+    const orgId = org?.id ?? org?.organizationId ?? null;
+    currentOrganizationId.value = orgId;
+
+    if (!orgId) {
+      tenantMembers.value = [];
+      return;
+    }
+
+    const membersRes = await axios.get(`/api/organizations/${orgId}/members`);
+    const membersPayload = membersRes?.data;
+    const list = membersPayload?.data;
+    tenantMembers.value = Array.isArray(list) ? list : (Array.isArray(membersPayload) ? membersPayload : []);
+  } catch (e) {
+    tenantMembers.value = [];
+  } finally {
+    tenantMembersLoading.value = false;
+  }
+}
+
+watch(selectedTenantMemberEmail, (email) => {
+  const selected = selectableTenantMembers.value.find(
+    (m) => String(m.email || '').trim().toLowerCase() === String(email || '').trim().toLowerCase()
+  );
+  if (!selected) return;
+
+  newAssigneeEmail.value = selected.email;
+  newAssigneeName.value = selected.name;
+});
+
+watch(assigneeInputMode, (mode) => {
+  if (mode === 'tenant') {
+    newAssigneeEmail.value = '';
+    newAssigneeName.value = '';
+    return;
+  }
+
+  selectedTenantMemberEmail.value = '';
+});
 
 function removeAssignee(idx) {
   assignees.value.splice(idx, 1);
 }
 
 async function assignToOther() {
+  if (String(signingMode.value || '').toUpperCase() === 'SEQUENTIAL' && sequentialOrderError.value) {
+    toastStore.error(sequentialOrderError.value);
+    return;
+  }
+
+  if (assignees.value.length === 0 && canSendInvitations.value) {
+    addAssignee();
+  }
+
   if (assignees.value.length === 0) {
     toastStore.error('Please add at least one signer.');
     return;

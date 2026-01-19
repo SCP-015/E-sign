@@ -89,12 +89,16 @@ class Document extends Model
     {
         $email = is_string($userEmail) ? strtolower(trim($userEmail)) : null;
 
+        if ($tenantId === null) {
+            return $query->accessibleByUserAnyContextForPersonal($userId, $email);
+        }
+
         return $query->forCurrentContext($tenantId)
-            ->where(function($q) use ($userId, $email) {
+            ->where(function ($q) use ($userId, $email) {
                 $q->where('user_id', $userId)
-                  ->orWhereHas('signers', function($sq) use ($userId) {
-                      $sq->where('user_id', $userId);
-                  });
+                    ->orWhereHas('signers', function ($sq) use ($userId) {
+                        $sq->where('user_id', $userId);
+                    });
 
                 if ($email) {
                     $q->orWhereHas('signers', function ($sq) use ($email) {
@@ -102,6 +106,44 @@ class Document extends Model
                     });
                 }
             });
+    }
+
+    /**
+     * Scope: Dokumen yang bisa diakses user lintas context (personal/tenant)
+     * Dipakai untuk personal-mode signer agar bisa melihat tenant document yang di-assign.
+     */
+    public function scopeAccessibleByUserAnyContext($query, int $userId, ?string $userEmail = null)
+    {
+        $email = is_string($userEmail) ? strtolower(trim($userEmail)) : null;
+
+        return $query->where(function ($q) use ($userId, $email) {
+            $q->where('user_id', $userId)
+                ->orWhereHas('signers', function ($sq) use ($userId, $email) {
+                    $sq->where('user_id', $userId);
+                    if ($email) {
+                        $sq->orWhereRaw('LOWER(email) = ?', [$email]);
+                    }
+                });
+        });
+    }
+
+    public function scopeAccessibleByUserAnyContextForPersonal($query, int $userId, ?string $userEmail = null)
+    {
+        $email = is_string($userEmail) ? strtolower(trim($userEmail)) : null;
+
+        return $query->where(function ($q) use ($userId, $email) {
+            $q->where(function ($qq) use ($userId) {
+                $qq->whereNull('tenant_id')->where('user_id', $userId);
+            })->orWhere(function ($qq) use ($userId, $email) {
+                $qq->where('user_id', '!=', $userId)
+                    ->whereHas('signers', function ($sq) use ($userId, $email) {
+                        $sq->where('user_id', $userId);
+                        if ($email) {
+                            $sq->orWhereRaw('LOWER(email) = ?', [$email]);
+                        }
+                    });
+            });
+        });
     }
 
     /**
