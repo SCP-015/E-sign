@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Signature;
+use App\Models\UserQuotaUsage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
@@ -40,7 +41,7 @@ class SignatureService
         ];
     }
 
-    public function store(int $userId, string $userEmail, UploadedFile $image, ?string $name, bool $isDefault): array
+    public function store(int $userId, string $userEmail, UploadedFile $image, ?string $name, bool $isDefault, ?string $tenantId = null): array
     {
         $extension = strtolower($image->getClientOriginalExtension());
         $imageType = $extension === 'svg' ? 'svg' : 'png';
@@ -73,6 +74,11 @@ class SignatureService
             'image_type' => $imageType,
             'is_default' => $isDefault,
         ]);
+
+        if (!empty($tenantId)) {
+            $usage = UserQuotaUsage::getOrCreateForUser((int) $userId, (string) $tenantId);
+            $usage->increment('signatures_created', 1);
+        }
 
         return [
             'status' => 'success',

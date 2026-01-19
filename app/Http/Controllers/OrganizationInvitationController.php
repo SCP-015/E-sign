@@ -2,20 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\ApiResponse;
+use App\Http\Requests\StoreOrganizationInvitationRequest;
+use App\Http\Resources\OrganizationInvitationResource;
 use App\Models\Tenant;
 use App\Models\TenantInvitation;
-use App\Services\TenantInvitationService;
-use Illuminate\Http\Request;
+use App\Services\OrganizationInvitationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 
 class OrganizationInvitationController extends Controller
 {
-    protected TenantInvitationService $invitationService;
+    protected OrganizationInvitationService $organizationInvitationService;
 
-    public function __construct(TenantInvitationService $invitationService)
+    public function __construct(OrganizationInvitationService $organizationInvitationService)
     {
-        $this->invitationService = $invitationService;
+        $this->organizationInvitationService = $organizationInvitationService;
     }
 
     /**
@@ -25,86 +27,39 @@ class OrganizationInvitationController extends Controller
     {
         $user = Auth::user();
 
-        // Check if user is owner or admin
-        $membership = $organization->tenantUsers()
-            ->where('user_id', $user->id)
-            ->whereIn('role', ['owner', 'admin'])
-            ->first();
-
-        if (!$membership) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Hanya owner atau admin yang dapat melihat undangan.',
-            ], 403);
+        $result = $this->organizationInvitationService->listInvitations($user, $organization);
+        if (($result['status'] ?? 'success') !== 'success') {
+            return ApiResponse::fromService($result);
         }
 
-        $invitations = $this->invitationService->getByTenant($organization);
-
-        return response()->json([
-            'success' => true,
-            'data' => $invitations->map(function ($invitation) {
-                return [
-                    'id' => $invitation->id,
-                    'code' => $invitation->code,
-                    'role' => $invitation->role,
-                    'expires_at' => $invitation->expires_at?->toISOString(),
-                    'is_expired' => $invitation->expires_at?->isPast() ?? false,
-                    'max_uses' => $invitation->max_uses,
-                    'used_count' => $invitation->used_count,
-                    'is_valid' => $invitation->isValid(),
-                    'created_by' => [
-                        'id' => $invitation->createdBy->id,
-                        'name' => $invitation->createdBy->name,
-                    ],
-                    'created_at' => $invitation->created_at?->toISOString(),
-                ];
-            }),
-        ]);
+        $invitations = $result['data'] ?? collect();
+        $resource = OrganizationInvitationResource::collection($invitations);
+        return ApiResponse::success($resource->toArray(request()));
     }
 
     /**
      * Create a new invitation.
      */
-    public function store(Request $request, Tenant $organization): JsonResponse
+    public function store(StoreOrganizationInvitationRequest $request, Tenant $organization): JsonResponse
     {
         $user = Auth::user();
 
-        // Check if user is owner or admin
-        $membership = $organization->tenantUsers()
-            ->where('user_id', $user->id)
-            ->whereIn('role', ['owner', 'admin'])
-            ->first();
-
-        if (!$membership) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Hanya owner atau admin yang dapat membuat undangan.',
-            ], 403);
-        }
-
-        $request->validate([
-            'role' => 'required|in:admin,member',
-            'expiry_days' => 'nullable|integer|min:1|max:30',
-            'max_uses' => 'nullable|integer|min:1',
-        ]);
-
-        $invitation = $this->invitationService->create(
+        $result = $this->organizationInvitationService->createInvitation(
+            $user,
             $organization,
-            $request->only(['role', 'expiry_days', 'max_uses']),
-            $user
+            $request->validated()
         );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Undangan berhasil dibuat.',
-            'data' => [
-                'id' => $invitation->id,
-                'code' => $invitation->code,
-                'role' => $invitation->role,
-                'expires_at' => $invitation->expires_at?->toISOString(),
-                'max_uses' => $invitation->max_uses,
-            ],
-        ], 201);
+        if (($result['status'] ?? 'success') !== 'success') {
+            return ApiResponse::fromService($result);
+        }
+
+        $invitation = $result['data'];
+        return ApiResponse::success(
+            new OrganizationInvitationResource($invitation),
+            $result['message'] ?? 'OK',
+            $result['code'] ?? 201
+        );
     }
 
     /**
@@ -114,32 +69,7 @@ class OrganizationInvitationController extends Controller
     {
         $user = Auth::user();
 
-        // Check if user is owner or admin
-        $membership = $organization->tenantUsers()
-            ->where('user_id', $user->id)
-            ->whereIn('role', ['owner', 'admin'])
-            ->first();
-
-        if (!$membership) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Hanya owner atau admin yang dapat menghapus undangan.',
-            ], 403);
-        }
-
-        // Validate invitation belongs to organization
-        if ($invitation->tenant_id !== $organization->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Undangan tidak ditemukan di organization ini.',
-            ], 404);
-        }
-
-        $this->invitationService->delete($invitation);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Undangan berhasil dihapus.',
-        ]);
+        $result = $this->organizationInvitationService->deleteInvitation($user, $organization, $invitation);
+        return ApiResponse::fromService($result);
     }
 }

@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Tenant;
+use App\Helpers\ApiResponse;
+use App\Http\Resources\TenantContextResource;
+use App\Services\TenantContextService;
 use App\Services\TenantService;
 use App\Services\TenantJoinService;
 use Illuminate\Http\Request;
@@ -13,11 +16,13 @@ class OrganizationController extends Controller
 {
     protected TenantService $tenantService;
     protected TenantJoinService $joinService;
+    protected TenantContextService $tenantContextService;
 
-    public function __construct(TenantService $tenantService, TenantJoinService $joinService)
+    public function __construct(TenantService $tenantService, TenantJoinService $joinService, TenantContextService $tenantContextService)
     {
         $this->tenantService = $tenantService;
         $this->joinService = $joinService;
+        $this->tenantContextService = $tenantContextService;
     }
 
     /**
@@ -226,59 +231,25 @@ class OrganizationController extends Controller
         $tenantId = $request->input('organization_id');
 
         $shouldReturnJson = $request->is('api/*') || $request->expectsJson();
-
-        // If null, switch to personal mode
-        if (empty($tenantId)) {
-            session()->forget('current_tenant_id');
-            session()->save();
-
-            $user->current_tenant_id = null;
-            $user->save();
-
-            if ($shouldReturnJson) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Berhasil beralih ke mode personal.',
-                    'data' => null,
-                    'mode' => 'personal',
-                ]);
-            }
-            return back()->with('success', 'Berhasil beralih ke mode personal.');
-        }
-
-        // Check if user is member of the tenant
-        $tenant = $user->tenants()->where('tenants.id', $tenantId)->first();
-        if (!$tenant) {
-            if ($shouldReturnJson) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Anda bukan anggota organization ini.',
-                ], 403);
-            }
-            return back()->withErrors(['error' => 'Anda bukan anggota organization ini.']);
-        }
-
-        session(['current_tenant_id' => $tenantId]);
-        session()->save();
-
-        $user->current_tenant_id = $tenantId;
-        $user->save();
+        $result = $this->tenantContextService->switchContext($user, $tenantId);
 
         if ($shouldReturnJson) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Berhasil beralih ke ' . $tenant->name,
-                'data' => [
-                    'id' => $tenant->id,
-                    'name' => $tenant->name,
-                    'slug' => $tenant->slug,
-                    'role' => $tenant->pivot->role,
-                ],
-                'mode' => 'organization',
-            ]);
+            $data = null;
+            if (!empty($result['data'])) {
+                $data = new TenantContextResource($result['data']);
+            }
+
+            return ApiResponse::fromService(
+                $result,
+                ['mode' => $result['mode'] ?? 'personal', 'data' => $data]
+            );
         }
 
-        return back()->with('success', 'Berhasil beralih ke ' . $tenant->name);
+        if (($result['status'] ?? 'success') !== 'success') {
+            return back()->withErrors(['error' => $result['message'] ?? 'Error']);
+        }
+
+        return back()->with('success', $result['message'] ?? 'OK');
     }
 
     /**
@@ -287,28 +258,16 @@ class OrganizationController extends Controller
     public function current(): JsonResponse
     {
         $user = Auth::user();
-        $tenant = $user->getCurrentTenant();
+        $result = $this->tenantContextService->getCurrentContext($user);
 
-        if (!$tenant) {
-            return response()->json([
-                'success' => true,
-                'data' => null,
-                'mode' => 'personal',
-            ]);
+        $data = null;
+        if (!empty($result['data'])) {
+            $data = new TenantContextResource($result['data']);
         }
 
-        $aclRole = $user->getRoleInTenant($tenant->id);
-        $roleName = $aclRole ? $aclRole->name : ($tenant->pivot->role ?? 'member');
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'id' => $tenant->id,
-                'name' => $tenant->name,
-                'slug' => $tenant->slug,
-                'role' => $roleName,
-            ],
-            'mode' => 'organization',
-        ]);
+        return ApiResponse::fromService(
+            $result,
+            ['mode' => $result['mode'] ?? 'personal', 'data' => $data]
+        );
     }
 }

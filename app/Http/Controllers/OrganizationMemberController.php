@@ -2,113 +2,66 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\ApiResponse;
+use App\Http\Requests\UpdateOrganizationMemberRoleRequest;
+use App\Http\Resources\OrganizationMemberResource;
 use App\Models\Tenant;
 use App\Models\TenantUser;
-use App\Models\User;
+use App\Services\OrganizationMemberService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 
 class OrganizationMemberController extends Controller
 {
+    protected OrganizationMemberService $organizationMemberService;
+
+    public function __construct(OrganizationMemberService $organizationMemberService)
+    {
+        $this->organizationMemberService = $organizationMemberService;
+    }
+
     /**
      * Get list of members in an organization.
      */
     public function index(Tenant $organization): JsonResponse
     {
         $user = Auth::user();
+        $result = $this->organizationMemberService->listMembers($user, $organization);
 
-        // Check if user is member
-        $membership = $organization->tenantUsers()->where('user_id', $user->id)->first();
-        if (!$membership) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Anda bukan anggota organization ini.',
-            ], 403);
+        if (($result['status'] ?? 'success') !== 'success') {
+            return ApiResponse::fromService($result);
         }
 
-        $members = $organization->tenantUsers()
-            ->with('user:id,name,email,avatar')
-            ->orderByDesc('is_owner')
-            ->orderBy('role')
-            ->get()
-            ->map(function ($member) {
-                return [
-                    'id' => $member->id,
-                    'user_id' => $member->user_id,
-                    'name' => $member->user->name,
-                    'email' => $member->user->email,
-                    'avatar' => $member->user->avatar,
-                    'role' => $member->role,
-                    'is_owner' => $member->is_owner,
-                    'joined_at' => $member->joined_at?->toISOString(),
-                ];
-            });
-
-        return response()->json([
-            'success' => true,
-            'data' => $members,
-        ]);
+        $members = $result['data'] ?? collect();
+        $resource = OrganizationMemberResource::collection($members);
+        return ApiResponse::success($resource->toArray(request()));
     }
 
     /**
      * Update member role.
      */
-    public function update(Request $request, Tenant $organization, TenantUser $member): JsonResponse
+    public function update(UpdateOrganizationMemberRoleRequest $request, Tenant $organization, TenantUser $member): JsonResponse
     {
         $user = Auth::user();
+        $result = $this->organizationMemberService->updateMemberRole(
+            $user,
+            $organization,
+            $member,
+            (string) $request->validated()['role']
+        );
 
-        // Check if user is owner or admin
-        $adminMembership = $organization->tenantUsers()
-            ->where('user_id', $user->id)
-            ->whereIn('role', ['owner', 'admin'])
-            ->first();
-
-        if (!$adminMembership) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Hanya owner atau admin yang dapat mengubah role member.',
-            ], 403);
+        if (($result['status'] ?? 'success') !== 'success') {
+            return ApiResponse::fromService($result);
         }
 
-        // Can't change owner role
-        if ($member->is_owner) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Role pemilik organization tidak dapat diubah.',
-            ], 422);
-        }
+        $updatedMember = $result['data'];
+        $updatedMember->loadMissing('user:id,name,email,avatar');
 
-        // Validate member belongs to organization
-        if ($member->tenant_id !== $organization->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Member tidak ditemukan di organization ini.',
-            ], 404);
-        }
-
-        $request->validate([
-            'role' => 'required|in:admin,member',
-        ]);
-
-        $member->update([
-            'role' => $request->input('role'),
-        ]);
-
-        // Sync role to ACL so permission checks & UI role reflect the latest change
-        $targetUser = User::find($member->user_id);
-        if ($targetUser) {
-            $targetUser->assignRoleInTenant($member->role, $organization->id);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Role member berhasil diubah.',
-            'data' => [
-                'id' => $member->id,
-                'role' => $member->role,
-            ],
-        ]);
+        return ApiResponse::success(
+            new OrganizationMemberResource($updatedMember),
+            $result['message'] ?? 'OK'
+        );
     }
 
     /**
@@ -117,49 +70,8 @@ class OrganizationMemberController extends Controller
     public function destroy(Tenant $organization, TenantUser $member): JsonResponse
     {
         $user = Auth::user();
+        $result = $this->organizationMemberService->removeMember($user, $organization, $member);
 
-        // Check if user is owner or admin
-        $adminMembership = $organization->tenantUsers()
-            ->where('user_id', $user->id)
-            ->whereIn('role', ['owner', 'admin'])
-            ->first();
-
-        if (!$adminMembership) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Hanya owner atau admin yang dapat menghapus member.',
-            ], 403);
-        }
-
-        // Can't remove owner
-        if ($member->is_owner) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Pemilik organization tidak dapat dihapus.',
-            ], 422);
-        }
-
-        // Validate member belongs to organization
-        if ($member->tenant_id !== $organization->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Member tidak ditemukan di organization ini.',
-            ], 404);
-        }
-
-        // Can't remove yourself
-        if ($member->user_id === $user->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Anda tidak dapat menghapus diri sendiri.',
-            ], 422);
-        }
-
-        $member->delete();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Member berhasil dihapus dari organization.',
-        ]);
+        return ApiResponse::fromService($result);
     }
 }

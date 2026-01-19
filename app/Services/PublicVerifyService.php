@@ -5,9 +5,32 @@ namespace App\Services;
 use App\Models\Certificate;
 use App\Models\Document;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 class PublicVerifyService
 {
+    private function documentPdfExists(Document $document): bool
+    {
+        if (!empty($document->final_pdf_path)) {
+            if (file_exists(storage_path('app/' . $document->final_pdf_path))) {
+                return true;
+            }
+        }
+
+        foreach ([$document->signed_path, $document->file_path] as $path) {
+            if (!is_string($path) || $path === '') {
+                continue;
+            }
+
+            $relativePath = str_replace('private/', '', $path);
+            if (Storage::disk('private')->exists($relativePath)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function verifyUpload(UploadedFile $file): array
     {
         $tmpPath = sys_get_temp_dir() . '/verify_upload_' . uniqid() . '.pdf';
@@ -68,6 +91,25 @@ class PublicVerifyService
                     ->with(['user', 'signers.user', 'signingEvidence'])
                     ->first();
                 if ($document) {
+                    if (!$this->documentPdfExists($document)) {
+                        $payload = [
+                            'verified_at' => $verifiedAt,
+                            'is_valid' => false,
+                            'message' => 'Document file missing from storage',
+                            'signed_by' => null,
+                            'signed_at' => null,
+                            'document_id' => $document->id,
+                            'file_name' => $document->title ?? basename($document->file_path),
+                        ];
+
+                        return [
+                            'status' => 'success',
+                            'code' => 200,
+                            'message' => $payload['message'],
+                            'data' => $payload,
+                        ];
+                    }
+
                     $evidence = $document->signingEvidence;
                     $allowBackfill = filter_var(env('LTV_BACKFILL_ON_DEMAND', false), FILTER_VALIDATE_BOOLEAN);
                     $canBackfill = $allowBackfill
@@ -227,6 +269,25 @@ class PublicVerifyService
                     'verified_at' => $verifiedAt,
                     'message' => 'Document not found or invalid token',
                 ],
+            ];
+        }
+
+        if (!$this->documentPdfExists($document)) {
+            $payload = [
+                'verified_at' => $verifiedAt,
+                'is_valid' => false,
+                'message' => 'Document file missing from storage',
+                'signed_by' => null,
+                'signed_at' => null,
+                'document_id' => $document->id,
+                'file_name' => $document->title ?? basename($document->file_path),
+            ];
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => $payload['message'],
+                'data' => $payload,
             ];
         }
 

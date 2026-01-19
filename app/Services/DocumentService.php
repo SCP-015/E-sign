@@ -9,6 +9,7 @@ use App\Models\Certificate;
 use App\Models\Document;
 use App\Models\DocumentSigningEvidence;
 use App\Models\Signature;
+use App\Models\UserQuotaUsage;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
@@ -17,6 +18,28 @@ use setasign\Fpdi\Tcpdf\Fpdi;
 
 class DocumentService
 {
+    protected function documentExistsInStorage(Document $document): bool
+    {
+        $paths = [
+            $document->final_pdf_path,
+            $document->signed_path,
+            $document->file_path,
+        ];
+
+        foreach ($paths as $path) {
+            if (!is_string($path) || $path === '') {
+                continue;
+            }
+
+            $relativePath = str_replace('private/', '', $path);
+            if (Storage::disk('private')->exists($relativePath)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     protected function decryptPrivateFileToTempPath(string $privatePathWithOptionalPrefix, string $extension)
     {
         $relativePath = str_replace('private/', '', $privatePathWithOptionalPrefix);
@@ -246,6 +269,48 @@ class DocumentService
         }
     }
 
+    public function syncResult(int $userId, ?string $tenantId = null): array
+    {
+        try {
+            $user = User::findOrFail($userId);
+
+            if ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
+                $documents = Document::with(['signers', 'tenant'])
+                    ->forCurrentContext($tenantId)
+                    ->latest()
+                    ->get();
+            } else {
+                $documents = Document::with(['signers', 'tenant'])
+                    ->accessibleByUser($userId, $tenantId, $user->email)
+                    ->latest()
+                    ->get();
+            }
+
+            $totalCount = $documents->count();
+            $validDocuments = $documents->filter(fn (Document $doc) => $this->documentExistsInStorage($doc))->values();
+            $remainingCount = $validDocuments->count();
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'OK',
+                'data' => [
+                    'documents' => DocumentResource::collection($validDocuments)->resolve(),
+                    'totalCount' => $totalCount,
+                    'removedCount' => max(0, $totalCount - $remainingCount),
+                    'remainingCount' => $remainingCount,
+                ],
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => 'Failed to sync documents: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
     public function uploadWithMetadataResult(int $userId, UploadedFile $file, ?string $title = null, ?string $tenantId = null): array
     {
         try {
@@ -272,6 +337,14 @@ class DocumentService
             }
             
             $doc = $this->uploadWithMetadata($file, $user, $title ?? $file->getClientOriginalName(), $tenantId);
+
+            if ($tenantId) {
+                $usage = UserQuotaUsage::getOrCreateForUser((int) $user->id, (string) $tenantId);
+                $sizeBytes = (int) ($doc->file_size_bytes ?? $doc->file_size ?? 0);
+                $sizeMb = (int) max(1, (int) ceil($sizeBytes / 1024 / 1024));
+                $usage->increment('documents_uploaded', 1);
+                $usage->increment('storage_used_mb', $sizeMb);
+            }
 
             return [
                 'status' => 'success',

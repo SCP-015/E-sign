@@ -21,9 +21,20 @@
                         </p>
                     </div>
                 </div>
-                <Link href="/dashboard" class="btn btn-outline btn-sm w-full sm:w-auto">
-                    Back to Dashboard
-                </Link>
+                <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+                    <button
+                        type="button"
+                        class="btn btn-outline btn-sm w-full sm:w-auto"
+                        :class="syncing ? 'btn-disabled' : ''"
+                        :disabled="syncing"
+                        @click="syncDocuments"
+                    >
+                        Sync Documents
+                    </button>
+                    <Link href="/dashboard" class="btn btn-outline btn-sm w-full sm:w-auto">
+                        Back to Dashboard
+                    </Link>
+                </div>
             </section>
 
             <DocumentHistory
@@ -75,7 +86,8 @@ const user = computed(() => authStore.user || {});
 const kycStatus = computed(() => (user.value?.kyc_status ?? user.value?.kycStatus ?? 'unverified').toLowerCase());
 const hasSignature = computed(() => user.value?.has_signature ?? user.value?.hasSignature ?? false);
 
-const currentOrganization = computed(() => page.props.organization || null);
+const hydratedOrganization = ref(null);
+const currentOrganization = computed(() => hydratedOrganization.value || page.props.organization || page.props?.auth?.organization || null);
 const currentTenantId = computed(() => currentOrganization.value?.id || null);
 const currentTenantName = computed(() => currentOrganization.value?.name || null);
 const isPersonalMode = computed(() => !currentTenantId.value);
@@ -86,15 +98,79 @@ const selectedDocId = ref(null);
 const selectedDocPageCount = ref(0);
 const verifyModalOpen = ref(false);
 const verifyModalResult = ref(null);
+const syncing = ref(false);
+
+const hideMissingDocumentsKey = 'hideMissingDocuments';
+const shouldHideMissingDocuments = () => localStorage.getItem(hideMissingDocumentsKey) === 'true';
+const enableHideMissingDocuments = () => localStorage.setItem(hideMissingDocumentsKey, 'true');
+
+const refreshDocuments = async () => {
+    if (shouldHideMissingDocuments()) {
+        await syncDocuments({ showToast: false });
+        return;
+    }
+    await fetchDocuments();
+};
 
 const handleOrganizationUpdate = async () => {
-    await fetchDocuments();
+    await refreshDocuments();
+};
+
+const hydrateOrganization = async () => {
+    try {
+        const res = await axios.get('/api/organizations/current');
+        const payload = res?.data;
+        if ((payload?.success === true || payload?.status === 'success') && payload?.data) {
+            hydratedOrganization.value = payload.data;
+        }
+    } catch (e) {
+        // noop
+    }
+};
+
+const isApiSuccess = (payload) => {
+    return payload?.success === true || payload?.status === 'success';
+};
+
+const syncDocuments = async (options = {}) => {
+    const showToast = options?.showToast !== false;
+    syncing.value = true;
+    try {
+        const beforeCount = Array.isArray(documents.value) ? documents.value.length : 0;
+        const res = await axios.post('/api/documents/sync');
+        const payload = res?.data;
+        if (!isApiSuccess(payload)) {
+            throw new Error(payload?.message || 'Sync failed');
+        }
+
+        const data = payload?.data;
+        const list = Array.isArray(data?.documents) ? data.documents : (Array.isArray(data) ? data : []);
+        documents.value = list;
+
+        enableHideMissingDocuments();
+
+        if (showToast) {
+            const removedCount = Math.max(0, beforeCount - (Array.isArray(list) ? list.length : 0));
+            if (removedCount > 0) {
+                toastStore.success(`Sync completed. ${removedCount} missing document(s) were hidden.`);
+            } else {
+                toastStore.success('Sync completed. No missing documents found.');
+            }
+        }
+    } catch (e) {
+        if (showToast) {
+            toastStore.error(formatApiError('Failed to sync documents', e));
+        }
+    } finally {
+        syncing.value = false;
+    }
 };
 
 onMounted(async () => {
     try {
         await authStore.fetchUser();
-        await fetchDocuments();
+        await hydrateOrganization();
+        await refreshDocuments();
         window.addEventListener('organization-updated', handleOrganizationUpdate);
     } catch (e) {
         console.error('Failed to init documents:', e);
@@ -112,7 +188,7 @@ const openSigningModal = (docId, pageCount) => {
 };
 
 const onDocumentSigned = async () => {
-    await fetchDocuments();
+    await refreshDocuments();
 };
 
 const isAssignedToMe = (doc) => {
@@ -321,7 +397,7 @@ const finalizeDocument = async (id) => {
     try {
         await axios.post(`/api/documents/${id}/finalize`);
         toastStore.success('Document finalized.');
-        await fetchDocuments();
+        await refreshDocuments();
     } catch (e) {
         toastStore.error(formatApiError('Failed to finalize document', e));
     }

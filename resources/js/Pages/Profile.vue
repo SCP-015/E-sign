@@ -229,9 +229,9 @@ const kycStatusText = computed(() => {
     if (!profile.value) return 'Unknown';
     switch (profile.value.kycStatus) {
         case 'verified': return 'KYC Verified';
-        case 'pending': return 'KYC Pending';
+        case 'unverified': return 'KYC Unverified';
         case 'rejected': return 'KYC Rejected';
-        default: return 'KYC Not Started';
+        default: return 'KYC Not Found';
     }
 });
 
@@ -239,7 +239,7 @@ const kycTextClass = computed(() => {
     if (!profile.value) return '';
     switch (profile.value.kycStatus) {
         case 'verified': return 'text-success font-medium';
-        case 'pending': return 'text-warning font-medium';
+        case 'unverified': return 'text-warning font-medium';
         case 'rejected': return 'text-error font-medium';
         default: return 'text-base-content/60';
     }

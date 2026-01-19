@@ -48,35 +48,39 @@ class ApiResponse
         return $out;
     }
 
-    public static function success(mixed $data = null, string $message = 'OK', int $code = 200): JsonResponse
+    public static function success(mixed $data = null, string $message = 'OK', int $code = 200, array $extra = []): JsonResponse
     {
-        return response()->json([
+        return response()->json(array_merge([
             'status' => 'success',
+            'success' => true,
             'data' => self::camelizeData($data),
             'message' => $message,
-        ], $code);
+        ], $extra), $code);
     }
 
-    public static function error(string $message = 'Error', int $code = 400, mixed $data = null): JsonResponse
+    public static function error(string $message = 'Error', int $code = 400, mixed $data = null, array $extra = []): JsonResponse
     {
-        return response()->json([
+        return response()->json(array_merge([
             'status' => 'error',
+            'success' => false,
             'data' => self::camelizeData($data),
             'message' => $message,
-        ], $code);
+        ], $extra), $code);
     }
 
-    public static function fromService(array $result): JsonResponse
+    public static function fromService(array $result, array $extra = []): JsonResponse
     {
         $status = $result['status'] ?? 'success';
         $data = $result['data'] ?? null;
         $message = $result['message'] ?? 'OK';
         $code = $result['code'] ?? ($status === 'success' ? 200 : 400);
+        $success = $status === 'success';
 
-        return response()->json([
+        return response()->json(array_merge([
             'status' => $status,
+            'success' => $success,
             'data' => self::camelizeData($data),
             'message' => $message,
-        ], $code);
+        ], $extra), $code);
     }
 }

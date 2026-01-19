@@ -27,13 +27,15 @@ class SignatureController extends Controller
     public function store(SignatureStoreRequest $request)
     {
         $user = $request->user();
+        $tenantId = $this->getCurrentTenantId($request);
 
         $result = $this->signatureService->store(
             (int) $user->id,
             (string) $user->email,
             $request->file('image'),
             $request->input('name'),
-            $request->boolean('is_default')
+            $request->boolean('is_default'),
+            $tenantId
         );
 
         return ApiResponse::fromService($result);

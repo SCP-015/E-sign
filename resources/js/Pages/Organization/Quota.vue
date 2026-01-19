@@ -323,19 +323,6 @@ const isApiSuccess = (payload) => {
     return payload?.success === true || payload?.status === 'success';
 };
 
-const normalizeUsageRow = (raw) => {
-    return {
-        userId: raw?.userId,
-        user: raw?.user ?? null,
-        role: raw?.role ?? null,
-        documentsUploaded: Number(raw?.documentsUploaded ?? 0),
-        signaturesCreated: Number(raw?.signaturesCreated ?? 0),
-        storageUsedMb: Number(raw?.storageUsedMb ?? 0),
-        override: raw?.override ?? null,
-        effectiveLimits: raw?.effectiveLimits ?? null,
-    };
-};
-
 const openUserOverride = (member) => {
     selectedMember.value = member;
     overrideForm.maxDocumentsPerUser = member?.override?.maxDocumentsPerUser ?? null;
@@ -407,7 +394,7 @@ const fetchQuota = async () => {
         }
 
         const usage = Array.isArray(data.usage) ? data.usage : [];
-        usageData.value = usage.map(normalizeUsageRow);
+        usageData.value = usage;
         hasAccess.value = true;
     } catch (error) {
         if (error.response?.status === 403) {

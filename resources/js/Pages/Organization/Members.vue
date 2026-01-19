@@ -58,11 +58,10 @@
                                 </td>
                                 <td>
                                     <div class="badge badge-ghost">{{ formatRole(member.role) }}</div>
-                                    <div v-if="member.is_owner"></div>
                                 </td>
-                                <td>{{ formatDate(member.joined_at) }}</td>
+                                <td>{{ formatDate(member.joinedAt) }}</td>
                                 <td class="text-right">
-                                    <template v-if="!member.is_owner && canManage">
+                                    <template v-if="!member.isOwner && canManage">
                                         <div class="dropdown dropdown-end dropdown-left sm:dropdown-bottom">
                                             <label tabindex="0" class="btn btn-ghost btn-sm">Edit</label>
                                             <ul tabindex="0" class="dropdown-content menu mt-3 w-52 rounded-box bg-base-100 p-2 shadow-xl border border-base-200 z-[100]">
@@ -74,7 +73,7 @@
                                             </ul>
                                         </div>
                                     </template>
-                                    <span v-else class="text-xs text-base-content/40 italic">{{ member.is_owner ? 'System Owner' : '-' }}</span>
+                                    <span v-else class="text-xs text-base-content/40 italic">{{ member.isOwner ? 'Organization Owner' : '-' }}</span>
                                 </td>
                             </tr>
                             <tr v-if="members.length === 0">
@@ -177,11 +176,18 @@ const canManage = computed(() => {
 });
 
 const formatRole = (role) => {
+    const normalized = String(role || '').toLowerCase();
     const labels = {
-        'admin': 'Admin',
-        'member': 'Member',
+        admin: 'Admin',
+        member: 'Member',
+        owner: 'Owner',
     };
-    return labels[role] || role;
+    if (labels[normalized]) {
+        return labels[normalized];
+    }
+
+    if (!role) return '-';
+    return role.charAt(0).toUpperCase() + role.slice(1);
 };
 
 const formatDate = (dateString) => {
@@ -193,10 +199,22 @@ const formatDate = (dateString) => {
     });
 };
 
+const isApiSuccess = (payload) => {
+    return payload?.success === true || payload?.status === 'success';
+};
+
+const unwrapListData = (payload) => {
+    const data = payload?.data;
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.data)) return data.data;
+    return [];
+};
+
 const fetchCurrentOrganization = async () => {
     const response = await axios.get('/api/organizations/current');
-    if (response.data.success && response.data.data) {
-        organization.value = response.data.data;
+    const payload = response?.data;
+    if (isApiSuccess(payload) && payload?.data) {
+        organization.value = payload.data;
         return organization.value.id;
     }
     throw new Error('You are not in any organization');
@@ -204,8 +222,9 @@ const fetchCurrentOrganization = async () => {
 
 const fetchMembers = async (orgId) => {
     const response = await axios.get(`/api/organizations/${orgId}/members`);
-    if (response.data.success) {
-        members.value = response.data.data;
+    const payload = response?.data;
+    if (isApiSuccess(payload)) {
+        members.value = unwrapListData(payload);
     }
 };
 

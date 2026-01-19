@@ -150,6 +150,18 @@
                 </div>
             </section>
 
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <button
+                    type="button"
+                    class="btn btn-outline btn-sm w-full sm:w-auto"
+                    :class="syncing ? 'btn-disabled' : ''"
+                    :disabled="syncing"
+                    @click="syncDocuments"
+                >
+                    Sync Documents
+                </button>
+            </div>
+
             <DocumentHistory
                 :documents="recentDocuments"
                 :totalCount="documents.length"
@@ -239,6 +251,11 @@ const selectedDocId = ref(null);
 const selectedDocPageCount = ref(0);
 const verifyModalOpen = ref(false);
 const verifyModalResult = ref(null);
+const syncing = ref(false);
+
+const hideMissingDocumentsKey = 'hideMissingDocuments';
+const shouldHideMissingDocuments = () => localStorage.getItem(hideMissingDocumentsKey) === 'true';
+const enableHideMissingDocuments = () => localStorage.setItem(hideMissingDocumentsKey, 'true');
 
 const signedCount = computed(() => documents.value.filter(d => d.status === 'signed' || d.status === 'COMPLETED').length);
 const pendingCount = computed(() => documents.value.filter(d => d.status === 'pending' || d.status === 'IN_PROGRESS').length);
@@ -291,6 +308,52 @@ const stats = computed(() => [
     { label: 'Pending', value: pendingCount.value, valueClass: 'text-warning' },
 ]);
 
+const isApiSuccess = (payload) => {
+    return payload?.success === true || payload?.status === 'success';
+};
+
+const syncDocuments = async (options = {}) => {
+    const showToast = options?.showToast !== false;
+    syncing.value = true;
+    try {
+        const beforeCount = Array.isArray(documents.value) ? documents.value.length : 0;
+        const res = await axios.post('/api/documents/sync');
+        const payload = res?.data;
+        if (!isApiSuccess(payload)) {
+            throw new Error(payload?.message || 'Sync failed');
+        }
+
+        const data = payload?.data;
+        const list = Array.isArray(data?.documents) ? data.documents : (Array.isArray(data) ? data : []);
+        documents.value = list;
+
+        enableHideMissingDocuments();
+
+        if (showToast) {
+            const removedCount = Math.max(0, beforeCount - (Array.isArray(list) ? list.length : 0));
+            if (removedCount > 0) {
+                toastStore.success(`Sync completed. ${removedCount} missing document(s) were hidden.`);
+            } else {
+                toastStore.success('Sync completed. No missing documents found.');
+            }
+        }
+    } catch (e) {
+        if (showToast) {
+            toastStore.error(formatApiError('Failed to sync documents', e));
+        }
+    } finally {
+        syncing.value = false;
+    }
+};
+
+const refreshDocuments = async () => {
+    if (shouldHideMissingDocuments()) {
+        await syncDocuments({ showToast: false });
+        return;
+    }
+    await fetchDocuments();
+};
+
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const quickTips = [
@@ -329,14 +392,14 @@ const fetchCurrentOrganization = async () => {
 
 const handleOrganizationUpdate = async () => {
     await fetchCurrentOrganization();
-    await fetchDocuments();
+    await refreshDocuments();
 };
 
 onMounted(async () => {
     try {
         await authStore.fetchUser();
         await fetchCurrentOrganization();
-        await fetchDocuments();
+        await refreshDocuments();
 
         window.addEventListener('organizations-updated', handleOrganizationUpdate);
         window.addEventListener('organization-updated', handleOrganizationUpdate);
@@ -393,7 +456,7 @@ const uploadFile = async (file) => {
     
     try {
         await axios.post('/api/documents', formData);
-        await fetchDocuments();
+        await refreshDocuments();
         toastStore.success('Document uploaded successfully.');
     } catch (e) {
         const payload = e?.response?.data?.data ?? e?.response?.data ?? null;
@@ -417,14 +480,14 @@ const openSigningModal = (docId, pageCount) => {
 };
 
 const onDocumentSigned = async () => {
-    await fetchDocuments();
+    await refreshDocuments();
 };
 
 const finalizeDocument = async (id) => {
     try {
         await axios.post(`/api/documents/${id}/finalize`);
         toastStore.success('Document finalized.');
-        await fetchDocuments();
+        await refreshDocuments();
     } catch (e) {
         toastStore.error(formatApiError('Failed to finalize document', e));
     }

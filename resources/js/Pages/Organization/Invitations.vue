@@ -128,13 +128,13 @@
                                             </span>
                                         </td>
                                         <td>
-                                            {{ formatDate(invitation.expires_at) }}
+                                            {{ formatDate(invitation.expiresAt) }}
                                         </td>
                                         <td>
-                                            {{ invitation.used_count }} / {{ invitation.max_uses || '∞' }}
+                                            {{ invitation.usedCount }} / {{ invitation.maxUses || '∞' }}
                                         </td>
                                         <td>
-                                            <span v-if="invitation.is_valid" class="badge badge-success badge-sm">Aktif</span>
+                                            <span v-if="invitation.isValid" class="badge badge-success badge-sm">Aktif</span>
                                             <span v-else class="badge badge-error badge-sm">Expired</span>
                                         </td>
                                         <td>
@@ -201,6 +201,17 @@ const newInvitation = ref({
     max_uses: null,
 });
 
+const isApiSuccess = (payload) => {
+    return payload?.success === true || payload?.status === 'success';
+};
+
+const unwrapListData = (payload) => {
+    const data = payload?.data;
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.data)) return data.data;
+    return [];
+};
+
 function getRoleLabel(role) {
     const labels = { admin: 'Admin', member: 'Member' };
     return labels[role] || role;
@@ -231,8 +242,9 @@ function copyCode(code) {
 
 async function fetchCurrentOrganization() {
     const response = await axios.get('/api/organizations/current');
-    if (response.data.success && response.data.data) {
-        organization.value = response.data.data;
+    const payload = response?.data;
+    if (isApiSuccess(payload) && payload?.data) {
+        organization.value = payload.data;
         return organization.value.id;
     }
     throw new Error('Anda belum berada dalam organization');
@@ -240,8 +252,9 @@ async function fetchCurrentOrganization() {
 
 async function fetchInvitations(orgId) {
     const response = await axios.get(`/api/organizations/${orgId}/invitations`);
-    if (response.data.success) {
-        invitations.value = response.data.data;
+    const payload = response?.data;
+    if (isApiSuccess(payload)) {
+        invitations.value = unwrapListData(payload);
     }
 }
 
@@ -254,7 +267,7 @@ async function createInvitation() {
             max_uses: newInvitation.value.max_uses || null,
         });
 
-        if (response.data.success) {
+        if (response.data.success || response.data.status === 'success') {
             toastStore.success('Undangan berhasil dibuat');
             await fetchInvitations(organization.value.id);
             // Reset form

@@ -27,6 +27,13 @@ class DocumentController extends Controller
         return ApiResponse::fromService($result);
     }
 
+    public function sync(Request $request)
+    {
+        $tenantId = $this->getCurrentTenantId($request);
+        $result = $this->documentService->syncResult((int) $request->user()->id, $tenantId);
+        return ApiResponse::fromService($result);
+    }
+
     public function upload(DocumentUploadRequest $request)
     {
         $user = $request->user();
