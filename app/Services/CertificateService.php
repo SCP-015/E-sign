@@ -187,7 +187,7 @@ class CertificateService
             return [
                 'status' => 'error',
                 'code' => 500,
-                'message' => 'Failed to issue certificate: ' . $e->getMessage(),
+                'message' => __('Failed to issue certificate: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }

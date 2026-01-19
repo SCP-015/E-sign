@@ -232,7 +232,7 @@ class PublicVerifyService
             $payload = [
                 'verified_at' => now()->toIso8601String(),
                 'is_valid' => false,
-                'message' => 'Verification failed: ' . $e->getMessage(),
+                'message' => __('Verification failed: :error', ['error' => $e->getMessage()]),
                 'signed_by' => null,
                 'signed_at' => null,
                 'document_id' => null,

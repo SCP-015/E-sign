@@ -29,6 +29,10 @@ return Application::configure(basePath: dirname(__DIR__))
                 Request::HEADER_X_FORWARDED_AWS_ELB
         );
 
+        $middleware->web(prepend: [
+            \App\Http\Middleware\SetLocaleFromHeader::class,
+        ]);
+
         $middleware->web(append: [
             HandleInertiaRequests::class,
         ]);
@@ -39,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Add session to API routes for organization switching
         $middleware->api(prepend: [
+            \App\Http\Middleware\SetLocaleFromHeader::class,
             \Illuminate\Session\Middleware\StartSession::class,
         ]);
 

@@ -321,6 +321,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
+import { isApiSuccess, unwrapApiData, unwrapApiList } from '../utils/api';
 import { useAuthStore } from '../stores/auth';
 import { useToastStore } from '../stores/toast';
 import { formatApiError } from '../utils/errors';
@@ -1091,7 +1092,7 @@ async function loadTenantMembers() {
   try {
     const currentOrgRes = await axios.get('/api/organizations/current');
     const payload = currentOrgRes?.data;
-    const org = payload?.data ?? null;
+    const org = isApiSuccess(payload) ? unwrapApiData(payload) : null;
     const orgId = org?.id ?? org?.organizationId ?? null;
     currentOrganizationId.value = orgId;
 
@@ -1102,8 +1103,12 @@ async function loadTenantMembers() {
 
     const membersRes = await axios.get(`/api/organizations/${orgId}/members`);
     const membersPayload = membersRes?.data;
-    const list = membersPayload?.data;
-    tenantMembers.value = Array.isArray(list) ? list : (Array.isArray(membersPayload) ? membersPayload : []);
+    if (!isApiSuccess(membersPayload)) {
+      tenantMembers.value = [];
+      return;
+    }
+
+    tenantMembers.value = unwrapApiList(membersPayload);
   } catch (e) {
     tenantMembers.value = [];
   } finally {

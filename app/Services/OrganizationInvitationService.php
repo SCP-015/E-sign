@@ -22,7 +22,7 @@ class OrganizationInvitationService
         if (!$membership) {
             return [
                 'status' => 'error',
-                'message' => 'Hanya owner atau admin yang dapat melihat undangan.',
+                'message' => 'Only owner or admin can view invitations.',
                 'code' => 403,
                 'data' => null,
             ];
@@ -50,7 +50,7 @@ class OrganizationInvitationService
         if (!$membership) {
             return [
                 'status' => 'error',
-                'message' => 'Hanya owner atau admin yang dapat membuat undangan.',
+                'message' => 'Only owner or admin can create invitations.',
                 'code' => 403,
                 'data' => null,
             ];
@@ -61,7 +61,7 @@ class OrganizationInvitationService
 
         return [
             'status' => 'success',
-            'message' => 'Undangan berhasil dibuat.',
+            'message' => 'Invitation created successfully.',
             'code' => 201,
             'data' => $invitation,
         ];
@@ -77,7 +77,7 @@ class OrganizationInvitationService
         if (!$membership) {
             return [
                 'status' => 'error',
-                'message' => 'Hanya owner atau admin yang dapat menghapus undangan.',
+                'message' => 'Only owner or admin can delete invitations.',
                 'code' => 403,
                 'data' => null,
             ];
@@ -86,7 +86,7 @@ class OrganizationInvitationService
         if ((string) $invitation->tenant_id !== (string) $organization->id) {
             return [
                 'status' => 'error',
-                'message' => 'Undangan tidak ditemukan di organization ini.',
+                'message' => 'Invitation not found in this organization.',
                 'code' => 404,
                 'data' => null,
             ];
@@ -96,7 +96,7 @@ class OrganizationInvitationService
 
         return [
             'status' => 'success',
-            'message' => 'Undangan berhasil dihapus.',
+            'message' => 'Invitation deleted successfully.',
             'code' => 200,
             'data' => null,
         ];

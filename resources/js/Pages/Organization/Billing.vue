@@ -129,6 +129,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import { useToastStore } from '../../stores/toast';
+import { isApiSuccess, unwrapApiData } from '../../utils/api';
 
 const toastStore = useToastStore();
 const loading = ref(true);
@@ -146,10 +147,6 @@ const limits = ref({
     documents: 20,
     members: 5,
 });
-
-const isApiSuccess = (payload) => {
-    return payload?.success === true || payload?.status === 'success';
-};
 
 // Available plans
 const plans = ref([
@@ -200,10 +197,10 @@ const fetchData = async () => {
         const orgRes = await axios.get('/api/organizations/current');
         const orgPayload = orgRes?.data;
         if (!isApiSuccess(orgPayload) || !orgPayload?.data) {
-            throw new Error(orgPayload?.message || 'Gagal memuat organisasi');
+            throw new Error(orgPayload?.message || 'Failed to load organization');
         }
 
-        organization.value = orgPayload.data;
+        organization.value = unwrapApiData(orgPayload);
 
         // Get quota settings to sync limits
         const quotaRes = await axios.get('/api/quota');

@@ -234,6 +234,7 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
+import { isApiSuccess } from '../../utils/api';
 
 const page = usePage();
 const loading = ref(true);
@@ -273,17 +274,13 @@ const getStorageUrl = (path) => {
     return `/storage/${path}`;
 };
 
-const isApiSuccess = (payload) => {
-    return payload?.success === true || payload?.status === 'success';
-};
-
 const fetchSettings = async () => {
     try {
         loading.value = true;
         const response = await axios.get('/api/portal-settings');
         const payload = response?.data;
         if (!isApiSuccess(payload)) {
-            throw new Error(payload?.message || 'Gagal memuat portal settings');
+            throw new Error(payload?.message || 'Failed to load portal settings');
         }
         settings.value = payload?.data ?? null;
         if (settings.value) {
@@ -309,7 +306,7 @@ const saveSettings = async () => {
         const response = await axios.put('/api/portal-settings', form);
         const payload = response?.data;
         if (!isApiSuccess(payload)) {
-            throw new Error(payload?.message || 'Gagal menyimpan portal settings');
+            throw new Error(payload?.message || 'Failed to save portal settings');
         }
         showToast('Settings saved successfully!');
         settings.value = { ...(settings.value || {}), ...(payload?.data || {}), ...form };
@@ -336,7 +333,7 @@ const uploadLogo = async (event) => {
         });
         const payload = response?.data;
         if (!isApiSuccess(payload)) {
-            throw new Error(payload?.message || 'Gagal upload logo');
+            throw new Error(payload?.message || 'Failed to upload logo');
         }
         if (settings.value) {
             settings.value.logo = payload?.data?.logo ?? payload?.data?.path ?? settings.value.logo;
@@ -366,7 +363,7 @@ const uploadBanner = async (event) => {
         });
         const payload = response?.data;
         if (!isApiSuccess(payload)) {
-            throw new Error(payload?.message || 'Gagal upload banner');
+            throw new Error(payload?.message || 'Failed to upload banner');
         }
         if (settings.value) {
             settings.value.banner = payload?.data?.banner ?? payload?.data?.path ?? settings.value.banner;

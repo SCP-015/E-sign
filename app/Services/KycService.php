@@ -156,7 +156,7 @@ class KycService
             return [
                 'status' => 'error',
                 'code' => 500,
-                'message' => 'KYC submission failed: ' . $e->getMessage(),
+                'message' => __('KYC submission failed: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }
@@ -187,7 +187,7 @@ class KycService
             return [
                 'status' => 'error',
                 'code' => 500,
-                'message' => 'Failed to fetch KYC data: ' . $e->getMessage(),
+                'message' => __('Failed to fetch KYC data: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }
@@ -260,7 +260,7 @@ class KycService
             return [
                 'status' => 'error',
                 'code' => 500,
-                'message' => 'Failed to fetch KYC file: ' . $e->getMessage(),
+                'message' => __('Failed to fetch KYC file: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }

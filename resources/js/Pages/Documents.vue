@@ -13,10 +13,10 @@
                     </div>
                     <div class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                         <p class="text-[13px] text-blue-800">
-                            <strong>{{ isPersonalMode ? 'Mode Personal' : 'Mode Organisasi' }}:</strong>
+                            <strong>{{ isPersonalMode ? 'Personal Mode' : 'Organization Mode' }}:</strong>
                             {{ isPersonalMode 
-                                ? 'Dokumen pribadi Anda. Tidak akan terlihat saat Anda berada di mode organisasi.' 
-                                : 'Dokumen yang Anda upload di sini hanya terlihat di organisasi ini.'
+                                ? 'Your personal documents. They will not be visible while you are in organization mode.' 
+                                : 'Documents you upload here are only visible within this organization.'
                             }}
                         </p>
                     </div>
@@ -72,11 +72,12 @@ import { Head, Link, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
 import { useToastStore } from '../stores/toast';
+import { formatApiError } from '../utils/errors';
+import { isApiSuccess, unwrapApiData } from '../utils/api';
 import SigningModal from '../components/SigningModal.vue';
 import VerifyResultModal from '../components/VerifyResultModal.vue';
 import DocumentHistory from '../components/dashboard/DocumentHistory.vue';
 import ContextIndicator from '../components/ContextIndicator.vue';
-import { formatApiError } from '../utils/errors';
 
 const page = usePage();
 
@@ -120,16 +121,12 @@ const hydrateOrganization = async () => {
     try {
         const res = await axios.get('/api/organizations/current');
         const payload = res?.data;
-        if ((payload?.success === true || payload?.status === 'success') && payload?.data) {
-            hydratedOrganization.value = payload.data;
+        if (isApiSuccess(payload) && payload?.data) {
+            hydratedOrganization.value = unwrapApiData(payload);
         }
     } catch (e) {
         // noop
     }
-};
-
-const isApiSuccess = (payload) => {
-    return payload?.success === true || payload?.status === 'success';
 };
 
 const syncDocuments = async (options = {}) => {

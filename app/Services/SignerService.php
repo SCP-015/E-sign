@@ -191,7 +191,7 @@ class SignerService
             return [
                 'status' => 'error',
                 'code' => 500,
-                'message' => 'Failed to add signers: ' . $e->getMessage(),
+                'message' => __('Failed to add signers: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }
@@ -224,7 +224,7 @@ class SignerService
             return [
                 'status' => 'error',
                 'code' => 404,
-                'message' => 'Document not found: ' . $e->getMessage(),
+                'message' => __('Document not found: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }

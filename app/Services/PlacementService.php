@@ -236,7 +236,7 @@ class PlacementService
             return [
                 'status' => 'error',
                 'code' => 500,
-                'message' => 'Failed to save placement: ' . $e->getMessage(),
+                'message' => __('Failed to save placement: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }
@@ -268,7 +268,7 @@ class PlacementService
             return [
                 'status' => 'error',
                 'code' => 404,
-                'message' => 'Placement not found: ' . $e->getMessage(),
+                'message' => __('Placement not found: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }
@@ -306,7 +306,7 @@ class PlacementService
             return [
                 'status' => 'error',
                 'code' => 404,
-                'message' => 'Document not found: ' . $e->getMessage(),
+                'message' => __('Document not found: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }

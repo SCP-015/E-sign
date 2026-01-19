@@ -187,7 +187,7 @@ const setInviteMismatch = (expectedEmail, currentEmail) => {
         currentEmail,
     };
     toastStore.error(
-        `Undangan ini untuk ${expectedEmail}, tetapi kamu masuk sebagai ${currentEmail}. Silakan ganti akun.`
+        `This invitation is for ${expectedEmail}, but you are signed in as ${currentEmail}. Please switch accounts.`
     );
 };
 

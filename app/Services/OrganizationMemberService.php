@@ -14,7 +14,7 @@ class OrganizationMemberService
         if (!$membership) {
             return [
                 'status' => 'error',
-                'message' => 'Anda bukan anggota organization ini.',
+                'message' => 'You are not a member of this organization.',
                 'code' => 403,
                 'data' => null,
             ];
@@ -44,7 +44,7 @@ class OrganizationMemberService
         if (!$adminMembership) {
             return [
                 'status' => 'error',
-                'message' => 'Hanya owner atau admin yang dapat mengubah role member.',
+                'message' => 'Only owner or admin can change member roles.',
                 'code' => 403,
                 'data' => null,
             ];
@@ -53,7 +53,7 @@ class OrganizationMemberService
         if ((bool) $member->is_owner) {
             return [
                 'status' => 'error',
-                'message' => 'Role pemilik organization tidak dapat diubah.',
+                'message' => 'Organization owner role cannot be changed.',
                 'code' => 422,
                 'data' => null,
             ];
@@ -62,7 +62,7 @@ class OrganizationMemberService
         if ((string) $member->tenant_id !== (string) $organization->id) {
             return [
                 'status' => 'error',
-                'message' => 'Member tidak ditemukan di organization ini.',
+                'message' => 'Member not found in this organization.',
                 'code' => 404,
                 'data' => null,
             ];
@@ -79,7 +79,7 @@ class OrganizationMemberService
 
         return [
             'status' => 'success',
-            'message' => 'Role member berhasil diubah.',
+            'message' => 'Member role updated successfully.',
             'code' => 200,
             'data' => $member,
         ];
@@ -95,7 +95,7 @@ class OrganizationMemberService
         if (!$adminMembership) {
             return [
                 'status' => 'error',
-                'message' => 'Hanya owner atau admin yang dapat menghapus member.',
+                'message' => 'Only owner or admin can remove members.',
                 'code' => 403,
                 'data' => null,
             ];
@@ -104,7 +104,7 @@ class OrganizationMemberService
         if ((bool) $member->is_owner) {
             return [
                 'status' => 'error',
-                'message' => 'Pemilik organization tidak dapat dihapus.',
+                'message' => 'Organization owner cannot be removed.',
                 'code' => 422,
                 'data' => null,
             ];
@@ -113,7 +113,7 @@ class OrganizationMemberService
         if ((string) $member->tenant_id !== (string) $organization->id) {
             return [
                 'status' => 'error',
-                'message' => 'Member tidak ditemukan di organization ini.',
+                'message' => 'Member not found in this organization.',
                 'code' => 404,
                 'data' => null,
             ];
@@ -122,7 +122,7 @@ class OrganizationMemberService
         if ((int) $member->user_id === (int) $actor->id) {
             return [
                 'status' => 'error',
-                'message' => 'Anda tidak dapat menghapus diri sendiri.',
+                'message' => 'You cannot remove yourself.',
                 'code' => 422,
                 'data' => null,
             ];
@@ -132,7 +132,7 @@ class OrganizationMemberService
 
         return [
             'status' => 'success',
-            'message' => 'Member berhasil dihapus dari organization.',
+            'message' => 'Member removed successfully.',
             'code' => 200,
             'data' => null,
         ];

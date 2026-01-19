@@ -33,9 +33,8 @@ class OrganizationController extends Controller
         $user = Auth::user();
         $tenants = $this->tenantService->getUserTenants($user);
 
-        return response()->json([
-            'success' => true,
-            'data' => $tenants->map(function ($tenant) use ($user) {
+        return ApiResponse::success([
+            'organizations' => $tenants->map(function ($tenant) use ($user) {
                 $aclRole = $user->getRoleInTenant($tenant->id);
                 $roleName = $aclRole ? $aclRole->name : ($tenant->pivot->role ?? 'member');
                 
@@ -50,8 +49,8 @@ class OrganizationController extends Controller
                     'role' => $roleName,
                 ];
             }),
-            'can_create' => $user->canCreateTenant(),
-        ]);
+            'canCreate' => $user->canCreateTenant(),
+        ], 'OK');
     }
 
     /**
@@ -70,21 +69,14 @@ class OrganizationController extends Controller
                 Auth::user()
             );
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Organization berhasil dibuat.',
-                'data' => [
-                    'id' => $tenant->id,
-                    'name' => $tenant->name,
-                    'slug' => $tenant->slug,
-                    'code' => $tenant->code,
-                ],
-            ], 201);
+            return ApiResponse::success([
+                'id' => $tenant->id,
+                'name' => $tenant->name,
+                'slug' => $tenant->slug,
+                'code' => $tenant->code,
+            ], 'Organization created successfully.', 201);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 422);
+            return ApiResponse::error(__('Failed to create organization: :error', ['error' => $e->getMessage()]), 422);
         }
     }
 
@@ -98,31 +90,25 @@ class OrganizationController extends Controller
         // Check if user is member
         $membership = $organization->tenantUsers()->where('user_id', $user->id)->first();
         if (!$membership) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Anda bukan anggota organization ini.',
-            ], 403);
+            return ApiResponse::error('You are not a member of this organization.', 403);
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'id' => $organization->id,
-                'name' => $organization->name,
-                'slug' => $organization->slug,
-                'code' => $organization->code,
-                'description' => $organization->description,
-                'plan' => $organization->plan,
-                'is_owner' => $organization->owner_id === $user->id,
-                'role' => $membership->role,
-                'owner' => [
-                    'id' => $organization->owner->id,
-                    'name' => $organization->owner->name,
-                    'email' => $organization->owner->email,
-                ],
-                'member_count' => $organization->tenantUsers()->count(),
+        return ApiResponse::success([
+            'id' => $organization->id,
+            'name' => $organization->name,
+            'slug' => $organization->slug,
+            'code' => $organization->code,
+            'description' => $organization->description,
+            'plan' => $organization->plan,
+            'isOwner' => $organization->owner_id === $user->id,
+            'role' => $membership->role,
+            'owner' => [
+                'id' => $organization->owner->id,
+                'name' => $organization->owner->name,
+                'email' => $organization->owner->email,
             ],
-        ]);
+            'memberCount' => $organization->tenantUsers()->count(),
+        ], 'OK');
     }
 
     /**
@@ -139,10 +125,7 @@ class OrganizationController extends Controller
             ->first();
 
         if (!$membership) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Hanya owner atau admin yang dapat mengupdate organization.',
-            ], 403);
+            return ApiResponse::error('Only owner or admin can update organization.', 403);
         }
 
         $request->validate([
@@ -155,15 +138,11 @@ class OrganizationController extends Controller
             $organization
         );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Organization berhasil diupdate.',
-            'data' => [
-                'id' => $tenant->id,
-                'name' => $tenant->name,
-                'slug' => $tenant->slug,
-            ],
-        ]);
+        return ApiResponse::success([
+            'id' => $tenant->id,
+            'name' => $tenant->name,
+            'slug' => $tenant->slug,
+        ], 'Organization updated successfully.');
     }
 
     /**
@@ -174,15 +153,9 @@ class OrganizationController extends Controller
         try {
             $this->tenantService->destroy($organization, Auth::user());
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Organization berhasil dihapus.',
-            ]);
+            return ApiResponse::success(null, 'Organization deleted successfully.');
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 403);
+            return ApiResponse::error(__('Failed to delete organization: :error', ['error' => $e->getMessage()]), 403);
         }
     }
 
@@ -201,20 +174,13 @@ class OrganizationController extends Controller
                 Auth::user()
             );
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Berhasil bergabung ke organization.',
-                'data' => [
-                    'id' => $tenant->id,
-                    'name' => $tenant->name,
-                    'slug' => $tenant->slug,
-                ],
-            ]);
+            return ApiResponse::success([
+                'id' => $tenant->id,
+                'name' => $tenant->name,
+                'slug' => $tenant->slug,
+            ], 'Joined organization successfully.');
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 422);
+            return ApiResponse::error(__('Failed to join organization: :error', ['error' => $e->getMessage()]), 422);
         }
     }
 

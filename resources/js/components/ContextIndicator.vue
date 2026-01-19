@@ -25,7 +25,7 @@ const props = defineProps({
 const isPersonal = computed(() => !props.tenantId);
 
 const modeLabel = computed(() => {
-  return isPersonal.value ? 'Mode Personal' : props.tenantName || 'Mode Organisasi';
+  return isPersonal.value ? 'Personal Mode' : props.tenantName || 'Organization Mode';
 });
 
 const indicatorClass = computed(() => {

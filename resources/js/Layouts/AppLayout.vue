@@ -140,9 +140,10 @@ import { computed, ref, onMounted, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
+import { useToastStore } from '../stores/toast';
+import { isApiSuccess, unwrapApiData } from '../utils/api';
 import ToastContainer from '../components/ToastContainer.vue';
 import OrganizationSwitcher from '../components/OrganizationSwitcher.vue';
-import { useToastStore } from '../stores/toast';
 
 const props = defineProps({
     showHeader: {
@@ -184,8 +185,9 @@ async function hydrateOrganizationFromApi() {
         if (organizationSlug.value) return;
 
         const res = await axios.get('/api/organizations/current');
-        if (res.data?.success && res.data?.data) {
-            currentOrganization.value = res.data.data;
+        const payload = res?.data;
+        if (isApiSuccess(payload) && payload?.data) {
+            currentOrganization.value = unwrapApiData(payload);
         }
     } catch (e) {
         // noop

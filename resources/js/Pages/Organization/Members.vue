@@ -152,6 +152,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { useToastStore } from '../../stores/toast';
+import { isApiSuccess, unwrapApiData, unwrapApiList } from '../../utils/api';
 
 const toastStore = useToastStore();
 
@@ -199,22 +200,11 @@ const formatDate = (dateString) => {
     });
 };
 
-const isApiSuccess = (payload) => {
-    return payload?.success === true || payload?.status === 'success';
-};
-
-const unwrapListData = (payload) => {
-    const data = payload?.data;
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.data)) return data.data;
-    return [];
-};
-
 const fetchCurrentOrganization = async () => {
     const response = await axios.get('/api/organizations/current');
     const payload = response?.data;
     if (isApiSuccess(payload) && payload?.data) {
-        organization.value = payload.data;
+        organization.value = unwrapApiData(payload);
         return organization.value.id;
     }
     throw new Error('You are not in any organization');
@@ -224,7 +214,7 @@ const fetchMembers = async (orgId) => {
     const response = await axios.get(`/api/organizations/${orgId}/members`);
     const payload = response?.data;
     if (isApiSuccess(payload)) {
-        members.value = unwrapListData(payload);
+        members.value = unwrapApiList(payload);
     }
 };
 
@@ -235,8 +225,10 @@ const generateInvite = async () => {
             role: inviteForm.value.role,
             expiry_days: inviteForm.value.expiry_days,
         });
-        if (response.data.success) {
-            generatedCode.value = response.data.data.code;
+        const payload = response?.data;
+        if (isApiSuccess(payload) && payload?.data) {
+            const data = unwrapApiData(payload);
+            generatedCode.value = data?.code;
             toastStore.success('Invite code generated!');
         }
     } catch (err) {

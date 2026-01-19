@@ -5,11 +5,11 @@
                 <div>
                     <h1 class="text-2xl font-bold">Invite Users</h1>
                     <p v-if="organization" class="text-sm text-base-content/60">
-                        {{ organization.name }} • Kelola undangan
+                        {{ organization.name }} • Manage invitations
                     </p>
                 </div>
                 <Link href="/dashboard" class="btn btn-ghost btn-sm">
-                    ← Kembali
+                    ← Back
                 </Link>
             </div>
 
@@ -30,7 +30,7 @@
                 <!-- Create Invitation Card -->
                 <div class="card mb-6 bg-base-100 shadow-xl">
                     <div class="card-body">
-                        <h2 class="card-title text-lg">Buat Undangan Baru</h2>
+                        <h2 class="card-title text-lg">Create New Invitation</h2>
                         
                         <form class="mt-4 grid gap-4 sm:grid-cols-3" @submit.prevent="createInvitation">
                             <div class="form-control">
@@ -76,7 +76,7 @@
                                     <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                                     </svg>
-                                    Buat Kode Undangan
+                                    Create Invitation Code
                                 </button>
                             </div>
                         </form>
@@ -86,17 +86,17 @@
                 <!-- Invitations Table -->
                 <div class="card bg-base-100 shadow-xl">
                     <div class="card-body">
-                        <h2 class="card-title text-lg">Daftar Undangan</h2>
+                        <h2 class="card-title text-lg">Invitation List</h2>
 
                         <div v-if="invitations.length === 0" class="py-8 text-center text-base-content/60">
-                            Belum ada undangan. Buat undangan baru di atas.
+                            No invitations yet. Create a new invitation above.
                         </div>
 
                         <div v-else class="overflow-x-auto">
                             <table class="table">
                                 <thead>
                                     <tr>
-                                        <th>Kode</th>
+                                        <th>Code</th>
                                         <th>Role</th>
                                         <th>Expires</th>
                                         <th>Usage</th>
@@ -134,7 +134,7 @@
                                             {{ invitation.usedCount }} / {{ invitation.maxUses || '∞' }}
                                         </td>
                                         <td>
-                                            <span v-if="invitation.isValid" class="badge badge-success badge-sm">Aktif</span>
+                                            <span v-if="invitation.isValid" class="badge badge-success badge-sm">Active</span>
                                             <span v-else class="badge badge-error badge-sm">Expired</span>
                                         </td>
                                         <td>
@@ -159,15 +159,15 @@
             <!-- Delete Confirmation Modal -->
             <dialog ref="deleteModal" class="modal">
                 <div class="modal-box">
-                    <h3 class="text-lg font-bold">Konfirmasi Hapus Undangan</h3>
+                    <h3 class="text-lg font-bold">Confirm Invitation Deletion</h3>
                     <p class="py-4">
-                        Apakah Anda yakin ingin menghapus kode undangan <strong>{{ invitationToDelete?.code }}</strong>?
+                        Are you sure you want to delete invitation code <strong>{{ invitationToDelete?.code }}</strong>?
                     </p>
                     <div class="modal-action">
-                        <button type="button" class="btn btn-ghost" @click="closeDeleteModal">Batal</button>
+                        <button type="button" class="btn btn-ghost" @click="closeDeleteModal">Cancel</button>
                         <button type="button" class="btn btn-error" :disabled="deleting" @click="deleteInvitation">
                             <span v-if="deleting" class="loading loading-spinner loading-sm"></span>
-                            Hapus
+                            Delete
                         </button>
                     </div>
                 </div>
@@ -183,6 +183,7 @@ import { ref, onMounted } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useToastStore } from '../../stores/toast';
+import { isApiSuccess, unwrapApiData, unwrapApiList } from '../../utils/api';
 
 const toastStore = useToastStore();
 
@@ -200,17 +201,6 @@ const newInvitation = ref({
     expiry_days: 7,
     max_uses: null,
 });
-
-const isApiSuccess = (payload) => {
-    return payload?.success === true || payload?.status === 'success';
-};
-
-const unwrapListData = (payload) => {
-    const data = payload?.data;
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.data)) return data.data;
-    return [];
-};
 
 function getRoleLabel(role) {
     const labels = { admin: 'Admin', member: 'Member' };
@@ -237,24 +227,24 @@ function formatDate(dateString) {
 
 function copyCode(code) {
     navigator.clipboard.writeText(code);
-    toastStore.success('Kode berhasil disalin!');
+    toastStore.success('Invitation code copied.');
 }
 
 async function fetchCurrentOrganization() {
     const response = await axios.get('/api/organizations/current');
     const payload = response?.data;
     if (isApiSuccess(payload) && payload?.data) {
-        organization.value = payload.data;
+        organization.value = unwrapApiData(payload);
         return organization.value.id;
     }
-    throw new Error('Anda belum berada dalam organization');
+    throw new Error('No organization selected.');
 }
 
 async function fetchInvitations(orgId) {
     const response = await axios.get(`/api/organizations/${orgId}/invitations`);
     const payload = response?.data;
     if (isApiSuccess(payload)) {
-        invitations.value = unwrapListData(payload);
+        invitations.value = unwrapApiList(payload);
     }
 }
 
@@ -268,15 +258,16 @@ async function createInvitation() {
         });
 
         if (response.data.success || response.data.status === 'success') {
-            toastStore.success('Undangan berhasil dibuat');
+            toastStore.success('Invitation created successfully.');
             await fetchInvitations(organization.value.id);
             // Reset form
             newInvitation.value = { role: 'member', expiry_days: 7, max_uses: null };
             // Copy new code
-            copyCode(response.data.data.code);
+            const data = unwrapApiData(response.data);
+            copyCode(data?.code);
         }
     } catch (e) {
-        toastStore.error(e.response?.data?.message || 'Gagal membuat undangan');
+        toastStore.error(e.response?.data?.message || 'Failed to create invitation.');
     } finally {
         creating.value = false;
     }
@@ -298,11 +289,11 @@ async function deleteInvitation() {
     deleting.value = true;
     try {
         await axios.delete(`/api/organizations/${organization.value.id}/invitations/${invitationToDelete.value.id}`);
-        toastStore.success('Undangan berhasil dihapus');
+        toastStore.success('Invitation deleted successfully.');
         invitations.value = invitations.value.filter(i => i.id !== invitationToDelete.value.id);
         closeDeleteModal();
     } catch (e) {
-        toastStore.error(e.response?.data?.message || 'Gagal menghapus undangan');
+        toastStore.error(e.response?.data?.message || 'Failed to delete invitation.');
     } finally {
         deleting.value = false;
     }
@@ -313,7 +304,7 @@ onMounted(async () => {
         const orgId = await fetchCurrentOrganization();
         await fetchInvitations(orgId);
     } catch (e) {
-        error.value = e.response?.data?.message || e.message || 'Gagal memuat data';
+        error.value = e.response?.data?.message || e.message || 'Failed to load data.';
     } finally {
         loading.value = false;
     }

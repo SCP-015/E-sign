@@ -277,6 +277,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
+import { isApiSuccess } from '../../utils/api';
 
 const loading = ref(true);
 const saving = ref(false);
@@ -319,10 +320,6 @@ const showToast = (message, type = 'success') => {
     setTimeout(() => { toast.show = false; }, 3000);
 };
 
-const isApiSuccess = (payload) => {
-    return payload?.success === true || payload?.status === 'success';
-};
-
 const openUserOverride = (member) => {
     selectedMember.value = member;
     overrideForm.maxDocumentsPerUser = member?.override?.maxDocumentsPerUser ?? null;
@@ -349,7 +346,7 @@ const saveUserOverride = async () => {
         const res = await axios.put(`/api/quota/users/${selectedMember.value.userId}`, payload);
         const api = res?.data;
         if (!(api?.success === true || api?.status === 'success')) {
-            throw new Error(api?.message || 'Gagal menyimpan quota user');
+            throw new Error(api?.message || 'Failed to save user quota');
         }
 
         showToast('User quota updated successfully!');
@@ -384,7 +381,7 @@ const fetchQuota = async () => {
         const response = await axios.get('/api/quota');
         const payload = response?.data;
         if (!isApiSuccess(payload)) {
-            throw new Error(payload?.message || 'Gagal memuat quota');
+            throw new Error(payload?.message || 'Failed to load quota');
         }
         const data = payload?.data ?? {};
         const settings = data.quotaSettings ?? null;
@@ -417,7 +414,7 @@ const saveQuota = async () => {
         });
         const payload = response?.data;
         if (!isApiSuccess(payload)) {
-            throw new Error(payload?.message || 'Gagal menyimpan quota');
+            throw new Error(payload?.message || 'Failed to save quota');
         }
 
         if (payload?.data) {

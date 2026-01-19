@@ -41,7 +41,7 @@
                     </div>
                     <div class="flex flex-col items-start">
                         <span class="text-sm font-medium">Personal Mode</span>
-                        <span class="text-xs text-base-content/60">Mode individu</span>
+                        <span class="text-xs text-base-content/60">Individual mode</span>
                     </div>
                     <span v-if="!currentOrganization" class="ml-auto text-primary">
                         <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -100,6 +100,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useToastStore } from '../stores/toast';
+import { isApiSuccess, unwrapApiData, unwrapApiList } from '../utils/api';
 
 const emit = defineEmits(['organization-changed']);
 
@@ -138,10 +139,12 @@ function closeDropdown() {
 async function fetchOrganizations() {
     try {
         const response = await axios.get('/api/organizations');
-        if (response.data.success) {
-            organizations.value = response.data.data;
-            canCreate.value = response.data.can_create;
-        }
+        const payload = response?.data;
+        if (!isApiSuccess(payload)) return;
+
+        organizations.value = unwrapApiList(payload, { nestedKey: 'organizations' });
+        const data = unwrapApiData(payload);
+        canCreate.value = data?.canCreate ?? payload?.canCreate ?? payload?.can_create ?? true;
     } catch (error) {
         console.error('Failed to fetch organizations:', error);
     }
@@ -150,8 +153,9 @@ async function fetchOrganizations() {
 async function fetchCurrentOrganization() {
     try {
         const response = await axios.get('/api/organizations/current');
-        if (response.data.success && response.data.data) {
-            currentOrganization.value = response.data.data;
+        const payload = response?.data;
+        if (isApiSuccess(payload) && payload?.data) {
+            currentOrganization.value = unwrapApiData(payload);
         } else {
             currentOrganization.value = null;
         }
@@ -186,7 +190,7 @@ async function ensureTenantContextFromUrl() {
             organization_id: org.id,
         });
         if (!response.data?.success) {
-            throw new Error(response.data?.message || 'Gagal sync organization context');
+            throw new Error(response.data?.message || 'Failed to sync organization context');
         }
         await fetchCurrentOrganization();
         emit('organization-changed', currentOrganization.value);
@@ -207,16 +211,16 @@ async function switchOrganization(org) {
             organization_id: org.id,
         });
         if (!response.data?.success) {
-            throw new Error(response.data?.message || 'Gagal beralih organization');
+            throw new Error(response.data?.message || 'Failed to switch organization');
         }
         await fetchCurrentOrganization();
         window.dispatchEvent(new Event('organizations-updated'));
-        toastStore.success('Berhasil beralih ke ' + org.name);
+        toastStore.success('Switched to ' + org.name);
         emit('organization-changed', currentOrganization.value);
         const slug = String(currentOrganization.value?.slug || '').trim();
         router.visit(slug ? `/${slug}/dashboard` : '/dashboard', { preserveScroll: true });
     } catch (error) {
-        const message = error.response?.data?.message || error.message || 'Gagal beralih organization';
+        const message = error.response?.data?.message || error.message || 'Failed to switch organization';
         toastStore.error(message);
     } finally {
         isSwitching.value = false;
@@ -232,15 +236,15 @@ async function switchToPersonal() {
             organization_id: null,
         });
         if (!response.data?.success) {
-            throw new Error(response.data?.message || 'Gagal beralih ke mode personal');
+            throw new Error(response.data?.message || 'Failed to switch to personal mode');
         }
         await fetchCurrentOrganization();
         window.dispatchEvent(new Event('organizations-updated'));
-        toastStore.success('Berhasil beralih ke mode personal');
+        toastStore.success('Switched to personal mode');
         emit('organization-changed', currentOrganization.value);
         router.visit('/dashboard', { preserveScroll: true });
     } catch (error) {
-        const message = error.response?.data?.message || error.message || 'Gagal beralih ke mode personal';
+        const message = error.response?.data?.message || error.message || 'Failed to switch to personal mode';
         toastStore.error(message);
     } finally {
         isSwitching.value = false;

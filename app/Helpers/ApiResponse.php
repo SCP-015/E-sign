@@ -8,6 +8,15 @@ use JsonSerializable;
 
 class ApiResponse
 {
+    private static function translateMessage(?string $message): ?string
+    {
+        if ($message === null || $message === '') {
+            return $message;
+        }
+
+        return __($message);
+    }
+
     private static function toCamelCaseKey(string $key): string
     {
         if (strpos($key, '_') === false) {
@@ -54,7 +63,7 @@ class ApiResponse
             'status' => 'success',
             'success' => true,
             'data' => self::camelizeData($data),
-            'message' => $message,
+            'message' => self::translateMessage($message),
         ], $extra), $code);
     }
 
@@ -64,7 +73,7 @@ class ApiResponse
             'status' => 'error',
             'success' => false,
             'data' => self::camelizeData($data),
-            'message' => $message,
+            'message' => self::translateMessage($message),
         ], $extra), $code);
     }
 
@@ -80,7 +89,7 @@ class ApiResponse
             'status' => $status,
             'success' => $success,
             'data' => self::camelizeData($data),
-            'message' => $message,
+            'message' => self::translateMessage((string) $message),
         ], $extra), $code);
     }
 }

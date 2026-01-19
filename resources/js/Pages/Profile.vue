@@ -301,6 +301,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
+import { isApiSuccess } from '../utils/api';
 
 const page = usePage();
 const loading = ref(true);
@@ -416,17 +417,13 @@ const getRoleLabel = (role) => {
     return labels[String(role || '').toLowerCase()] || (role || 'Member');
 };
 
-const isApiSuccess = (payload) => {
-    return payload?.success === true || payload?.status === 'success';
-};
-
 const fetchProfile = async () => {
     try {
         loading.value = true;
         const response = await axios.get('/api/profile');
         const payload = response?.data;
         if (!isApiSuccess(payload)) {
-            throw new Error(payload?.message || 'Gagal memuat profile');
+            throw new Error(payload?.message || 'Failed to load profile');
         }
         profile.value = payload?.data;
     } catch (error) {

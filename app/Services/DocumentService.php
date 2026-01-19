@@ -281,7 +281,7 @@ class DocumentService
             return [
                 'status' => 'error',
                 'code' => 500,
-                'message' => 'Failed to fetch documents: ' . $e->getMessage(),
+                'message' => __('Failed to fetch documents: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }
@@ -323,7 +323,7 @@ class DocumentService
             return [
                 'status' => 'error',
                 'code' => 500,
-                'message' => 'Failed to sync documents: ' . $e->getMessage(),
+                'message' => __('Failed to sync documents: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }
@@ -384,7 +384,7 @@ class DocumentService
             return [
                 'status' => 'error',
                 'code' => 500,
-                'message' => 'Upload failed: ' . $e->getMessage(),
+                'message' => __('Upload failed: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }
@@ -438,7 +438,7 @@ class DocumentService
             return [
                 'status' => 'error',
                 'code' => 404,
-                'message' => 'Document not found: ' . $e->getMessage(),
+                'message' => __('Document not found: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }

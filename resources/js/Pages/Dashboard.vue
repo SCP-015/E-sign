@@ -166,9 +166,9 @@
                 :documents="recentDocuments"
                 :totalCount="documents.length"
                 :showAllHref="hasMoreDocuments ? '/documents' : ''"
-                showAllLabel="Lihat selengkapnya"
+                showAllLabel="View all"
                 :actionsDisabled="documentsLocked"
-                disabledHint="Lengkapi KYC terlebih dahulu untuk membuka aksi dokumen."
+                disabledHint="Complete KYC first to unlock document actions."
                 :formatDate="formatDate"
                 :getFileName="getFileName"
                 :canSign="canSign"
@@ -202,13 +202,14 @@ import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
 import { useToastStore } from '../stores/toast';
+import { formatApiError } from '../utils/errors';
+import { isApiSuccess, unwrapApiData } from '../utils/api';
 import SigningModal from '../components/SigningModal.vue';
 import VerifyResultModal from '../components/VerifyResultModal.vue';
 import KycBanner from '../components/dashboard/KycBanner.vue';
 import StatsGrid from '../components/dashboard/StatsGrid.vue';
 import CertificateStatusCard from '../components/dashboard/CertificateStatusCard.vue';
 import DocumentHistory from '../components/dashboard/DocumentHistory.vue';
-import { formatApiError } from '../utils/errors';
 
 const authStore = useAuthStore();
 const toastStore = useToastStore();
@@ -308,10 +309,6 @@ const stats = computed(() => [
     { label: 'Pending', value: pendingCount.value, valueClass: 'text-warning' },
 ]);
 
-const isApiSuccess = (payload) => {
-    return payload?.success === true || payload?.status === 'success';
-};
-
 const syncDocuments = async (options = {}) => {
     const showToast = options?.showToast !== false;
     syncing.value = true;
@@ -377,15 +374,15 @@ const quickTips = [
 const fetchCurrentOrganization = async () => {
     try {
         const response = await axios.get('/api/organizations/current');
-        if (response.data?.success && response.data?.data) {
-            organization.value = response.data.data;
+        const payload = response?.data;
+        if (isApiSuccess(payload) && payload?.data) {
+            organization.value = unwrapApiData(payload);
             console.log('Current organization loaded:', organization.value);
             return;
         }
         organization.value = null;
-        console.log('No current organization');
-    } catch (e) {
-        console.error('Failed to fetch organization:', e);
+    } catch (error) {
+        console.error('Failed to fetch current organization:', error);
         organization.value = null;
     }
 };
@@ -427,11 +424,11 @@ const getUploadBlockMessage = (payload) => {
 
     const missing = [];
     if (requiresKyc === true) missing.push('KYC');
-    if (requiresSignature === true) missing.push('tanda tangan');
-    if (requiresCertificate === true) missing.push('sertifikat');
+    if (requiresSignature === true) missing.push('signature');
+    if (requiresCertificate === true) missing.push('certificate');
 
     if (missing.length === 0) return null;
-    return `Upload ditolak: ${missing.join(', ')} belum lengkap.`;
+    return `Upload blocked: ${missing.join(', ')} is incomplete.`;
 };
 
 const getOwnerInfo = (owner) => {

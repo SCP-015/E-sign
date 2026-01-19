@@ -213,6 +213,7 @@ import { Link, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
+import { isApiSuccess, unwrapApiData } from '../../utils/api';
 
 const authStore = useAuthStore();
 const toastStore = useToastStore();
@@ -249,9 +250,9 @@ const createOrganization = async () => {
             name: form.value.name,
             description: form.value.description,
         });
-        
-        if (response.data.success) {
-            resultOrganization.value = response.data.data;
+        const payload = response?.data;
+        if (isApiSuccess(payload) && payload?.data) {
+            resultOrganization.value = unwrapApiData(payload);
             toastStore.success('Organization created successfully!');
             window.dispatchEvent(new Event('organizations-updated'));
             step.value = 3;
@@ -281,9 +282,9 @@ const joinOrganization = async () => {
         const response = await axios.post('/api/organizations/join', {
             code: form.value.code.toUpperCase(),
         });
-        
-        if (response.data.success) {
-            resultOrganization.value = response.data.data;
+        const payload = response?.data;
+        if (isApiSuccess(payload) && payload?.data) {
+            resultOrganization.value = unwrapApiData(payload);
             toastStore.success('Joined organization successfully!');
             window.dispatchEvent(new Event('organizations-updated'));
             step.value = 3;

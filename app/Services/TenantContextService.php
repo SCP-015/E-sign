@@ -47,7 +47,7 @@ class TenantContextService
             return [
                 'status' => 'success',
                 'data' => null,
-                'message' => 'Berhasil beralih ke mode personal.',
+                'message' => __('Switched to personal mode.'),
                 'code' => 200,
                 'mode' => 'personal',
             ];
@@ -58,7 +58,7 @@ class TenantContextService
             return [
                 'status' => 'error',
                 'data' => null,
-                'message' => 'Anda bukan anggota organization ini.',
+                'message' => __('You are not a member of this organization.'),
                 'code' => 403,
                 'mode' => 'personal',
             ];
@@ -79,7 +79,7 @@ class TenantContextService
                 'tenant' => $tenant,
                 'role' => $roleName,
             ],
-            'message' => 'Berhasil beralih ke ' . $tenant->name,
+            'message' => __('Switched to :tenant', ['tenant' => $tenant->name]),
             'code' => 200,
             'mode' => 'organization',
         ];
