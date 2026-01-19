@@ -28,7 +28,7 @@ class TenantInvitationService
 
         return TenantInvitation::create([
             'tenant_id' => $tenant->id,
-            'role' => $data['role'] ?? 'user',
+            'role' => $data['role'] ?? 'member',
             'expires_at' => Carbon::now()->addDays($expiryDays),
             'max_uses' => $data['max_uses'] ?? null,
             'created_by' => $creator->id,

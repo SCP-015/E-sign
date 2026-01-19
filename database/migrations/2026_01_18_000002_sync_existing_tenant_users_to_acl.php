@@ -53,10 +53,9 @@ return new class extends Migration
         }
 
         // Map existing roles
-        return match (strtolower($role ?? 'user')) {
-            'admin', 'administrator' => 'admin',
-            'manager' => 'manager',
-            default => 'user',
+        return match (strtolower($role ?? 'member')) {
+            'admin', 'administrator', 'manager' => 'admin',
+            default => 'member',
         };
     }
 

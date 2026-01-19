@@ -118,9 +118,7 @@ function getRoleLabel(role) {
     const labels = {
         owner: 'Owner',
         admin: 'Admin',
-        administrator: 'Admin',
-        manager: 'Manager',
-        user: 'Member',
+        member: 'Member',
     };
     return labels[role?.toLowerCase()] || role;
 }
@@ -177,7 +175,8 @@ async function switchOrganization(org) {
         window.dispatchEvent(new Event('organizations-updated'));
         toastStore.success('Berhasil beralih ke ' + org.name);
         emit('organization-changed', currentOrganization.value);
-        router.reload({ preserveScroll: true });
+        const slug = String(currentOrganization.value?.slug || '').trim();
+        router.visit(slug ? `/${slug}/dashboard` : '/dashboard', { preserveScroll: true });
     } catch (error) {
         const message = error.response?.data?.message || error.message || 'Gagal beralih organization';
         toastStore.error(message);
@@ -201,7 +200,7 @@ async function switchToPersonal() {
         window.dispatchEvent(new Event('organizations-updated'));
         toastStore.success('Berhasil beralih ke mode personal');
         emit('organization-changed', currentOrganization.value);
-        router.reload({ preserveScroll: true });
+        router.visit('/dashboard', { preserveScroll: true });
     } catch (error) {
         const message = error.response?.data?.message || error.message || 'Gagal beralih ke mode personal';
         toastStore.error(message);

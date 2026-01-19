@@ -45,6 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'kyc.verified' => \App\Http\Middleware\RestrictIfNoKyc::class,
             'permission' => \App\Http\Middleware\CheckAclPermission::class,
+            'tenant.slug' => \App\Http\Middleware\SetCurrentTenantFromSlug::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

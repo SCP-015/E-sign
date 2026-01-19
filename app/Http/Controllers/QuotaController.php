@@ -41,29 +41,34 @@ class QuotaController extends Controller
             $effectiveMaxStorage = $override?->max_total_storage_mb ?? $quotaSetting->max_total_storage_mb;
 
             $usageData[] = [
-                'user_id' => $member->user_id,
+                'userId' => $member->user_id,
                 'user' => $member->user,
                 'role' => $member->role,
-                'documents_uploaded' => $usage->documents_uploaded,
-                'signatures_created' => $usage->signatures_created,
-                'storage_used_mb' => $usage->storage_used_mb,
+                'documentsUploaded' => $usage->documents_uploaded,
+                'signaturesCreated' => $usage->signatures_created,
+                'storageUsedMb' => $usage->storage_used_mb,
                 'override' => $override ? [
-                    'max_documents_per_user' => $override->max_documents_per_user,
-                    'max_signatures_per_user' => $override->max_signatures_per_user,
-                    'max_total_storage_mb' => $override->max_total_storage_mb,
+                    'maxDocumentsPerUser' => $override->max_documents_per_user,
+                    'maxSignaturesPerUser' => $override->max_signatures_per_user,
+                    'maxTotalStorageMb' => $override->max_total_storage_mb,
                 ] : null,
-                'effective_limits' => [
-                    'max_documents_per_user' => $effectiveMaxDocuments,
-                    'max_signatures_per_user' => $effectiveMaxSignatures,
-                    'max_total_storage_mb' => $effectiveMaxStorage,
+                'effectiveLimits' => [
+                    'maxDocumentsPerUser' => $effectiveMaxDocuments,
+                    'maxSignaturesPerUser' => $effectiveMaxSignatures,
+                    'maxTotalStorageMb' => $effectiveMaxStorage,
                 ],
-                'documents_remaining' => max(0, $effectiveMaxDocuments - $usage->documents_uploaded),
-                'signatures_remaining' => max(0, $effectiveMaxSignatures - $usage->signatures_created),
+                'documentsRemaining' => max(0, $effectiveMaxDocuments - $usage->documents_uploaded),
+                'signaturesRemaining' => max(0, $effectiveMaxSignatures - $usage->signatures_created),
             ];
         }
 
         return ApiResponse::success([
-            'quota_settings' => $quotaSetting,
+            'quotaSettings' => [
+                'maxDocumentsPerUser' => $quotaSetting->max_documents_per_user,
+                'maxSignaturesPerUser' => $quotaSetting->max_signatures_per_user,
+                'maxDocumentSizeMb' => $quotaSetting->max_document_size_mb,
+                'maxTotalStorageMb' => $quotaSetting->max_total_storage_mb,
+            ],
             'usage' => $usageData,
         ]);
     }
@@ -91,7 +96,12 @@ class QuotaController extends Controller
         $quotaSetting = QuotaSetting::getOrCreateForTenant($tenantId);
         $quotaSetting->update($validated);
 
-        return ApiResponse::success($quotaSetting, 'Quota settings updated successfully');
+        return ApiResponse::success([
+            'maxDocumentsPerUser' => $quotaSetting->max_documents_per_user,
+            'maxSignaturesPerUser' => $quotaSetting->max_signatures_per_user,
+            'maxDocumentSizeMb' => $quotaSetting->max_document_size_mb,
+            'maxTotalStorageMb' => $quotaSetting->max_total_storage_mb,
+        ], 'Quota settings updated successfully');
     }
 
     public function updateUserOverride(Request $request, int $userId)
@@ -149,6 +159,10 @@ class QuotaController extends Controller
             ]
         );
 
-        return ApiResponse::success($override, 'User quota override updated');
+        return ApiResponse::success([
+            'maxDocumentsPerUser' => $override->max_documents_per_user,
+            'maxSignaturesPerUser' => $override->max_signatures_per_user,
+            'maxTotalStorageMb' => $override->max_total_storage_mb,
+        ], 'User quota override updated');
     }
 }

@@ -62,14 +62,6 @@ class TenantUser extends Model
     }
 
     /**
-     * Check if user has manager role in this tenant.
-     */
-    public function isManager(): bool
-    {
-        return $this->role === 'manager';
-    }
-
-    /**
      * Scope for admins.
      */
     public function scopeAdmins($query)
@@ -78,18 +70,10 @@ class TenantUser extends Model
     }
 
     /**
-     * Scope for managers.
-     */
-    public function scopeManagers($query)
-    {
-        return $query->where('role', 'manager');
-    }
-
-    /**
      * Scope for regular users.
      */
     public function scopeMembers($query)
     {
-        return $query->where('role', 'user');
+        return $query->where('role', 'member');
     }
 }

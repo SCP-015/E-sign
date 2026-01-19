@@ -59,13 +59,13 @@
                                     <span class="label-text font-medium">Max Documents per User</span>
                                 </label>
                                 <div v-if="!editing" class="flex items-center gap-2">
-                                    <div class="text-3xl font-bold text-primary">{{ quotaSettings.max_documents_per_user }}</div>
+                                    <div class="text-3xl font-bold text-primary">{{ quotaSettings.maxDocumentsPerUser }}</div>
                                     <span class="text-base-content/60">documents</span>
                                 </div>
                                 <input 
                                     v-else
                                     type="number" 
-                                    v-model.number="form.max_documents_per_user" 
+                                    v-model.number="form.maxDocumentsPerUser" 
                                     class="input input-bordered"
                                     min="1"
                                     max="10000"
@@ -78,13 +78,13 @@
                                     <span class="label-text font-medium">Max Signatures per User</span>
                                 </label>
                                 <div v-if="!editing" class="flex items-center gap-2">
-                                    <div class="text-3xl font-bold text-secondary">{{ quotaSettings.max_signatures_per_user }}</div>
+                                    <div class="text-3xl font-bold text-secondary">{{ quotaSettings.maxSignaturesPerUser }}</div>
                                     <span class="text-base-content/60">signatures</span>
                                 </div>
                                 <input 
                                     v-else
                                     type="number" 
-                                    v-model.number="form.max_signatures_per_user" 
+                                    v-model.number="form.maxSignaturesPerUser" 
                                     class="input input-bordered"
                                     min="1"
                                     max="10000"
@@ -97,13 +97,13 @@
                                     <span class="label-text font-medium">Max Document Size</span>
                                 </label>
                                 <div v-if="!editing" class="flex items-center gap-2">
-                                    <div class="text-3xl font-bold text-accent">{{ quotaSettings.max_document_size_mb }}</div>
+                                    <div class="text-3xl font-bold text-accent">{{ quotaSettings.maxDocumentSizeMb }}</div>
                                     <span class="text-base-content/60">MB</span>
                                 </div>
                                 <input 
                                     v-else
                                     type="number" 
-                                    v-model.number="form.max_document_size_mb" 
+                                    v-model.number="form.maxDocumentSizeMb" 
                                     class="input input-bordered"
                                     min="1"
                                     max="100"
@@ -116,13 +116,13 @@
                                     <span class="label-text font-medium">Max Total Storage</span>
                                 </label>
                                 <div v-if="!editing" class="flex items-center gap-2">
-                                    <div class="text-3xl font-bold text-info">{{ quotaSettings.max_total_storage_mb }}</div>
+                                    <div class="text-3xl font-bold text-info">{{ quotaSettings.maxTotalStorageMb }}</div>
                                     <span class="text-base-content/60">MB</span>
                                 </div>
                                 <input 
                                     v-else
                                     type="number" 
-                                    v-model.number="form.max_total_storage_mb" 
+                                    v-model.number="form.maxTotalStorageMb" 
                                     class="input input-bordered"
                                     min="100"
                                     max="100000"
@@ -163,7 +163,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="member in usageData" :key="member.user_id">
+                                    <tr v-for="member in usageData" :key="member.userId">
                                         <td>
                                             <div class="flex items-center gap-3">
                                                 <div class="avatar">
@@ -185,27 +185,27 @@
                                         </td>
                                         <td>
                                             <div class="flex flex-col">
-                                                <span class="font-medium">{{ member.documents_uploaded }} / {{ member.effective_limits?.max_documents_per_user ?? quotaSettings.max_documents_per_user }}</span>
+                                                <span class="font-medium">{{ member.documentsUploaded }} / {{ member.effectiveLimits?.maxDocumentsPerUser ?? quotaSettings.maxDocumentsPerUser }}</span>
                                                 <progress 
                                                     class="progress progress-primary w-20 h-2" 
-                                                    :value="Number(member.documents_uploaded) || 0" 
-                                                    :max="Math.max(1, Number(member.effective_limits?.max_documents_per_user ?? quotaSettings.max_documents_per_user) || 1)"
+                                                    :value="Number(member.documentsUploaded) || 0" 
+                                                    :max="Math.max(1, Number(member.effectiveLimits?.maxDocumentsPerUser ?? quotaSettings.maxDocumentsPerUser) || 1)"
                                                 ></progress>
                                             </div>
                                         </td>
                                         <td>
                                             <div class="flex flex-col">
-                                                <span class="font-medium">{{ member.signatures_created }} / {{ member.effective_limits?.max_signatures_per_user ?? quotaSettings.max_signatures_per_user }}</span>
+                                                <span class="font-medium">{{ member.signaturesCreated }} / {{ member.effectiveLimits?.maxSignaturesPerUser ?? quotaSettings.maxSignaturesPerUser }}</span>
                                                 <progress 
                                                     class="progress progress-secondary w-20 h-2" 
-                                                    :value="Number(member.signatures_created) || 0" 
-                                                    :max="Math.max(1, Number(member.effective_limits?.max_signatures_per_user ?? quotaSettings.max_signatures_per_user) || 1)"
+                                                    :value="Number(member.signaturesCreated) || 0" 
+                                                    :max="Math.max(1, Number(member.effectiveLimits?.maxSignaturesPerUser ?? quotaSettings.maxSignaturesPerUser) || 1)"
                                                 ></progress>
                                             </div>
                                         </td>
                                         <td>
                                             <div class="flex items-center justify-between gap-2">
-                                                <span class="font-medium">{{ member.storage_used_mb }} MB</span>
+                                                <span class="font-medium">{{ member.storageUsedMb }} MB</span>
                                                 <button class="btn btn-ghost btn-xs" @click="openUserOverride(member)" title="Atur kuota user">
                                                     Edit
                                                 </button>
@@ -234,17 +234,17 @@
                     <div class="grid gap-4 mt-4">
                         <div class="form-control">
                             <label class="label"><span class="label-text">Max Documents</span></label>
-                            <input type="number" class="input input-bordered" v-model.number="overrideForm.max_documents_per_user" min="1" max="10000" />
+                            <input type="number" class="input input-bordered" v-model.number="overrideForm.maxDocumentsPerUser" min="1" max="10000" />
                             <label class="label"><span class="label-text-alt text-base-content/60">Kosongkan untuk ikut global</span></label>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Max Signatures</span></label>
-                            <input type="number" class="input input-bordered" v-model.number="overrideForm.max_signatures_per_user" min="1" max="10000" />
+                            <input type="number" class="input input-bordered" v-model.number="overrideForm.maxSignaturesPerUser" min="1" max="10000" />
                             <label class="label"><span class="label-text-alt text-base-content/60">Kosongkan untuk ikut global</span></label>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text">Max Storage (MB)</span></label>
-                            <input type="number" class="input input-bordered" v-model.number="overrideForm.max_total_storage_mb" min="100" max="100000" />
+                            <input type="number" class="input input-bordered" v-model.number="overrideForm.maxTotalStorageMb" min="100" max="100000" />
                             <label class="label"><span class="label-text-alt text-base-content/60">Kosongkan untuk ikut global</span></label>
                         </div>
                     </div>
@@ -283,10 +283,10 @@ const saving = ref(false);
 const editing = ref(false);
 const hasAccess = ref(true);
 const quotaSettings = ref({
-    max_documents_per_user: 50,
-    max_signatures_per_user: 100,
-    max_document_size_mb: 10,
-    max_total_storage_mb: 500,
+    maxDocumentsPerUser: 50,
+    maxSignaturesPerUser: 100,
+    maxDocumentSizeMb: 10,
+    maxTotalStorageMb: 500,
 });
 const usageData = ref([]);
 
@@ -294,16 +294,16 @@ const overrideModal = ref(null);
 const selectedMember = ref(null);
 const overrideSaving = ref(false);
 const overrideForm = reactive({
-    max_documents_per_user: null,
-    max_signatures_per_user: null,
-    max_total_storage_mb: null,
+    maxDocumentsPerUser: null,
+    maxSignaturesPerUser: null,
+    maxTotalStorageMb: null,
 });
 
 const form = reactive({
-    max_documents_per_user: 50,
-    max_signatures_per_user: 100,
-    max_document_size_mb: 10,
-    max_total_storage_mb: 500,
+    maxDocumentsPerUser: 50,
+    maxSignaturesPerUser: 100,
+    maxDocumentSizeMb: 10,
+    maxTotalStorageMb: 500,
 });
 
 const toast = reactive({
@@ -323,54 +323,24 @@ const isApiSuccess = (payload) => {
     return payload?.success === true || payload?.status === 'success';
 };
 
-const normalizeQuotaSettings = (raw) => {
-    if (!raw || typeof raw !== 'object') return null;
-
-    return {
-        max_documents_per_user: raw.max_documents_per_user ?? raw.maxDocumentsPerUser ?? 50,
-        max_signatures_per_user: raw.max_signatures_per_user ?? raw.maxSignaturesPerUser ?? 100,
-        max_document_size_mb: raw.max_document_size_mb ?? raw.maxDocumentSizeMb ?? 10,
-        max_total_storage_mb: raw.max_total_storage_mb ?? raw.maxTotalStorageMb ?? 500,
-    };
-};
-
 const normalizeUsageRow = (raw) => {
-    const docs = Number(raw?.documents_uploaded ?? raw?.documentsUploaded ?? 0);
-    const sigs = Number(raw?.signatures_created ?? raw?.signaturesCreated ?? 0);
-    const storage = Number(raw?.storage_used_mb ?? raw?.storageUsedMb ?? 0);
-
-    const overrideRaw = raw?.override ?? null;
-    const effectiveRaw = raw?.effective_limits ?? raw?.effectiveLimits ?? null;
-
-    const override = overrideRaw ? {
-        max_documents_per_user: overrideRaw.max_documents_per_user ?? overrideRaw.maxDocumentsPerUser ?? null,
-        max_signatures_per_user: overrideRaw.max_signatures_per_user ?? overrideRaw.maxSignaturesPerUser ?? null,
-        max_total_storage_mb: overrideRaw.max_total_storage_mb ?? overrideRaw.maxTotalStorageMb ?? null,
-    } : null;
-
-    const effective_limits = effectiveRaw ? {
-        max_documents_per_user: effectiveRaw.max_documents_per_user ?? effectiveRaw.maxDocumentsPerUser ?? null,
-        max_signatures_per_user: effectiveRaw.max_signatures_per_user ?? effectiveRaw.maxSignaturesPerUser ?? null,
-        max_total_storage_mb: effectiveRaw.max_total_storage_mb ?? effectiveRaw.maxTotalStorageMb ?? null,
-    } : null;
-
     return {
-        user_id: raw?.user_id ?? raw?.userId,
+        userId: raw?.userId,
         user: raw?.user ?? null,
-        role: raw?.role ?? raw?.role_name ?? raw?.roleName ?? null,
-        documents_uploaded: Number.isFinite(docs) ? docs : 0,
-        signatures_created: Number.isFinite(sigs) ? sigs : 0,
-        storage_used_mb: Number.isFinite(storage) ? storage : 0,
-        override,
-        effective_limits,
+        role: raw?.role ?? null,
+        documentsUploaded: Number(raw?.documentsUploaded ?? 0),
+        signaturesCreated: Number(raw?.signaturesCreated ?? 0),
+        storageUsedMb: Number(raw?.storageUsedMb ?? 0),
+        override: raw?.override ?? null,
+        effectiveLimits: raw?.effectiveLimits ?? null,
     };
 };
 
 const openUserOverride = (member) => {
     selectedMember.value = member;
-    overrideForm.max_documents_per_user = member?.override?.max_documents_per_user ?? null;
-    overrideForm.max_signatures_per_user = member?.override?.max_signatures_per_user ?? null;
-    overrideForm.max_total_storage_mb = member?.override?.max_total_storage_mb ?? null;
+    overrideForm.maxDocumentsPerUser = member?.override?.maxDocumentsPerUser ?? null;
+    overrideForm.maxSignaturesPerUser = member?.override?.maxSignaturesPerUser ?? null;
+    overrideForm.maxTotalStorageMb = member?.override?.maxTotalStorageMb ?? null;
     overrideModal.value?.showModal?.();
 };
 
@@ -380,16 +350,16 @@ const closeOverrideModal = () => {
 };
 
 const saveUserOverride = async () => {
-    if (!selectedMember.value?.user_id) return;
+    if (!selectedMember.value?.userId) return;
     try {
         overrideSaving.value = true;
         const payload = {
-            max_documents_per_user: overrideForm.max_documents_per_user || null,
-            max_signatures_per_user: overrideForm.max_signatures_per_user || null,
-            max_total_storage_mb: overrideForm.max_total_storage_mb || null,
+            max_documents_per_user: overrideForm.maxDocumentsPerUser || null,
+            max_signatures_per_user: overrideForm.maxSignaturesPerUser || null,
+            max_total_storage_mb: overrideForm.maxTotalStorageMb || null,
         };
 
-        const res = await axios.put(`/api/quota/users/${selectedMember.value.user_id}`, payload);
+        const res = await axios.put(`/api/quota/users/${selectedMember.value.userId}`, payload);
         const api = res?.data;
         if (!(api?.success === true || api?.status === 'success')) {
             throw new Error(api?.message || 'Gagal menyimpan quota user');
@@ -407,9 +377,9 @@ const saveUserOverride = async () => {
 };
 
 const clearOverride = async () => {
-    overrideForm.max_documents_per_user = null;
-    overrideForm.max_signatures_per_user = null;
-    overrideForm.max_total_storage_mb = null;
+    overrideForm.maxDocumentsPerUser = null;
+    overrideForm.maxSignaturesPerUser = null;
+    overrideForm.maxTotalStorageMb = null;
     await saveUserOverride();
 };
 
@@ -417,7 +387,6 @@ const getRoleBadgeClass = (role) => {
     switch (role?.toLowerCase()) {
         case 'owner': return 'badge badge-primary';
         case 'admin': return 'badge badge-secondary';
-        case 'manager': return 'badge badge-accent';
         default: return 'badge badge-ghost';
     }
 };
@@ -431,10 +400,10 @@ const fetchQuota = async () => {
             throw new Error(payload?.message || 'Gagal memuat quota');
         }
         const data = payload?.data ?? {};
-        const normalizedSettings = normalizeQuotaSettings(data.quota_settings ?? data.quotaSettings);
-        if (normalizedSettings) {
-            quotaSettings.value = normalizedSettings;
-            Object.assign(form, normalizedSettings);
+        const settings = data.quotaSettings ?? null;
+        if (settings) {
+            quotaSettings.value = settings;
+            Object.assign(form, settings);
         }
 
         const usage = Array.isArray(data.usage) ? data.usage : [];
@@ -453,16 +422,20 @@ const fetchQuota = async () => {
 const saveQuota = async () => {
     try {
         saving.value = true;
-        const response = await axios.put('/api/quota', form);
+        const response = await axios.put('/api/quota', {
+            max_documents_per_user: form.maxDocumentsPerUser,
+            max_signatures_per_user: form.maxSignaturesPerUser,
+            max_document_size_mb: form.maxDocumentSizeMb,
+            max_total_storage_mb: form.maxTotalStorageMb,
+        });
         const payload = response?.data;
         if (!isApiSuccess(payload)) {
             throw new Error(payload?.message || 'Gagal menyimpan quota');
         }
 
-        const normalizedSaved = normalizeQuotaSettings(payload?.data);
-        if (normalizedSaved) {
-            quotaSettings.value = normalizedSaved;
-            Object.assign(form, normalizedSaved);
+        if (payload?.data) {
+            quotaSettings.value = payload.data;
+            Object.assign(form, payload.data);
         }
         editing.value = false;
         showToast('Quota settings saved successfully!');

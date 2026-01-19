@@ -13,7 +13,7 @@ return new class extends Migration
     {
         // Untuk PostgreSQL, kita perlu mengubah constraint enum
         DB::statement("ALTER TABLE tenant_users DROP CONSTRAINT IF EXISTS tenant_users_role_check");
-        DB::statement("ALTER TABLE tenant_users ADD CONSTRAINT tenant_users_role_check CHECK (role IN ('owner', 'admin', 'manager', 'user'))");
+        DB::statement("ALTER TABLE tenant_users ADD CONSTRAINT tenant_users_role_check CHECK (role IN ('owner', 'admin', 'member'))");
     }
 
     /**
@@ -23,6 +23,6 @@ return new class extends Migration
     {
         // Kembalikan constraint ke nilai semula
         DB::statement("ALTER TABLE tenant_users DROP CONSTRAINT IF EXISTS tenant_users_role_check");
-        DB::statement("ALTER TABLE tenant_users ADD CONSTRAINT tenant_users_role_check CHECK (role IN ('admin', 'manager', 'user'))");
+        DB::statement("ALTER TABLE tenant_users ADD CONSTRAINT tenant_users_role_check CHECK (role IN ('admin', 'member'))");
     }
 };

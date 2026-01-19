@@ -40,7 +40,7 @@ class UserController extends Controller
             $currentTenant = $user->tenants()->where('tenants.id', $tenantId)->first();
             if ($currentTenant) {
                 $aclRole = $user->getRoleInTenant($currentTenant->id);
-                $role = $aclRole ? $aclRole->name : ($currentTenant->pivot->role ?? 'user');
+                $role = $aclRole ? $aclRole->name : ($currentTenant->pivot->role ?? 'member');
             }
             $permissions = $user->getPermissionsInTenant($tenantId);
         }
@@ -50,13 +50,13 @@ class UserController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'avatar' => $user->avatar,
-            'kyc_status' => $user->kyc_status,
-            'email_verified_at' => $user->email_verified_at,
-            'created_at' => $user->created_at,
-            'signatures_count' => $user->signatures->count(),
-            'has_certificate' => $user->certificate !== null,
-            'organizations_count' => $user->tenants->count(),
-            'current_organization' => $currentTenant ? [
+            'kycStatus' => $user->kyc_status,
+            'emailVerifiedAt' => $user->email_verified_at,
+            'createdAt' => $user->created_at,
+            'signaturesCount' => $user->signatures->count(),
+            'hasCertificate' => $user->certificate !== null,
+            'organizationsCount' => $user->tenants->count(),
+            'currentOrganization' => $currentTenant ? [
                 'id' => $currentTenant->id,
                 'name' => $currentTenant->name,
                 'role' => $role,

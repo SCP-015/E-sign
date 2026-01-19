@@ -25,16 +25,16 @@ class OrganizationInvitationController extends Controller
     {
         $user = Auth::user();
 
-        // Check if user is owner, admin or manager
+        // Check if user is owner or admin
         $membership = $organization->tenantUsers()
             ->where('user_id', $user->id)
-            ->whereIn('role', ['owner', 'admin', 'manager'])
+            ->whereIn('role', ['owner', 'admin'])
             ->first();
 
         if (!$membership) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hanya owner, admin atau manager yang dapat melihat undangan.',
+                'message' => 'Hanya owner atau admin yang dapat melihat undangan.',
             ], 403);
         }
 
@@ -69,21 +69,21 @@ class OrganizationInvitationController extends Controller
     {
         $user = Auth::user();
 
-        // Check if user is owner, admin or manager
+        // Check if user is owner or admin
         $membership = $organization->tenantUsers()
             ->where('user_id', $user->id)
-            ->whereIn('role', ['owner', 'admin', 'manager'])
+            ->whereIn('role', ['owner', 'admin'])
             ->first();
 
         if (!$membership) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hanya owner, admin atau manager yang dapat membuat undangan.',
+                'message' => 'Hanya owner atau admin yang dapat membuat undangan.',
             ], 403);
         }
 
         $request->validate([
-            'role' => 'required|in:admin,manager,user',
+            'role' => 'required|in:admin,member',
             'expiry_days' => 'nullable|integer|min:1|max:30',
             'max_uses' => 'nullable|integer|min:1',
         ]);

@@ -35,7 +35,12 @@ trait HasAclPermissions
      */
     public function assignRoleInTenant(string $roleName, string $tenantId): bool
     {
-        $role = AclRole::where('name', $roleName)->first();
+        $normalizedRoleName = strtolower($roleName);
+        if ($normalizedRoleName === 'user') {
+            $normalizedRoleName = 'member';
+        }
+
+        $role = AclRole::where('name', $normalizedRoleName)->first();
         if (!$role) {
             return false;
         }

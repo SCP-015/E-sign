@@ -153,14 +153,7 @@ return new class extends Migration
                 'updated_at' => $now,
             ],
             [
-                'name' => 'manager',
-                'guard_name' => 'api',
-                'description' => 'Manager who can manage team documents',
-                'created_at' => $now,
-                'updated_at' => $now,
-            ],
-            [
-                'name' => 'user',
+                'name' => 'member',
                 'guard_name' => 'api',
                 'description' => 'Regular user with basic access',
                 'created_at' => $now,
@@ -178,8 +171,7 @@ return new class extends Migration
         $rolePermissionMappings = [
             'owner' => config('permissions.owner_permissions', []),
             'admin' => config('permissions.admin_permissions', []),
-            'manager' => config('permissions.manager_permissions', []),
-            'user' => config('permissions.user_permissions', []),
+            'member' => config('permissions.member_permissions', []),
         ];
 
         foreach ($rolePermissionMappings as $roleName => $permissionNames) {

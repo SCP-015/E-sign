@@ -78,17 +78,33 @@ Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->name('dashboard');
 
+Route::get('/{tenantSlug}/dashboard', function (string $tenantSlug) {
+    return Inertia::render('Dashboard');
+})->middleware('tenant.slug')->name('tenant.dashboard');
+
 Route::get('/documents', function () {
     return Inertia::render('Documents');
 })->name('documents');
+
+Route::get('/{tenantSlug}/documents', function (string $tenantSlug) {
+    return Inertia::render('Documents');
+})->middleware('tenant.slug')->name('tenant.documents');
 
 Route::get('/signature-setup', function () {
     return Inertia::render('SignatureSetup');
 })->name('signature.setup');
 
+Route::get('/{tenantSlug}/signature-setup', function (string $tenantSlug) {
+    return Inertia::render('SignatureSetup');
+})->middleware('tenant.slug')->name('tenant.signature.setup');
+
 Route::get('/verify', function () {
     return Inertia::render('Verify');
 })->name('verify');
+
+Route::get('/{tenantSlug}/verify', function (string $tenantSlug) {
+    return Inertia::render('Verify');
+})->middleware('tenant.slug')->name('tenant.verify');
 
 Route::get('/qr-positioner/{documentId}', function (int $documentId) {
     return Inertia::render('DocumentQrPositioner', [

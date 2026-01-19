@@ -3,7 +3,7 @@
         <ToastContainer />
         <header v-if="showHeader" class="sticky top-0 z-40 border-b border-base-200 bg-base-100/90 shadow-sm backdrop-blur">
             <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:flex-nowrap">
-                <Link href="/dashboard" class="flex items-center gap-3 text-base font-semibold">
+                <Link :href="dashboardHref" class="flex items-center gap-3 text-base font-semibold">
                     <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm">
                         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M4 20h4l10-10a2.828 2.828 0 1 0-4-4L4 16v4z"></path>
@@ -14,10 +14,10 @@
                 </Link>
 
                 <nav class="hidden items-center gap-2 md:flex">
-                    <Link href="/dashboard" class="btn btn-ghost btn-sm">Dashboard</Link>
-                    <Link href="/documents" class="btn btn-ghost btn-sm">Documents</Link>
-                    <Link href="/signature-setup" class="btn btn-ghost btn-sm">Signatures</Link>
-                    <Link href="/verify" class="btn btn-ghost btn-sm">Verify Page</Link>
+                    <Link :href="dashboardHref" class="btn btn-ghost btn-sm">Dashboard</Link>
+                    <Link :href="documentsHref" class="btn btn-ghost btn-sm">Documents</Link>
+                    <Link :href="signatureHref" class="btn btn-ghost btn-sm">Signatures</Link>
+                    <Link :href="verifyHref" class="btn btn-ghost btn-sm">Verify Page</Link>
                 </nav>
 
                 <div class="flex items-center gap-3">
@@ -36,7 +36,7 @@
                         </label>
                         <ul tabindex="0" class="menu dropdown-content mt-3 w-48 rounded-box border border-base-200 bg-base-100 p-2 shadow">
                             <li><Link href="/profile">My Profile</Link></li>
-                            <li><Link href="/signature-setup">Setup Signature</Link></li>
+                            <li><Link :href="signatureHref">Setup Signature</Link></li>
                             <li class="border-t border-base-200 mt-1 pt-1"><button type="button" @click="logout">Logout</button></li>
                         </ul>
                     </div>
@@ -54,10 +54,10 @@
                             </svg>
                         </label>
                         <ul tabindex="0" class="menu dropdown-content mt-3 w-48 rounded-box border border-base-200 bg-base-100 p-2 shadow">
-                            <li><Link href="/dashboard">Dashboard</Link></li>
-                            <li><Link href="/documents">Documents</Link></li>
-                            <li><Link href="/signature-setup">Signatures</Link></li>
-                            <li><Link href="/verify">Verify Page</Link></li>
+                            <li><Link :href="dashboardHref">Dashboard</Link></li>
+                            <li><Link :href="documentsHref">Documents</Link></li>
+                            <li><Link :href="signatureHref">Signatures</Link></li>
+                            <li><Link :href="verifyHref">Verify Page</Link></li>
                             <li v-if="isAuthenticated"><button type="button" @click="logout">Logout</button></li>
                         </ul>
                     </div>
@@ -136,7 +136,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
@@ -164,6 +164,47 @@ const userInitial = computed(() => authStore.user?.name?.charAt(0)?.toUpperCase(
 const toastStore = useToastStore();
 
 const currentOrganization = ref(null);
+
+const organizationSlug = computed(() => {
+    return String(
+        currentOrganization.value?.slug ??
+        page.props?.auth?.organization?.slug ??
+        ''
+    ).trim();
+});
+
+const dashboardHref = computed(() => organizationSlug.value ? `/${organizationSlug.value}/dashboard` : '/dashboard');
+const documentsHref = computed(() => organizationSlug.value ? `/${organizationSlug.value}/documents` : '/documents');
+const signatureHref = computed(() => organizationSlug.value ? `/${organizationSlug.value}/signature-setup` : '/signature-setup');
+const verifyHref = computed(() => organizationSlug.value ? `/${organizationSlug.value}/verify` : '/verify');
+
+function maybeRedirectToSlugRoute() {
+    const slug = organizationSlug.value;
+    if (!slug) return;
+
+    const path = window.location.pathname || '';
+    if (path.startsWith(`/${slug}/`)) return;
+
+    const map = {
+        '/dashboard': `/${slug}/dashboard`,
+        '/documents': `/${slug}/documents`,
+        '/signature-setup': `/${slug}/signature-setup`,
+        '/verify': `/${slug}/verify`,
+    };
+
+    const target = map[path];
+    if (!target) return;
+
+    router.visit(target, { replace: true, preserveScroll: true });
+}
+
+onMounted(() => {
+    maybeRedirectToSlugRoute();
+});
+
+watch(organizationSlug, () => {
+    maybeRedirectToSlugRoute();
+});
 
 const handleOrganizationChanged = (org) => {
     currentOrganization.value = org;

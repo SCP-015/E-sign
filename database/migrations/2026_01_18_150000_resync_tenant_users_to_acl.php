@@ -44,10 +44,10 @@ return new class extends Migration
             return 'owner';
         }
 
-        return match (strtolower($role ?? 'user')) {
+        return match (strtolower($role ?? 'member')) {
             'admin', 'administrator' => 'admin',
-            'manager' => 'manager',
-            default => 'user',
+            'manager' => 'admin',
+            default => 'member',
         };
     }
 

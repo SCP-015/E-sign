@@ -38,8 +38,7 @@
                                     <span class="label-text">Role</span>
                                 </label>
                                 <select v-model="newInvitation.role" class="select select-bordered">
-                                    <option value="user">Member</option>
-                                    <option value="manager">Manager</option>
+                                    <option value="member">Member</option>
                                     <option value="admin">Admin</option>
                                 </select>
                             </div>
@@ -197,21 +196,20 @@ const invitationToDelete = ref(null);
 const deleteModal = ref(null);
 
 const newInvitation = ref({
-    role: 'user',
+    role: 'member',
     expiry_days: 7,
     max_uses: null,
 });
 
 function getRoleLabel(role) {
-    const labels = { admin: 'Admin', manager: 'Manager', user: 'Member' };
+    const labels = { admin: 'Admin', member: 'Member' };
     return labels[role] || role;
 }
 
 function getRoleBadgeClass(role) {
     const classes = {
         admin: 'badge-primary',
-        manager: 'badge-secondary',
-        user: 'badge-ghost',
+        member: 'badge-ghost',
     };
     return classes[role] || 'badge-ghost';
 }
@@ -260,7 +258,7 @@ async function createInvitation() {
             toastStore.success('Undangan berhasil dibuat');
             await fetchInvitations(organization.value.id);
             // Reset form
-            newInvitation.value = { role: 'user', expiry_days: 7, max_uses: null };
+            newInvitation.value = { role: 'member', expiry_days: 7, max_uses: null };
             // Copy new code
             copyCode(response.data.data.code);
         }

@@ -73,12 +73,7 @@ class AclSeeder extends Seeder
                 'description' => 'Administrator with almost full access',
             ],
             [
-                'name' => 'manager',
-                'guard_name' => 'api',
-                'description' => 'Manager who can manage team documents',
-            ],
-            [
-                'name' => 'user',
+                'name' => 'member',
                 'guard_name' => 'api',
                 'description' => 'Regular user with basic access',
             ],
@@ -101,8 +96,7 @@ class AclSeeder extends Seeder
         $rolePermissionMappings = [
             'owner' => config('permissions.owner_permissions', []),
             'admin' => config('permissions.admin_permissions', []),
-            'manager' => config('permissions.manager_permissions', []),
-            'user' => config('permissions.user_permissions', []),
+            'member' => config('permissions.member_permissions', []),
         ];
 
         foreach ($rolePermissionMappings as $roleName => $permissionNames) {

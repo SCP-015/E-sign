@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('tenant_id');
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->enum('role', ['owner', 'admin', 'manager', 'user'])->default('user');
+            $table->enum('role', ['owner', 'admin', 'member'])->default('member');
             $table->boolean('is_owner')->default(false);
             $table->timestamp('joined_at')->nullable();
             $table->timestamps();

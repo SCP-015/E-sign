@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Tenant;
 use App\Models\TenantUser;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -87,12 +88,18 @@ class OrganizationMemberController extends Controller
         }
 
         $request->validate([
-            'role' => 'required|in:admin,manager,user',
+            'role' => 'required|in:admin,member',
         ]);
 
         $member->update([
             'role' => $request->input('role'),
         ]);
+
+        // Sync role to ACL so permission checks & UI role reflect the latest change
+        $targetUser = User::find($member->user_id);
+        if ($targetUser) {
+            $targetUser->assignRoleInTenant($member->role, $organization->id);
+        }
 
         return response()->json([
             'success' => true,

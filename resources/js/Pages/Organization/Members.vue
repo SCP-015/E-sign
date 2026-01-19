@@ -3,9 +3,9 @@
             <div class="mb-6 flex items-center justify-between">
                 <div>
                     <h1 class="text-2xl font-bold">Member Management</h1>
-                    <p class="text-base-content/60">Manage users and roles for {{ organization?.name || 'your organization' }}</p>
+                    <p class="text-base-content/60">View members for {{ organization?.name || 'your organization' }}</p>
                 </div>
-                <button @click="showInviteModal = true" class="btn btn-primary gap-2">
+                <button v-if="canManage" @click="showInviteModal = true" class="btn btn-primary gap-2">
                     <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                         <circle cx="8.5" cy="7" r="4"></circle>
@@ -67,9 +67,8 @@
                                             <label tabindex="0" class="btn btn-ghost btn-sm">Edit</label>
                                             <ul tabindex="0" class="dropdown-content menu mt-3 w-52 rounded-box bg-base-100 p-2 shadow-xl border border-base-200 z-[100]">
                                                 <li class="menu-title"><span>Change Role</span></li>
-                                                <li><a @click="updateRole(member, 'admin')" :class="member.role === 'admin' ? 'active' : ''">Administrator</a></li>
-                                                <li><a @click="updateRole(member, 'manager')" :class="member.role === 'manager' ? 'active' : ''">Manager</a></li>
-                                                <li><a @click="updateRole(member, 'user')" :class="member.role === 'user' ? 'active' : ''">User</a></li>
+                                                <li><a @click="updateRole(member, 'admin')" :class="member.role === 'admin' ? 'active' : ''">Admin</a></li>
+                                                <li><a @click="updateRole(member, 'member')" :class="member.role === 'member' ? 'active' : ''">Member</a></li>
                                                 <div class="divider my-1"></div>
                                                 <li><a @click="confirmRemove(member)" class="text-error">Remove Member</a></li>
                                             </ul>
@@ -100,9 +99,8 @@
                             <span class="label-text font-semibold">Assign Initial Role</span>
                         </label>
                         <select v-model="inviteForm.role" class="select select-bordered w-full">
-                            <option value="admin">Administrator</option>
-                            <option value="manager">Manager</option>
-                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                            <option value="member">Member</option>
                         </select>
                     </div>
 
@@ -152,7 +150,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { useToastStore } from '../../stores/toast';
 
@@ -167,22 +165,21 @@ const members = ref([]);
 const showInviteModal = ref(false);
 const generatingInvite = ref(false);
 const generatedCode = ref('');
-const inviteForm = ref({ role: 'user', expiry_days: 7 });
+const inviteForm = ref({ role: 'member', expiry_days: 7 });
 
 // Remove state
 const memberToRemove = ref(null);
 const removingMember = ref(false);
 
 const canManage = computed(() => {
-    // Check if current user is admin or owner
-    return true; // Simplified - you can add proper logic here
+    const role = String(organization.value?.role || '').toLowerCase();
+    return role === 'owner' || role === 'admin';
 });
 
 const formatRole = (role) => {
     const labels = {
-        'admin': 'Administrator',
-        'manager': 'Manager',
-        'user': 'User',
+        'admin': 'Admin',
+        'member': 'Member',
     };
     return labels[role] || role;
 };
@@ -234,6 +231,16 @@ const closeInviteModal = () => {
     showInviteModal.value = false;
     generatedCode.value = '';
 };
+
+watch(
+    () => canManage.value,
+    (allowed) => {
+        if (!allowed) {
+            showInviteModal.value = false;
+            generatedCode.value = '';
+        }
+    }
+);
 
 const copyCode = () => {
     navigator.clipboard.writeText(generatedCode.value);

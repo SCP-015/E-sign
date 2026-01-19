@@ -18,7 +18,7 @@
                             <h3 class="text-lg font-semibold">Organization Management</h3>
                             <p class="text-sm text-base-content/60">{{ organization.name }}</p>
                         </div>
-                        <div class="badge badge-primary">{{ organization.role || 'Member' }}</div>
+                        <div class="badge badge-primary">{{ getRoleLabel(organization.role) }}</div>
                     </div>
                     
                     <div class="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
@@ -38,7 +38,7 @@
                             </div>
                         </a>
 
-                        <!-- Invite Users (manager, admin, owner) -->
+                        <!-- Invite Users (admin, owner) -->
                         <a v-if="canInviteMembers" href="/organization/invitations" class="card card-compact border border-base-200 bg-base-100 shadow-sm transition-all hover:border-secondary hover:shadow-md">
                             <div class="card-body items-center text-center">
                                 <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
@@ -211,16 +211,24 @@ const dragActive = ref(false);
 const documents = ref([]);
 const organization = ref(page.props.auth?.organization ?? null);
 
+function getRoleLabel(role) {
+    const labels = {
+        owner: 'Owner',
+        admin: 'Admin',
+        member: 'Member',
+    };
+    return labels[String(role || '').toLowerCase()] || (role || 'Member');
+}
+
 const userRole = computed(() => {
     const role = organization.value?.role?.toLowerCase() || '';
     return role;
 });
 
 const isOwner = computed(() => userRole.value === 'owner');
-const isAdmin = computed(() => userRole.value === 'admin' || userRole.value === 'administrator');
-const isManager = computed(() => userRole.value === 'manager');
+const isAdmin = computed(() => userRole.value === 'admin');
 
-const canInviteMembers = computed(() => isOwner.value || isAdmin.value || isManager.value);
+const canInviteMembers = computed(() => isOwner.value || isAdmin.value);
 const canEditPortalSettings = computed(() => isOwner.value || isAdmin.value);
 
 const recentDocuments = computed(() => documents.value.slice(0, 5));

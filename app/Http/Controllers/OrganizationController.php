@@ -32,7 +32,7 @@ class OrganizationController extends Controller
             'success' => true,
             'data' => $tenants->map(function ($tenant) use ($user) {
                 $aclRole = $user->getRoleInTenant($tenant->id);
-                $roleName = $aclRole ? $aclRole->name : ($tenant->pivot->role ?? 'user');
+                $roleName = $aclRole ? $aclRole->name : ($tenant->pivot->role ?? 'member');
                 
                 return [
                     'id' => $tenant->id,
@@ -298,7 +298,7 @@ class OrganizationController extends Controller
         }
 
         $aclRole = $user->getRoleInTenant($tenant->id);
-        $roleName = $aclRole ? $aclRole->name : ($tenant->pivot->role ?? 'user');
+        $roleName = $aclRole ? $aclRole->name : ($tenant->pivot->role ?? 'member');
 
         return response()->json([
             'success' => true,

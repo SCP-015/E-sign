@@ -35,8 +35,8 @@ class TenantJoinService
             throw new Exception('Kode tidak valid atau sudah tidak berlaku.');
         }
 
-        // Join with default role 'user'
-        return $this->attachUserToTenant($user, $tenant, 'user');
+        // Join with default role 'member'
+        return $this->attachUserToTenant($user, $tenant, 'member');
     }
 
     /**
@@ -85,7 +85,7 @@ class TenantJoinService
      * @return Tenant
      * @throws Exception
      */
-    public function attachUserToTenant(User $user, Tenant $tenant, string $role = 'user'): Tenant
+    public function attachUserToTenant(User $user, Tenant $tenant, string $role = 'member'): Tenant
     {
         // Check if already member
         $existingMember = TenantUser::where('tenant_id', $tenant->id)

@@ -80,8 +80,7 @@ return [
     | Hierarki:
     | - Owner: Full access (billing, quota, portal settings, semua)
     | - Admin: Manage members (invite, remove, update role), TANPA billing
-    | - Manager: View members + invite member, TANPA billing, TANPA edit member
-    | - User: View members only, TANPA billing, TANPA invite
+    | - Member: View members only, TANPA billing, TANPA invite
     |
     */
 
@@ -157,35 +156,8 @@ return [
         // TANPA: billing.*, quota.*
     ],
 
-    // Manager - View members + invite, TANPA edit/remove member, TANPA billing
-    'manager_permissions' => [
-        // Documents - full kecuali delete
-        'documents.view',
-        'documents.view_all',
-        'documents.upload',
-        'documents.sign',
-        'documents.request_signature',
-        'documents.finalize',
-        'documents.download',
-        // Signatures - full
-        'signatures.view',
-        'signatures.create',
-        'signatures.manage_placements',
-        // Organization - view only
-        'organization.view',
-        // Members - view + invite only
-        'members.view',
-        'members.invite',
-        // Portal Settings - view only
-        'portal_settings.view',
-        // Invitations - view + create
-        'invitations.view',
-        'invitations.create',
-        // TANPA: members.remove, members.update_role, billing.*, quota.*, portal_settings.update
-    ],
-
-    // User - Sangat terbatas, hanya view members, TANPA invite, TANPA billing
-    'user_permissions' => [
+    // Member - Sangat terbatas, hanya view members, TANPA invite, TANPA billing
+    'member_permissions' => [
         // Documents - basic (hanya dokumen sendiri)
         'documents.view',
         'documents.view_all',

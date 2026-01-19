@@ -40,28 +40,28 @@
                                 <div class="flex flex-wrap justify-center gap-2 mt-4 md:justify-start">
                                     <div :class="kycBadgeClass">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path v-if="profile.kyc_status === 'verified'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            <path v-if="profile.kycStatus === 'verified'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
                                         {{ kycStatusText }}
                                     </div>
-                                    <div v-if="profile.has_certificate" class="badge badge-success gap-1">
+                                    <div v-if="profile.hasCertificate" class="badge badge-success gap-1">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                                         </svg>
                                         Certificate Active
                                     </div>
-                                    <div v-if="profile.current_organization" class="badge badge-primary gap-1">
+                                    <div v-if="profile.currentOrganization" class="badge badge-primary gap-1">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                                         </svg>
-                                        {{ profile.current_organization.role }}
+                                        {{ getRoleLabel(profile.currentOrganization.role) }}
                                     </div>
                                 </div>
 
                                 <!-- Member Since -->
                                 <p class="text-sm text-base-content/50 mt-4">
-                                    Member since {{ formatDate(profile.created_at) }}
+                                    Member since {{ formatDate(profile.createdAt) }}
                                 </p>
                             </div>
                         </div>
@@ -80,7 +80,7 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <p class="text-3xl font-bold">{{ profile.signatures_count }}</p>
+                                    <p class="text-3xl font-bold">{{ profile.signaturesCount }}</p>
                                     <p class="text-sm text-base-content/60">Signatures</p>
                                 </div>
                             </div>
@@ -97,7 +97,7 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <p class="text-3xl font-bold">{{ profile.organizations_count }}</p>
+                                    <p class="text-3xl font-bold">{{ profile.organizationsCount }}</p>
                                     <p class="text-sm text-base-content/60">Organizations</p>
                                 </div>
                             </div>
@@ -108,13 +108,13 @@
                     <div class="card bg-base-100 border border-base-200 shadow-sm">
                         <div class="card-body">
                             <div class="flex items-center gap-4">
-                                <div :class="['flex h-14 w-14 items-center justify-center rounded-xl', profile.has_certificate ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning']">
+                                <div :class="['flex h-14 w-14 items-center justify-center rounded-xl', profile.hasCertificate ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning']">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                                     </svg>
                                 </div>
                                 <div>
-                                    <p class="text-lg font-bold">{{ profile.has_certificate ? 'Active' : 'Not Issued' }}</p>
+                                    <p class="text-lg font-bold">{{ profile.hasCertificate ? 'Active' : 'Not Issued' }}</p>
                                     <p class="text-sm text-base-content/60">Certificate</p>
                                 </div>
                             </div>
@@ -123,7 +123,7 @@
                 </div>
 
                 <!-- Current Organization -->
-                <div v-if="profile.current_organization" class="card bg-base-100 border border-base-200 shadow-sm">
+                <div v-if="profile.currentOrganization" class="card bg-base-100 border border-base-200 shadow-sm">
                     <div class="card-body">
                         <h2 class="card-title text-lg">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -133,8 +133,8 @@
                         </h2>
                         <div class="flex items-center justify-between mt-2">
                             <div>
-                                <p class="font-semibold text-lg">{{ profile.current_organization.name }}</p>
-                                <p class="text-sm text-base-content/60">Role: {{ profile.current_organization.role }}</p>
+                                <p class="font-semibold text-lg">{{ profile.currentOrganization.name }}</p>
+                                <p class="text-sm text-base-content/60">Role: {{ getRoleLabel(profile.currentOrganization.role) }}</p>
                             </div>
                             <a href="/dashboard" class="btn btn-primary btn-sm">Go to Dashboard</a>
                         </div>
@@ -178,8 +178,8 @@
                             </div>
                             <div class="flex justify-between py-3">
                                 <span class="text-base-content/60">Email Verified</span>
-                                <span :class="profile.email_verified_at ? 'text-success' : 'text-warning'">
-                                    {{ profile.email_verified_at ? 'Yes' : 'No' }}
+                                <span :class="profile.emailVerifiedAt ? 'text-success' : 'text-warning'">
+                                    {{ profile.emailVerifiedAt ? 'Yes' : 'No' }}
                                 </span>
                             </div>
                             <div class="flex justify-between py-3">
@@ -188,7 +188,7 @@
                             </div>
                             <div class="flex justify-between py-3">
                                 <span class="text-base-content/60">Member Since</span>
-                                <span class="font-medium">{{ formatDate(profile.created_at) }}</span>
+                                <span class="font-medium">{{ formatDate(profile.createdAt) }}</span>
                             </div>
                         </div>
                     </div>
@@ -217,7 +217,7 @@ const profile = ref(null);
 
 const kycBadgeClass = computed(() => {
     if (!profile.value) return 'badge badge-ghost gap-1';
-    switch (profile.value.kyc_status) {
+    switch (profile.value.kycStatus) {
         case 'verified': return 'badge badge-success gap-1';
         case 'pending': return 'badge badge-warning gap-1';
         case 'rejected': return 'badge badge-error gap-1';
@@ -227,7 +227,7 @@ const kycBadgeClass = computed(() => {
 
 const kycStatusText = computed(() => {
     if (!profile.value) return 'Unknown';
-    switch (profile.value.kyc_status) {
+    switch (profile.value.kycStatus) {
         case 'verified': return 'KYC Verified';
         case 'pending': return 'KYC Pending';
         case 'rejected': return 'KYC Rejected';
@@ -237,7 +237,7 @@ const kycStatusText = computed(() => {
 
 const kycTextClass = computed(() => {
     if (!profile.value) return '';
-    switch (profile.value.kyc_status) {
+    switch (profile.value.kycStatus) {
         case 'verified': return 'text-success font-medium';
         case 'pending': return 'text-warning font-medium';
         case 'rejected': return 'text-error font-medium';
@@ -258,27 +258,17 @@ const formatPermission = (permission) => {
     return permission.replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 };
 
-const isApiSuccess = (payload) => {
-    return payload?.success === true || payload?.status === 'success';
+const getRoleLabel = (role) => {
+    const labels = {
+        owner: 'Owner',
+        admin: 'Admin',
+        member: 'Member',
+    };
+    return labels[String(role || '').toLowerCase()] || (role || 'Member');
 };
 
-const normalizeProfile = (raw) => {
-    if (!raw || typeof raw !== 'object') return null;
-
-    return {
-        id: raw.id,
-        name: raw.name,
-        email: raw.email,
-        avatar: raw.avatar,
-        kyc_status: raw.kyc_status ?? raw.kycStatus,
-        email_verified_at: raw.email_verified_at ?? raw.emailVerifiedAt,
-        created_at: raw.created_at ?? raw.createdAt,
-        signatures_count: raw.signatures_count ?? raw.signaturesCount ?? 0,
-        has_certificate: raw.has_certificate ?? raw.hasCertificate ?? false,
-        organizations_count: raw.organizations_count ?? raw.organizationsCount ?? 0,
-        current_organization: raw.current_organization ?? raw.currentOrganization ?? null,
-        permissions: raw.permissions ?? [],
-    };
+const isApiSuccess = (payload) => {
+    return payload?.success === true || payload?.status === 'success';
 };
 
 const fetchProfile = async () => {
@@ -289,7 +279,7 @@ const fetchProfile = async () => {
         if (!isApiSuccess(payload)) {
             throw new Error(payload?.message || 'Gagal memuat profile');
         }
-        profile.value = normalizeProfile(payload?.data);
+        profile.value = payload?.data;
     } catch (error) {
         console.error('Failed to fetch profile:', error);
     } finally {

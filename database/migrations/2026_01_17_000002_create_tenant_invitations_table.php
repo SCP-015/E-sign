@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('tenant_id');
             $table->string('code', 20)->unique();
-            $table->enum('role', ['admin', 'manager', 'user'])->default('user');
+            $table->enum('role', ['admin', 'member'])->default('member');
             $table->timestamp('expires_at');
             $table->integer('max_uses')->nullable();
             $table->integer('used_count')->default(0);

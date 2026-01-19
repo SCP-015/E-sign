@@ -151,15 +151,6 @@ const isApiSuccess = (payload) => {
     return payload?.success === true || payload?.status === 'success';
 };
 
-const normalizeQuotaSettings = (raw) => {
-    if (!raw || typeof raw !== 'object') return null;
-
-    return {
-        max_documents_per_user: raw.max_documents_per_user ?? raw.maxDocumentsPerUser ?? null,
-        max_signatures_per_user: raw.max_signatures_per_user ?? raw.maxSignaturesPerUser ?? null,
-    };
-};
-
 // Available plans
 const plans = ref([
     {
@@ -218,11 +209,10 @@ const fetchData = async () => {
         const quotaRes = await axios.get('/api/quota');
         const quotaPayload = quotaRes?.data;
         if (isApiSuccess(quotaPayload)) {
-            const quotaSettingsRaw = quotaPayload?.data?.quota_settings ?? quotaPayload?.data?.quotaSettings ?? null;
-            const quotaSettings = normalizeQuotaSettings(quotaSettingsRaw);
+            const quotaSettings = quotaPayload?.data?.quotaSettings ?? null;
             if (quotaSettings) {
-                limits.value.signatures = quotaSettings.max_signatures_per_user ?? limits.value.signatures;
-                limits.value.documents = quotaSettings.max_documents_per_user ?? limits.value.documents;
+                limits.value.signatures = quotaSettings.maxSignaturesPerUser ?? limits.value.signatures;
+                limits.value.documents = quotaSettings.maxDocumentsPerUser ?? limits.value.documents;
             }
         }
 
