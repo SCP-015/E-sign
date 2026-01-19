@@ -9,11 +9,10 @@ use Illuminate\Support\Facades\Storage;
 
 class SignatureService
 {
-    public function index(int $userId, ?string $tenantId = null): array
+    public function index(int $userId): array
     {
-        // STRICT ISOLATION: filter by tenant context
-        $signatures = Signature::availableForContext($userId, $tenantId)
-            ->with('tenant')
+        $signatures = Signature::query()
+            ->where('user_id', $userId)
             ->orderBy('is_default', 'desc')
             ->orderBy('created_at', 'desc')
             ->get()
@@ -35,14 +34,13 @@ class SignatureService
             'message' => 'OK',
             'data' => $signatures,
             'context' => [
-                'mode' => $tenantId ? 'tenant' : 'personal',
-                'tenant_id' => $tenantId,
+                'mode' => 'global',
                 'portable_count' => $signatures->where('is_portable', true)->count(),
             ],
         ];
     }
 
-    public function store(int $userId, string $userEmail, UploadedFile $image, ?string $name, bool $isDefault, ?string $tenantId = null): array
+    public function store(int $userId, string $userEmail, UploadedFile $image, ?string $name, bool $isDefault): array
     {
         $extension = strtolower($image->getClientOriginalExtension());
         $imageType = $extension === 'svg' ? 'svg' : 'png';
@@ -69,7 +67,7 @@ class SignatureService
 
         $signature = Signature::create([
             'user_id' => $userId,
-            'tenant_id' => $tenantId,
+            'tenant_id' => null,
             'name' => $name ?: 'My Signature',
             'image_path' => "private/{$path}",
             'image_type' => $imageType,
@@ -88,7 +86,7 @@ class SignatureService
                     'is_default' => $signature->is_default,
                     'is_portable' => $signature->isPortable(),
                     'tenant_id' => $signature->tenant_id,
-                    'mode' => $signature->isPersonal() ? 'personal' : 'tenant',
+                    'mode' => 'global',
                     'created_at' => $signature->created_at,
                 ],
             ],

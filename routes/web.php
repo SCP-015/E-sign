@@ -120,13 +120,25 @@ Route::get('/organization/members', function () {
     return Inertia::render('Organization/Members');
 })->name('organization.members');
 
+Route::get('/{tenantSlug}/organization/members', function (string $tenantSlug) {
+    return Inertia::render('Organization/Members');
+})->middleware('tenant.slug')->name('tenant.organization.members');
+
 Route::get('/organization/invitations', function () {
     return Inertia::render('Organization/Invitations');
 })->name('organization.invitations');
 
+Route::get('/{tenantSlug}/organization/invitations', function (string $tenantSlug) {
+    return Inertia::render('Organization/Invitations');
+})->middleware('tenant.slug')->name('tenant.organization.invitations');
+
 Route::get('/organization/billing', function () {
     return Inertia::render('Organization/Billing');
 })->name('organization.billing');
+
+Route::get('/{tenantSlug}/organization/billing', function (string $tenantSlug) {
+    return Inertia::render('Organization/Billing');
+})->middleware('tenant.slug')->name('tenant.organization.billing');
 
 Route::post('/organization/switch', [App\Http\Controllers\OrganizationController::class, 'switch'])->name('organization.switch');
 
@@ -138,6 +150,14 @@ Route::get('/organization/settings', function () {
     return Inertia::render('Organization/Settings');
 })->name('organization.settings');
 
+Route::get('/{tenantSlug}/organization/settings', function (string $tenantSlug) {
+    return Inertia::render('Organization/Settings');
+})->middleware('tenant.slug')->name('tenant.organization.settings');
+
 Route::get('/organization/quota', function () {
     return Inertia::render('Organization/Quota');
 })->name('organization.quota');
+
+Route::get('/{tenantSlug}/organization/quota', function (string $tenantSlug) {
+    return Inertia::render('Organization/Quota');
+})->middleware('tenant.slug')->name('tenant.organization.quota');

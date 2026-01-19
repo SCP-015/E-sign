@@ -58,7 +58,7 @@
                                 </td>
                                 <td>
                                     <div class="badge badge-ghost">{{ formatRole(member.role) }}</div>
-                                    <div v-if="member.is_owner" class="badge badge-primary ml-2">Owner</div>
+                                    <div v-if="member.is_owner"></div>
                                 </td>
                                 <td>{{ formatDate(member.joined_at) }}</td>
                                 <td class="text-right">

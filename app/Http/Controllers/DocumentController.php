@@ -134,8 +134,12 @@ class DocumentController extends Controller
         ];
 
         return ApiResponse::success([
+            // Backward-compatible keys
             'qr_position' => $qrConfig,
             'document_id' => $document->id,
+            // Preferred camelCase keys
+            'qrPosition' => $qrConfig,
+            'documentId' => $document->id,
         ]);
     }
 

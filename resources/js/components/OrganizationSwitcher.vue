@@ -160,6 +160,44 @@ async function fetchCurrentOrganization() {
     }
 }
 
+function getSlugFromPath() {
+    try {
+        const path = String(window.location.pathname || '');
+        const match = path.match(/^\/([^/]+)\/(dashboard|documents|signature-setup|verify|organization)(\/|$)/);
+        return match ? match[1] : '';
+    } catch (e) {
+        return '';
+    }
+}
+
+async function ensureTenantContextFromUrl() {
+    const slug = getSlugFromPath();
+    if (!slug) return;
+
+    const org = organizations.value.find((o) => String(o?.slug || '').toLowerCase() === slug.toLowerCase());
+    if (!org) return;
+
+    if (currentOrganization.value?.id === org.id) return;
+    if (isSwitching.value) return;
+
+    isSwitching.value = true;
+    try {
+        const response = await axios.post('/api/organizations/switch', {
+            organization_id: org.id,
+        });
+        if (!response.data?.success) {
+            throw new Error(response.data?.message || 'Gagal sync organization context');
+        }
+        await fetchCurrentOrganization();
+        emit('organization-changed', currentOrganization.value);
+        window.dispatchEvent(new Event('organizations-updated'));
+    } catch (error) {
+        console.error('Failed to sync organization context from URL:', error);
+    } finally {
+        isSwitching.value = false;
+    }
+}
+
 async function switchOrganization(org) {
     if (isSwitching.value) return;
     isSwitching.value = true;
@@ -215,8 +253,8 @@ function handleSetupOrganization() {
 }
 
 onMounted(() => {
-    fetchOrganizations();
-    fetchCurrentOrganization();
+    fetchOrganizations().then(() => ensureTenantContextFromUrl());
+    fetchCurrentOrganization().then(() => ensureTenantContextFromUrl());
 
     window.addEventListener('organizations-updated', fetchOrganizations);
     window.addEventListener('organizations-updated', fetchCurrentOrganization);

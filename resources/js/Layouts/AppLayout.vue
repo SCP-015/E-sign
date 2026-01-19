@@ -178,6 +178,20 @@ const documentsHref = computed(() => organizationSlug.value ? `/${organizationSl
 const signatureHref = computed(() => organizationSlug.value ? `/${organizationSlug.value}/signature-setup` : '/signature-setup');
 const verifyHref = computed(() => organizationSlug.value ? `/${organizationSlug.value}/verify` : '/verify');
 
+async function hydrateOrganizationFromApi() {
+    try {
+        if (!authStore.isAuthenticated) return;
+        if (organizationSlug.value) return;
+
+        const res = await axios.get('/api/organizations/current');
+        if (res.data?.success && res.data?.data) {
+            currentOrganization.value = res.data.data;
+        }
+    } catch (e) {
+        // noop
+    }
+}
+
 function maybeRedirectToSlugRoute() {
     const slug = organizationSlug.value;
     if (!slug) return;
@@ -190,6 +204,11 @@ function maybeRedirectToSlugRoute() {
         '/documents': `/${slug}/documents`,
         '/signature-setup': `/${slug}/signature-setup`,
         '/verify': `/${slug}/verify`,
+        '/organization/members': `/${slug}/organization/members`,
+        '/organization/invitations': `/${slug}/organization/invitations`,
+        '/organization/billing': `/${slug}/organization/billing`,
+        '/organization/settings': `/${slug}/organization/settings`,
+        '/organization/quota': `/${slug}/organization/quota`,
     };
 
     const target = map[path];
@@ -199,12 +218,23 @@ function maybeRedirectToSlugRoute() {
 }
 
 onMounted(() => {
-    maybeRedirectToSlugRoute();
+    hydrateOrganizationFromApi().finally(() => {
+        maybeRedirectToSlugRoute();
+    });
 });
 
 watch(organizationSlug, () => {
     maybeRedirectToSlugRoute();
 });
+
+watch(
+    () => authStore.isAuthenticated,
+    (authed) => {
+        if (authed) {
+            hydrateOrganizationFromApi();
+        }
+    }
+);
 
 const handleOrganizationChanged = (org) => {
     currentOrganization.value = org;

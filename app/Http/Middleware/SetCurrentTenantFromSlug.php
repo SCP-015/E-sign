@@ -5,7 +5,6 @@ namespace App\Http\Middleware;
 use App\Models\Tenant;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class SetCurrentTenantFromSlug
 {
@@ -21,22 +20,20 @@ class SetCurrentTenantFromSlug
             abort(404);
         }
 
-        $user = Auth::guard('api')->user() ?? $request->user() ?? Auth::user();
-        if (!$user) {
-            return redirect('/login');
-        }
+        $user = $request->user();
+        if ($user) {
+            $membership = $tenant->tenantUsers()->where('user_id', $user->id)->first();
+            if (!$membership) {
+                abort(403, 'Anda bukan anggota organization ini.');
+            }
 
-        $membership = $tenant->tenantUsers()->where('user_id', $user->id)->first();
-        if (!$membership) {
-            abort(403, 'Anda bukan anggota organization ini.');
-        }
+            session(['current_tenant_id' => $tenant->id]);
+            session()->save();
 
-        session(['current_tenant_id' => $tenant->id]);
-        session()->save();
-
-        if ($user->current_tenant_id !== $tenant->id) {
-            $user->current_tenant_id = $tenant->id;
-            $user->save();
+            if ($user->current_tenant_id !== $tenant->id) {
+                $user->current_tenant_id = $tenant->id;
+                $user->save();
+            }
         }
 
         return $next($request);

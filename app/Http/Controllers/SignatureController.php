@@ -14,30 +14,26 @@ class SignatureController extends Controller
     }
 
     /**
-     * Get all signatures for authenticated user (tenant-aware)
+     * Get all signatures for authenticated user
      */
     public function index(Request $request)
     {
-        $tenantId = $this->getCurrentTenantId($request);
-        return ApiResponse::fromService($this->signatureService->index((int) $request->user()->id, $tenantId));
+        return ApiResponse::fromService($this->signatureService->index((int) $request->user()->id));
     }
 
     /**
-     * Upload/create a new signature (tenant-aware)
+     * Upload/create a new signature
      */
     public function store(SignatureStoreRequest $request)
     {
         $user = $request->user();
-        $tenantId = $this->getCurrentTenantId($request);
-        $isPortable = $request->boolean('is_portable', false);
-        
+
         $result = $this->signatureService->store(
             (int) $user->id,
             (string) $user->email,
             $request->file('image'),
             $request->input('name'),
-            $request->boolean('is_default'),
-            $isPortable ? null : $tenantId
+            $request->boolean('is_default')
         );
 
         return ApiResponse::fromService($result);

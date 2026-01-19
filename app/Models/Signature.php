@@ -34,32 +34,11 @@ class Signature extends Model
     }
 
     /**
-     * Scope: Signature yang bisa dipakai di context tertentu
-     * 
-     * LOGIC:
-     * - Personal mode: HANYA signature personal (tenant_id = NULL)
-     * - Tenant mode: signature personal (portable) + signature tenant ini
-     */
-    public function scopeAvailableForContext($query, int $userId, ?string $tenantId)
-    {
-        $query->where('user_id', $userId);
-
-        if ($tenantId === null) {
-            return $query->whereNull('tenant_id');
-        }
-
-        return $query->where(function($q) use ($tenantId) {
-            $q->whereNull('tenant_id')
-              ->orWhere('tenant_id', $tenantId);
-        });
-    }
-
-    /**
      * Helper: Check apakah signature personal (portable)
      */
     public function isPersonal(): bool
     {
-        return $this->tenant_id === null;
+        return true;
     }
 
     /**
@@ -67,6 +46,6 @@ class Signature extends Model
      */
     public function isPortable(): bool
     {
-        return $this->isPersonal();
+        return true;
     }
 }
