@@ -176,12 +176,12 @@
                                 <span class="text-base-content/60">Email</span>
                                 <span class="font-medium">{{ profile.email }}</span>
                             </div>
-                            <div class="flex justify-between py-3">
+                            <!-- <div class="flex justify-between py-3">
                                 <span class="text-base-content/60">Email Verified</span>
                                 <span :class="profile.emailVerifiedAt ? 'text-success' : 'text-warning'">
                                     {{ profile.emailVerifiedAt ? 'Yes' : 'No' }}
                                 </span>
-                            </div>
+                            </div> -->
                             <div class="flex justify-between py-3">
                                 <span class="text-base-content/60">KYC Status</span>
                                 <span :class="kycTextClass">{{ kycStatusText }}</span>
@@ -189,6 +189,69 @@
                             <div class="flex justify-between py-3">
                                 <span class="text-base-content/60">Member Since</span>
                                 <span class="font-medium">{{ formatDate(profile.createdAt) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-base-100 border border-base-200 shadow-sm">
+                    <div class="card-body">
+                        <h2 class="card-title text-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5l5 5v11a2 2 0 01-2 2z" />
+                            </svg>
+                            KYC Details
+                        </h2>
+
+                        <div v-if="kycLoading" class="mt-4 text-sm text-base-content/60">Loading KYC details...</div>
+                        <div v-else-if="!kycDetails" class="mt-4 text-sm text-base-content/60">No KYC submission found.</div>
+                        <div v-else class="mt-4 space-y-3">
+                            <div class="grid gap-3 md:grid-cols-2">
+                                <div class="rounded-xl border border-base-200 p-3">
+                                    <div class="text-xs text-base-content/60">Full Name</div>
+                                    <div class="font-semibold">{{ kycDetails.fullName || '-' }}</div>
+                                </div>
+                                <div class="rounded-xl border border-base-200 p-3">
+                                    <div class="text-xs text-base-content/60">Status</div>
+                                    <div class="font-semibold">{{ kycDetails.status || '-' }}</div>
+                                </div>
+                                <div class="rounded-xl border border-base-200 p-3">
+                                    <div class="text-xs text-base-content/60">ID Type</div>
+                                    <div class="font-semibold">{{ kycDetails.idType || '-' }}</div>
+                                </div>
+                                <div class="rounded-xl border border-base-200 p-3">
+                                    <div class="text-xs text-base-content/60">ID Number</div>
+                                    <div class="font-semibold">{{ kycDetails.idNumber || '-' }}</div>
+                                </div>
+                                <div class="rounded-xl border border-base-200 p-3">
+                                    <div class="text-xs text-base-content/60">Date of Birth</div>
+                                    <div class="font-semibold">{{ kycDetails.dateOfBirth || '-' }}</div>
+                                </div>
+                                <div class="rounded-xl border border-base-200 p-3">
+                                    <div class="text-xs text-base-content/60">Address</div>
+                                    <div class="font-semibold">{{ kycDetails.address || '-' }}</div>
+                                </div>
+                                <div class="rounded-xl border border-base-200 p-3">
+                                    <div class="text-xs text-base-content/60">City</div>
+                                    <div class="font-semibold">{{ kycDetails.city || '-' }}</div>
+                                </div>
+                                <div class="rounded-xl border border-base-200 p-3">
+                                    <div class="text-xs text-base-content/60">Province</div>
+                                    <div class="font-semibold">{{ kycDetails.province || '-' }}</div>
+                                </div>
+                                <div class="rounded-xl border border-base-200 p-3">
+                                    <div class="text-xs text-base-content/60">Postal Code</div>
+                                    <div class="font-semibold">{{ kycDetails.postalCode || '-' }}</div>
+                                </div>
+                                <div class="rounded-xl border border-base-200 p-3">
+                                    <div class="text-xs text-base-content/60">Submitted At</div>
+                                    <div class="font-semibold">{{ formatDate(kycDetails.createdAt) }}</div>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap gap-2">
+                                <button @click="openKycPreview('id')" class="btn btn-outline btn-sm">View ID Card</button>
+                                <button @click="openKycPreview('selfie')" class="btn btn-outline btn-sm">View Selfie Photo</button>
                             </div>
                         </div>
                     </div>
@@ -202,6 +265,34 @@
                 </svg>
                 <span>Failed to load profile. Please try again.</span>
             </div>
+
+            <div v-if="kycPreviewOpen" class="modal modal-open" @click.self="closeKycPreview">
+                <div class="modal-box w-11/12 max-w-3xl">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold">{{ kycPreviewTitle }}</h3>
+                        <button class="btn btn-ghost btn-sm" @click="closeKycPreview">✕</button>
+                    </div>
+
+                    <div class="mt-4">
+                        <div v-if="kycPreviewLoading" class="text-sm text-base-content/60">Loading preview...</div>
+                        <div v-else-if="kycPreviewError" class="alert alert-error">
+                            <span>{{ kycPreviewError }}</span>
+                        </div>
+                        <div v-else class="flex justify-center">
+                            <img
+                                v-if="kycPreviewUrl"
+                                :src="kycPreviewUrl"
+                                :alt="kycPreviewTitle"
+                                class="max-h-[70vh] w-auto rounded-xl border border-base-200"
+                            >
+                        </div>
+                    </div>
+
+                    <div class="modal-action">
+                        <button class="btn" @click="closeKycPreview">Close</button>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 </template>
@@ -214,6 +305,14 @@ import axios from 'axios';
 const page = usePage();
 const loading = ref(true);
 const profile = ref(null);
+const kycLoading = ref(false);
+const kycDetails = ref(null);
+
+const kycPreviewOpen = ref(false);
+const kycPreviewLoading = ref(false);
+const kycPreviewError = ref('');
+const kycPreviewUrl = ref('');
+const kycPreviewTitle = ref('');
 
 const kycBadgeClass = computed(() => {
     if (!profile.value) return 'badge badge-ghost gap-1';
@@ -254,6 +353,56 @@ const formatDate = (dateString) => {
     });
 };
 
+const fetchKycDetails = async () => {
+    try {
+        kycLoading.value = true;
+        const response = await axios.get('/api/kyc/me');
+        const payload = response?.data;
+        if (!isApiSuccess(payload)) {
+            kycDetails.value = null;
+            return;
+        }
+        kycDetails.value = payload?.data?.kyc ?? null;
+    } catch (error) {
+        kycDetails.value = null;
+    } finally {
+        kycLoading.value = false;
+    }
+};
+
+const closeKycPreview = () => {
+    kycPreviewOpen.value = false;
+    kycPreviewLoading.value = false;
+    kycPreviewError.value = '';
+    if (kycPreviewUrl.value) {
+        URL.revokeObjectURL(kycPreviewUrl.value);
+    }
+    kycPreviewUrl.value = '';
+    kycPreviewTitle.value = '';
+};
+
+const openKycPreview = async (type) => {
+    closeKycPreview();
+    kycPreviewOpen.value = true;
+    kycPreviewLoading.value = true;
+    kycPreviewError.value = '';
+    kycPreviewTitle.value = type === 'selfie' ? 'Selfie Photo' : 'ID Photo';
+
+    try {
+        const res = await axios.get(`/api/kyc/me/file/${type}`, {
+            responseType: 'blob',
+        });
+
+        const blob = new Blob([res.data], { type: res.data?.type || 'image/png' });
+        kycPreviewUrl.value = URL.createObjectURL(blob);
+    } catch (e) {
+        const payload = e?.response?.data;
+        kycPreviewError.value = payload?.message || payload?.error || 'Failed to load KYC preview.';
+    } finally {
+        kycPreviewLoading.value = false;
+    }
+};
+
 const formatPermission = (permission) => {
     return permission.replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 };
@@ -289,5 +438,6 @@ const fetchProfile = async () => {
 
 onMounted(() => {
     fetchProfile();
+    fetchKycDetails();
 });
 </script>

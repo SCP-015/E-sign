@@ -65,6 +65,8 @@ Route::middleware('auth:api')->group(function () {
 
     // Mobile KYC
     Route::post('/kyc/submit', [\App\Http\Controllers\KycController::class, 'submit']);
+    Route::get('/kyc/me', [\App\Http\Controllers\KycController::class, 'me']);
+    Route::get('/kyc/me/file/{type}', [\App\Http\Controllers\KycController::class, 'myFile']);
 
     // Organization Routes
     Route::prefix('organizations')->group(function () {

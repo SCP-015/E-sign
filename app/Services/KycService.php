@@ -161,4 +161,108 @@ class KycService
             ];
         }
     }
+
+    public function getMyKycResult(int $userId): array
+    {
+        try {
+            $kyc = KycData::where('user_id', $userId)->latest()->first();
+            if (!$kyc) {
+                return [
+                    'status' => 'error',
+                    'code' => 404,
+                    'message' => 'KYC data not found',
+                    'data' => null,
+                ];
+            }
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'OK',
+                'data' => [
+                    'kyc' => (new \App\Http\Resources\KycResource($kyc))->resolve(),
+                ],
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => 'Failed to fetch KYC data: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
+    public function getMyKycFileResult(int $userId, string $type): array
+    {
+        try {
+            $kyc = KycData::where('user_id', $userId)->latest()->first();
+            if (!$kyc) {
+                return [
+                    'status' => 'error',
+                    'code' => 404,
+                    'message' => 'KYC data not found',
+                    'data' => null,
+                ];
+            }
+
+            $path = null;
+            if ($type === 'id') {
+                $path = $kyc->id_photo_path;
+            } elseif ($type === 'selfie') {
+                $path = $kyc->selfie_photo_path;
+            }
+
+            if (!is_string($path) || $path === '') {
+                return [
+                    'status' => 'error',
+                    'code' => 404,
+                    'message' => 'KYC file not found',
+                    'data' => null,
+                ];
+            }
+
+            $relativePath = str_replace('private/', '', $path);
+            if (!Storage::disk('private')->exists($relativePath)) {
+                return [
+                    'status' => 'error',
+                    'code' => 404,
+                    'message' => 'KYC file not found',
+                    'data' => null,
+                ];
+            }
+
+            $ciphertext = Storage::disk('private')->get($relativePath);
+            try {
+                $plaintext = Crypt::decrypt($ciphertext);
+            } catch (\Exception $e) {
+                $plaintext = $ciphertext;
+            }
+
+            $mimeType = 'application/octet-stream';
+            $lower = strtolower($relativePath);
+            if (str_contains($lower, '.png.')) {
+                $mimeType = 'image/png';
+            } elseif (str_contains($lower, '.jpg.') || str_contains($lower, '.jpeg.')) {
+                $mimeType = 'image/jpeg';
+            }
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'OK',
+                'data' => [
+                    'content' => $plaintext,
+                    'mimeType' => $mimeType,
+                ],
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => 'Failed to fetch KYC file: ' . $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
 }
