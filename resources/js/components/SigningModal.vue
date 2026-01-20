@@ -178,6 +178,7 @@
                 <label class="text-xs font-semibold">Add Signers</label>
                 <div class="flex items-center gap-2 rounded-full border border-base-200 bg-base-200/60 p-1 text-[11px] font-semibold">
                   <button
+                    v-if="isTenantMode"
                     type="button"
                     class="flex-1 rounded-full px-3 py-2 transition"
                     :class="assigneeInputMode === 'tenant' ? 'bg-base-100 shadow text-base-content' : 'text-base-content/60'"
@@ -188,7 +189,7 @@
                   <button
                     type="button"
                     class="flex-1 rounded-full px-3 py-2 transition"
-                    :class="assigneeInputMode === 'email' ? 'bg-base-100 shadow text-base-content' : 'text-base-content/60'"
+                    :class="assigneeInputMode === 'email' || !isTenantMode ? 'bg-base-100 shadow text-base-content' : 'text-base-content/60'"
                     @click="assigneeInputMode = 'email'"
                   >
                     Email
@@ -196,6 +197,7 @@
                 </div>
                 <div class="space-y-2">
                   <select
+                    v-if="isTenantMode"
                     v-model="selectedTenantMemberEmail"
                     class="select select-bordered select-sm w-full"
                     :disabled="assigneeInputMode !== 'tenant' || tenantMembersLoading || selectableTenantMembers.length === 0"
@@ -205,7 +207,7 @@
                       {{ m.name }} ({{ m.email }})
                     </option>
                   </select>
-                  <div v-if="tenantMembersLoading" class="text-[11px] text-base-content/60">Loading members...</div>
+                  <div v-if="isTenantMode && tenantMembersLoading" class="text-[11px] text-base-content/60">Loading members...</div>
                 </div>
                 <div class="flex gap-2">
                   <input
@@ -372,6 +374,8 @@ const tenantMembers = ref([]);
 const tenantMembersLoading = ref(false);
 const selectedTenantMemberEmail = ref('');
 const assigneeInputMode = ref('tenant');
+
+const isTenantMode = computed(() => !!currentOrganizationId.value);
 
 const includeOwner = ref(true);
 const ownerFirst = ref(true);
@@ -1098,6 +1102,7 @@ async function loadTenantMembers() {
 
     if (!orgId) {
       tenantMembers.value = [];
+      assigneeInputMode.value = 'email';
       return;
     }
 
@@ -1111,6 +1116,7 @@ async function loadTenantMembers() {
     tenantMembers.value = unwrapApiList(membersPayload);
   } catch (e) {
     tenantMembers.value = [];
+    assigneeInputMode.value = 'email';
   } finally {
     tenantMembersLoading.value = false;
   }
