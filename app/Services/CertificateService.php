@@ -23,7 +23,7 @@ class CertificateService
         $this->rootCAService = $rootCAService;
 
         // Use central secure path for rootCA ONLY
-        $this->securePath = storage_path('app/private/secure/');
+        $this->securePath = storage_path('app/private/rootca/');
         $this->caKeyPath = $this->securePath . 'rootCA.key';
         $this->caCertPath = $this->securePath . 'rootCA.crt';
         
