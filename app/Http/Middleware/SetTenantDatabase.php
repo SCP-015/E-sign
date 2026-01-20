@@ -56,12 +56,39 @@ class SetTenantDatabase
      */
     protected function getCurrentTenantId(Request $request): ?string
     {
-        // Priority 1: From session (explicit tenant selection)
-        if ($request->session()->has('current_tenant_id')) {
-            return $request->session()->get('current_tenant_id');
+        // Priority 1: From header (stateless tenant context)
+        // Only trust header when user is authenticated and is a member of the tenant.
+        $headerTenantId = trim((string) $request->header('X-Tenant-Id', ''));
+        if ($headerTenantId !== '') {
+            $user = $request->user();
+            if ($user) {
+                $tenant = Tenant::find($headerTenantId);
+                if ($tenant) {
+                    $isMember = $tenant->tenantUsers()
+                        ->where('user_id', $user->id)
+                        ->exists();
+
+                    if ($isMember) {
+                        // Keep session in sync so downstream code using session() remains consistent.
+                        try {
+                            $request->session()->put('current_tenant_id', $headerTenantId);
+                        } catch (\Throwable $e) {
+                            // ignore
+                        }
+
+                        return $headerTenantId;
+                    }
+                }
+            }
         }
 
-        // Priority 2: From authenticated user's current_tenant_id
+        // Priority 2: From session (explicit tenant selection)
+        if ($request->session()->has('current_tenant_id')) {
+            $tenantId = $request->session()->get('current_tenant_id');
+            return is_string($tenantId) && $tenantId !== '' ? $tenantId : null;
+        }
+
+        // Priority 3: From authenticated user's current_tenant_id
         $user = $request->user();
         if ($user && $user->current_tenant_id) {
             return $user->current_tenant_id;
