@@ -1,1 +1,119 @@
-{}
+{
+  "OK": "OK",
+  "Error": "An error occurred.",
+  "Unauthenticated": "Unauthenticated.",
+
+  "Invalid credentials": "Invalid credentials.",
+  "Login successful": "Login successful.",
+  "Logout successful": "Logout successful.",
+
+  "No token found in session": "No token found in session.",
+
+  "No organization selected": "No organization selected.",
+  "Organization not found": "Organization not found.",
+  "You are not a member of this organization": "You are not a member of this organization.",
+  "You are not a member of this organization.": "You are not a member of this organization.",
+  "Switched to personal mode.": "Switched to personal mode.",
+  "Switched to :tenant": "Switched to :tenant",
+
+  "You do not have permission to update portal settings": "You do not have permission to update portal settings.",
+  "Portal settings updated successfully": "Portal settings updated successfully.",
+
+  "Organization created successfully.": "Organization created successfully.",
+  "Organization updated successfully.": "Organization updated successfully.",
+  "Organization deleted successfully.": "Organization deleted successfully.",
+  "Joined organization successfully.": "Joined organization successfully.",
+  "Only owner or admin can update organization.": "Only owner or admin can update organization.",
+  "Failed to create organization: :error": "Failed to create organization: :error",
+  "Failed to delete organization: :error": "Failed to delete organization: :error",
+  "Failed to join organization: :error": "Failed to join organization: :error",
+
+  "You do not have permission to manage quota": "You do not have permission to manage quota.",
+  "Quota settings updated successfully": "Quota settings updated successfully.",
+  "User is not a member of this organization": "User is not a member of this organization.",
+  "User quota override removed": "User quota override removed.",
+  "User quota override updated": "User quota override updated.",
+
+  "Document uploaded successfully": "Document uploaded successfully.",
+  "Failed to fetch documents": "Failed to fetch documents.",
+  "Failed to sync documents": "Failed to sync documents.",
+  "Failed to fetch documents: :error": "Failed to fetch documents: :error",
+  "Failed to sync documents: :error": "Failed to sync documents: :error",
+  "Upload failed: :error": "Upload failed: :error",
+  "Document not found: :error": "Document not found: :error",
+
+  "Document not found": "Document not found.",
+  "Document not found or access denied": "Document not found or access denied.",
+  "File not found on server": "File not found on server.",
+
+  "No active certificate found. Please complete KYC verification first.": "No active certificate found. Please complete KYC verification first.",
+
+  "Signer is not assigned to this document": "Signer is not assigned to this document.",
+  "Not your turn to sign yet": "Not your turn to sign yet.",
+  "Signers added successfully": "Signers added successfully.",
+
+  "Placements saved successfully": "Placements saved successfully.",
+  "Placement updated successfully": "Placement updated successfully.",
+  "Failed to save placement: :error": "Failed to save placement: :error",
+  "Placement not found: :error": "Placement not found: :error",
+
+  "Failed to read uploaded signature file": "Failed to read uploaded signature file.",
+  "Signature uploaded successfully": "Signature uploaded successfully.",
+  "Signature image not found": "Signature image not found.",
+  "Signature set as default": "Signature set as default.",
+  "Signature deleted successfully": "Signature deleted successfully.",
+
+  "KYC already submitted": "KYC already submitted.",
+  "KYC data submitted successfully": "KYC data submitted successfully.",
+  "KYC data not found": "KYC data not found.",
+  "KYC file not found": "KYC file not found.",
+  "Failed to fetch KYC data": "Failed to fetch KYC data.",
+  "Failed to fetch KYC file": "Failed to fetch KYC file.",
+  "KYC submission failed: :error": "KYC submission failed: :error",
+  "Failed to fetch KYC data: :error": "Failed to fetch KYC data: :error",
+  "Failed to fetch KYC file: :error": "Failed to fetch KYC file: :error",
+
+  "KYC not verified. Please submit KYC before issuing/renewing certificate.": "KYC not verified. Please submit KYC before issuing/renewing certificate.",
+  "KYC data is missing or not verified. Please submit KYC before issuing/renewing certificate.": "KYC data is missing or not verified. Please submit KYC before issuing/renewing certificate.",
+  "KYC documents are missing. Please re-submit KYC before issuing/renewing certificate.": "KYC documents are missing. Please re-submit KYC before issuing/renewing certificate.",
+  "KYC documents are missing in storage. Please re-submit KYC before issuing/renewing certificate.": "KYC documents are missing in storage. Please re-submit KYC before issuing/renewing certificate.",
+  "Certificate issued successfully": "Certificate issued successfully.",
+  "Failed to issue certificate: :error": "Failed to issue certificate: :error",
+
+  "Failed to read uploaded PDF": "Failed to read uploaded PDF.",
+  "No digital signature found in PDF": "No digital signature found in PDF.",
+  "Document file missing from storage": "Document file missing from storage.",
+  "Signature is valid": "Signature is valid.",
+  "Signature is valid (signer identity unknown)": "Signature is valid (signer identity unknown).",
+  "Signature cannot be validated (missing/invalid LTV evidence)": "Signature cannot be validated (missing/invalid LTV evidence).",
+  "Document not found or invalid token": "Document not found or invalid token.",
+  "Document is valid": "Document is valid.",
+  "Document cannot be validated (missing/invalid LTV evidence)": "Document cannot be validated (missing/invalid LTV evidence).",
+  "Verification failed: :error": "Verification failed: :error",
+
+  "Invalid invitation": "Invalid invitation.",
+  "Failed to accept invitation": "Failed to accept invitation.",
+  "Failed to load profile": "Failed to load profile.",
+
+  "Only owner or admin can view invitations.": "Only owner or admin can view invitations.",
+  "Only owner or admin can create invitations.": "Only owner or admin can create invitations.",
+  "Only owner or admin can delete invitations.": "Only owner or admin can delete invitations.",
+  "Invitation created successfully.": "Invitation created successfully.",
+  "Invitation not found in this organization.": "Invitation not found in this organization.",
+  "Invitation deleted successfully.": "Invitation deleted successfully.",
+
+  "Only owner or admin can change member roles.": "Only owner or admin can change member roles.",
+  "Organization owner role cannot be changed.": "Organization owner role cannot be changed.",
+  "Member not found in this organization.": "Member not found in this organization.",
+  "Member role updated successfully.": "Member role updated successfully.",
+  "Only owner or admin can remove members.": "Only owner or admin can remove members.",
+  "Organization owner cannot be removed.": "Organization owner cannot be removed.",
+  "You cannot remove yourself.": "You cannot remove yourself.",
+  "Member removed successfully.": "Member removed successfully.",
+
+  "No signing evidence found for document (LTV data missing)": "No signing evidence found for document (LTV data missing).",
+  "Certificate was not valid at signing time": "Certificate was not valid at signing time.",
+  "Document not signed": "Document not signed.",
+  "Signed file not found in storage": "Signed file not found in storage.",
+  "No signature markers found in PDF": "No signature markers found in PDF."
+}

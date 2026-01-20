@@ -10,7 +10,7 @@ class SetLocaleFromHeader
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $locale = 'id';
+        $locale = 'en';
 
         $header = (string) $request->header('Accept-Language', '');
         $header = strtolower(trim($header));
