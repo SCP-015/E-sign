@@ -52,16 +52,22 @@ class SetTenantDatabase
     }
 
     /**
-     * Get current tenant ID dari session atau user.
+     * Get current tenant ID dari session, header, atau user.
      */
     protected function getCurrentTenantId(Request $request): ?string
     {
-        // Priority 1: From session (explicit tenant selection)
+        // Priority 1: From X-Tenant-Id header (for stateless API requests)
+        $headerTenantId = $request->header('X-Tenant-Id');
+        if (is_string($headerTenantId) && $headerTenantId !== '') {
+            return $headerTenantId;
+        }
+
+        // Priority 2: From session (explicit tenant selection)
         if ($request->session()->has('current_tenant_id')) {
             return $request->session()->get('current_tenant_id');
         }
 
-        // Priority 2: From authenticated user's current_tenant_id
+        // Priority 3: From authenticated user's current_tenant_id
         $user = $request->user();
         if ($user && $user->current_tenant_id) {
             return $user->current_tenant_id;
