@@ -38,8 +38,10 @@ class ApiDocsService
                 ],
                 'storage' => [
                     'notes' => [
-                        'Personal mode files are stored under user folder.',
-                        'Tenant mode files are stored under tenants/{tenantUlid}/... folder.',
+                        'All files are stored on the "private" disk (storage/app/private).',
+                        'Personal mode documents: {email}/documents/original and {email}/documents/final.',
+                        'Tenant mode documents: tenants/{tenantUlid}/documents/original and tenants/{tenantUlid}/documents/final.',
+                        'Important: in tenant mode, clients should send X-Tenant-Id for all document/signing endpoints to ensure correct DB + storage paths are used.',
                     ],
                 ],
             ],
@@ -1025,6 +1027,8 @@ class ApiDocsService
                     'tenantHeader' => 'optional',
                     'notes' => [
                         'Returns a binary file (PDF).',
+                        'If document has signers, it must be finalized (COMPLETED) before download is allowed.',
+                        'In tenant mode, send X-Tenant-Id to ensure the controller reads the document from the tenant DB and uses tenant storage paths.',
                     ],
                     'responses' => [
                         [
@@ -1369,6 +1373,11 @@ class ApiDocsService
                             'documentId' => 'ULID',
                         ],
                     ],
+                    'notes' => [
+                        'Finalize generates a final PDF file and stores it under the correct storage path (personal vs tenant).',
+                        'Finalize also generates verifyToken and embeds it in PDF metadata and QR code for public verification.',
+                        'In tenant mode, send X-Tenant-Id so finalize writes to tenants/{tenantUlid}/documents/final.',
+                    ],
                     'responses' => [
                         [
                             'code' => 200,
@@ -1603,6 +1612,10 @@ class ApiDocsService
                         'body' => [
                             'file' => 'file (pdf)',
                         ],
+                    ],
+                    'notes' => [
+                        'This endpoint verifies a signed PDF by detecting a signature marker and extracting VERIFY_TOKEN from PDF metadata/text/QR marker.',
+                        'If a matching document exists in the database (by verifyToken), it can return richer details (owner/signers/LTV info).',
                     ],
                     'responses' => [
                         [
