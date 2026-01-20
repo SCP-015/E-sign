@@ -105,9 +105,9 @@ class StoragePathHelper
     /**
      * Get full storage path (untuk move/rename file)
      */
-    public static function getFullPath(?string $tenantId, string $type, string $filename): string
+    public static function getFullPath(?string $tenantId, string $type, string $filename, ?string $userEmail = null): string
     {
-        $basePath = self::getDocumentPath($tenantId, $type);
+        $basePath = self::getDocumentPath($tenantId, $type, $userEmail);
         return "{$basePath}/{$filename}";
     }
 

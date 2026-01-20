@@ -191,7 +191,7 @@ class DocumentController extends Controller
         ]);
 
         try {
-            $finalPdfPath = $this->documentService->finalizePdf($document, $verifyToken, $qrConfig);
+            $finalPdfPath = $this->documentService->finalizePdf($document, $verifyToken, $qrConfig, $tenantId);
 
             // Update document status
             $document->update([
@@ -357,7 +357,7 @@ class DocumentController extends Controller
                     'size' => 35,
                 ];
                 
-                $finalPdfPath = $this->documentService->finalizePdf($document, $verifyToken, $qrConfig);
+                $finalPdfPath = $this->documentService->finalizePdf($document, $verifyToken, $qrConfig, $tenantId);
                 $document->update([
                     'final_pdf_path' => $finalPdfPath,
                     'verify_token' => $verifyToken,

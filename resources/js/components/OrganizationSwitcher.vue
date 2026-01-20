@@ -156,8 +156,18 @@ async function fetchCurrentOrganization() {
         const payload = response?.data;
         if (isApiSuccess(payload) && payload?.data) {
             currentOrganization.value = unwrapApiData(payload);
+            try {
+                localStorage.setItem('currentOrganization', JSON.stringify(currentOrganization.value));
+            } catch (e) {
+                // noop
+            }
         } else {
             currentOrganization.value = null;
+            try {
+                localStorage.removeItem('currentOrganization');
+            } catch (e) {
+                // noop
+            }
         }
     } catch (error) {
         console.error('Failed to fetch current organization:', error);
@@ -193,6 +203,13 @@ async function ensureTenantContextFromUrl() {
             throw new Error(response.data?.message || 'Failed to sync organization context');
         }
         await fetchCurrentOrganization();
+        try {
+            if (currentOrganization.value) {
+                localStorage.setItem('currentOrganization', JSON.stringify(currentOrganization.value));
+            }
+        } catch (e) {
+            // noop
+        }
         emit('organization-changed', currentOrganization.value);
         window.dispatchEvent(new Event('organizations-updated'));
     } catch (error) {
@@ -214,6 +231,13 @@ async function switchOrganization(org) {
             throw new Error(response.data?.message || 'Failed to switch organization');
         }
         await fetchCurrentOrganization();
+        try {
+            if (currentOrganization.value) {
+                localStorage.setItem('currentOrganization', JSON.stringify(currentOrganization.value));
+            }
+        } catch (e) {
+            // noop
+        }
         window.dispatchEvent(new Event('organizations-updated'));
         toastStore.success('Switched to ' + org.name);
         emit('organization-changed', currentOrganization.value);
@@ -239,6 +263,11 @@ async function switchToPersonal() {
             throw new Error(response.data?.message || 'Failed to switch to personal mode');
         }
         await fetchCurrentOrganization();
+        try {
+            localStorage.removeItem('currentOrganization');
+        } catch (e) {
+            // noop
+        }
         window.dispatchEvent(new Event('organizations-updated'));
         toastStore.success('Switched to personal mode');
         emit('organization-changed', currentOrganization.value);

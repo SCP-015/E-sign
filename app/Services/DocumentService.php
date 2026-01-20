@@ -227,7 +227,7 @@ class DocumentService
         if ($isTenantMode) {
             $finalPath = StoragePathHelper::getFullPath($tenantId, 'original', $finalFilename);
         } else {
-            $finalPath = StoragePathHelper::getFullPath(null, 'original', $finalFilename);
+            $finalPath = StoragePathHelper::getFullPath(null, 'original', $finalFilename, $email);
         }
 
         if ($path !== $finalPath) {
@@ -464,7 +464,7 @@ class DocumentService
     /**
      * Finalize PDF with all placements and QR code (MVP flow)
      */
-    public function finalizePdf(Document $document, $verifyToken, array $qrConfig)
+    public function finalizePdf(Document $document, $verifyToken, array $qrConfig, ?string $tenantIdOverride = null)
     {
         $relativePath = str_replace('private/', '', $document->file_path);
         if (!Storage::disk('private')->exists($relativePath) && $document->isPersonal()) {
@@ -626,7 +626,7 @@ class DocumentService
         }
         
         // Save final PDF
-        $tenantId = $document->tenant_id;
+        $tenantId = $tenantIdOverride ?: $document->tenant_id;
         $email = strtolower((string) $document->user->email);
         $finalFileName = "{$document->id}_final.pdf";
 
@@ -634,8 +634,8 @@ class DocumentService
             StoragePathHelper::ensureDirectoryExists($tenantId);
             $finalPath = StoragePathHelper::getFullPath($tenantId, 'final', $finalFileName);
         } else {
-            $finalPath = StoragePathHelper::getFullPath(null, 'final', $finalFileName);
-            Storage::disk('private')->makeDirectory(StoragePathHelper::getDocumentPath(null, 'final', (string) $document->user_id));
+            $finalPath = StoragePathHelper::getFullPath(null, 'final', $finalFileName, $email);
+            Storage::disk('private')->makeDirectory(StoragePathHelper::getDocumentPath(null, 'final', $email));
         }
 
         $fullFinalPath = Storage::disk('private')->path($finalPath);

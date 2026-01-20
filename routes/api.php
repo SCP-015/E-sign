@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\InvitationController;
+use App\Http\Controllers\ApiDocsController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -21,6 +22,9 @@ Route::prefix('auth')->group(function () {
     // Logout (Protected)
     Route::middleware('auth:api')->post('/logout', [AuthController::class, 'logout']);
 });
+
+// API Docs
+Route::get('/docs', [ApiDocsController::class, 'index']);
 
 // Invitation (Public validate + Auth accept)
 Route::get('/invitations/validate', [InvitationController::class, 'validateInvitation']);

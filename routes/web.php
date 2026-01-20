@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ApiDocumentationController;
+use App\Http\Controllers\Tenant\OrganizationController as TenantOrganizationController;
 use Inertia\Inertia;
 
 Route::get('/api-docs', [ApiDocumentationController::class, 'index'])->name('api.docs');
@@ -140,7 +141,7 @@ Route::get('/{tenantSlug}/organization/billing', function (string $tenantSlug) {
     return Inertia::render('Organization/Billing');
 })->middleware('tenant.slug')->name('tenant.organization.billing');
 
-Route::post('/organization/switch', [App\Http\Controllers\OrganizationController::class, 'switch'])->name('organization.switch');
+Route::post('/organization/switch', [TenantOrganizationController::class, 'switch'])->name('organization.switch');
 
 Route::get('/profile', function () {
     return Inertia::render('Profile');

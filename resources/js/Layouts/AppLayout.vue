@@ -220,6 +220,18 @@ function maybeRedirectToSlugRoute() {
 }
 
 onMounted(() => {
+    try {
+        const stored = localStorage.getItem('currentOrganization');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed && parsed.slug) {
+                currentOrganization.value = parsed;
+            }
+        }
+    } catch (e) {
+        // noop
+    }
+
     hydrateOrganizationFromApi().finally(() => {
         maybeRedirectToSlugRoute();
     });

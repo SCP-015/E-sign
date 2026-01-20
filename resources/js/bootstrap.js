@@ -10,6 +10,22 @@ window.axios.interceptors.request.use(
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+
+        try {
+            const url = String(config?.url || '');
+            if (url.startsWith('/api/')) {
+                const currentOrgStr = localStorage.getItem('currentOrganization');
+                if (currentOrgStr) {
+                    const currentOrg = JSON.parse(currentOrgStr);
+                    if (currentOrg && currentOrg.id) {
+                        config.headers['X-Tenant-Id'] = currentOrg.id;
+                    }
+                }
+            }
+        } catch (e) {
+            // ignore
+        }
+
         return config;
     },
     (error) => {
