@@ -2,12 +2,20 @@
 
 namespace App\Models;
 
+use App\Traits\UsesTenantAwareConnection;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
 class UserQuotaUsage extends Model
 {
+    use HasUlids, UsesTenantAwareConnection;
+
+    protected $connection = 'tenant';
+
     protected $table = 'user_quota_usage';
+
+    public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'user_id',
@@ -33,7 +41,7 @@ class UserQuotaUsage extends Model
         return $this->belongsTo(Tenant::class);
     }
 
-    public static function getOrCreateForUser(int $userId, string $tenantId): self
+    public static function getOrCreateForUser(string $userId, string $tenantId): self
     {
         return self::firstOrCreate(
             ['user_id' => $userId, 'tenant_id' => $tenantId],

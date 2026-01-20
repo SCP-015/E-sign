@@ -4,14 +4,18 @@ namespace App\Services;
 
 use App\Models\QuotaSetting;
 use App\Models\Signature;
-use App\Models\TenantUser;
+use App\Models\Tenant\User as TenantUser;
 use App\Models\User;
 use App\Models\UserQuotaOverride;
 use App\Models\UserQuotaUsage;
+use Illuminate\Support\Facades\DB;
 
 class QuotaService
 {
-    public function __construct(private readonly TenantContextService $tenantContextService)
+    public function __construct(
+        private readonly TenantContextService $tenantContextService,
+        private readonly TenantDatabaseManager $tenantDatabaseManager
+    )
     {
     }
 
@@ -27,6 +31,8 @@ class QuotaService
             ];
         }
 
+        $this->configureTenantConnection($tenantId);
+
         $quotaSetting = QuotaSetting::getOrCreateForTenant($tenantId);
 
         $members = TenantUser::where('tenant_id', $tenantId)
@@ -39,11 +45,11 @@ class QuotaService
 
         $usageData = [];
         foreach ($members as $member) {
-            $usage = UserQuotaUsage::getOrCreateForUser((int) $member->user_id, $tenantId);
+            $usage = UserQuotaUsage::getOrCreateForUser($member->user_id, $tenantId);
             $override = $overrides->get($member->user_id);
 
             if ((int) $usage->signatures_created === 0) {
-                $signatureCount = Signature::where('user_id', (int) $member->user_id)->count();
+                $signatureCount = Signature::where('user_id', $member->user_id)->count();
                 if ($signatureCount > 0) {
                     $usage->update(['signatures_created' => $signatureCount]);
                     $usage->refresh();
@@ -99,6 +105,8 @@ class QuotaService
             ];
         }
 
+        $this->configureTenantConnection($tenantId);
+
         if (!$actor->hasPermissionInTenant('quota.manage', $tenantId)) {
             return [
                 'status' => 'error',
@@ -119,7 +127,7 @@ class QuotaService
         ];
     }
 
-    public function updateUserOverride(User $actor, int $userId, array $payload): array
+    public function updateUserOverride(User $actor, string $userId, array $payload): array
     {
         $tenantId = $this->getTenantIdFromContext($actor);
         if (!$tenantId) {
@@ -130,6 +138,8 @@ class QuotaService
                 'data' => null,
             ];
         }
+
+        $this->configureTenantConnection($tenantId);
 
         if (!$actor->hasPermissionInTenant('quota.manage', $tenantId)) {
             return [
@@ -199,5 +209,12 @@ class QuotaService
         $tenant = $context['data']['tenant'] ?? null;
 
         return $tenant ? (string) $tenant->id : null;
+    }
+
+    private function configureTenantConnection(string $tenantId): void
+    {
+        $dbName = $this->tenantDatabaseManager->getTenantDatabaseName($tenantId);
+        config(['database.connections.tenant.database' => $dbName]);
+        DB::purge('tenant');
     }
 }

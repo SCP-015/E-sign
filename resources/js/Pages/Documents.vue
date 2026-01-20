@@ -190,10 +190,10 @@ const onDocumentSigned = async () => {
 
 const isAssignedToMe = (doc) => {
     if (!doc?.signers || doc.signers.length === 0) {
-        return Number(doc?.user_id ?? doc?.userId) === Number(authStore.user?.id);
+        return String(doc?.user_id ?? doc?.userId) === String(authStore.user?.id);
     }
     return doc.signers.some((s) =>
-        Number(s.user_id ?? s.userId) === Number(authStore.user?.id) ||
+        String(s.user_id ?? s.userId) === String(authStore.user?.id) ||
         String(s.email || '').toLowerCase() === String(authStore.user?.email || '').toLowerCase()
     );
 };
@@ -201,7 +201,7 @@ const isAssignedToMe = (doc) => {
 const hasISigned = (doc) => {
     if (!doc?.signers) return false;
     const mySigner = doc.signers.find((s) =>
-        Number(s.user_id ?? s.userId) === Number(authStore.user?.id) ||
+        String(s.user_id ?? s.userId) === String(authStore.user?.id) ||
         String(s.email || '').toLowerCase() === String(authStore.user?.email || '').toLowerCase()
     );
     return Boolean(mySigner?.signed_at ?? mySigner?.signedAt);
@@ -219,7 +219,7 @@ const canFinalize = (doc) => {
     if (status !== 'signed') return false;
     const ownerId = doc?.user_id ?? doc?.userId;
     if (!ownerId || !authStore.user?.id) return false;
-    return Number(ownerId) === Number(authStore.user.id);
+    return String(ownerId) === String(authStore.user.id);
 };
 
 const getOwnerInfo = (owner) => {

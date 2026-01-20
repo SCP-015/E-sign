@@ -4,6 +4,8 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class AclSeeder extends Seeder
 {
@@ -36,6 +38,7 @@ class AclSeeder extends Seeder
                 foreach ($items as $key => $permission) {
                     if (is_string($permission)) {
                         $permissions[] = [
+                            'id' => $permissionId = (string) Str::ulid(),
                             'name' => $permission,
                             'guard_name' => 'api',
                             'description' => ucfirst(str_replace(['_', '.'], ' ', $permission)),
@@ -47,12 +50,12 @@ class AclSeeder extends Seeder
             }
         }
 
-        // Insert permissions (ignore duplicates)
+        // Insert permissions (ignore duplicates by checking name)
         foreach ($permissions as $permission) {
-            DB::table('acl_permissions')->updateOrInsert(
-                ['name' => $permission['name']],
-                $permission
-            );
+            $exists = DB::table('acl_permissions')->where('name', $permission['name'])->exists();
+            if (!$exists) {
+                DB::table('acl_permissions')->insert($permission);
+            }
         }
     }
 
@@ -63,16 +66,19 @@ class AclSeeder extends Seeder
     {
         $roles = [
             [
+                'id' => (string) Str::ulid(),
                 'name' => 'owner',
                 'guard_name' => 'api',
                 'description' => 'Organization owner with full access',
             ],
             [
+                'id' => (string) Str::ulid(),
                 'name' => 'admin',
                 'guard_name' => 'api',
                 'description' => 'Administrator with almost full access',
             ],
             [
+                'id' => (string) Str::ulid(),
                 'name' => 'member',
                 'guard_name' => 'api',
                 'description' => 'Regular user with basic access',
@@ -81,10 +87,10 @@ class AclSeeder extends Seeder
 
         $now = now();
         foreach ($roles as $role) {
-            DB::table('acl_roles')->updateOrInsert(
-                ['name' => $role['name'], 'guard_name' => $role['guard_name']],
-                array_merge($role, ['created_at' => $now, 'updated_at' => $now])
-            );
+            $exists = DB::table('acl_roles')->where('name', $role['name'])->where('guard_name', $role['guard_name'])->exists();
+            if (!$exists) {
+                DB::table('acl_roles')->insert(array_merge($role, ['created_at' => $now, 'updated_at' => $now]));
+            }
         }
     }
 

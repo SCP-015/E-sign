@@ -24,7 +24,7 @@ class KycController extends Controller
         }
 
         $result = $this->kycService->submitKycResult(
-            (int) $user->id,
+            $user->id,
             $request->validated(),
             $request->file('id_photo'),
             $request->file('selfie_photo')
@@ -40,7 +40,7 @@ class KycController extends Controller
             return ApiResponse::error('Unauthenticated', 401);
         }
 
-        return ApiResponse::fromService($this->kycService->getMyKycResult((int) $user->id));
+        return ApiResponse::fromService($this->kycService->getMyKycResult($user->id));
     }
 
     public function myFile(Request $request, string $type)
@@ -50,7 +50,7 @@ class KycController extends Controller
             return ApiResponse::error('Unauthenticated', 401);
         }
 
-        $result = $this->kycService->getMyKycFileResult((int) $user->id, $type);
+        $result = $this->kycService->getMyKycFileResult($user->id, $type);
         if (($result['status'] ?? 'error') !== 'success') {
             return ApiResponse::fromService($result);
         }

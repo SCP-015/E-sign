@@ -382,7 +382,7 @@ const qrPositionConfig = ref(null);
 
 const isDocumentOwner = computed(() => {
   if (!documentOwnerId.value || !authStore.user?.id) return false;
-  return Number(documentOwnerId.value) === Number(authStore.user.id);
+  return String(documentOwnerId.value) === String(authStore.user.id);
 });
 const canFinalize = computed(() => {
   if (!isDocumentOwner.value) return false;
@@ -396,7 +396,7 @@ const hasOtherSigners = computed(() => {
   return documentSigners.value.some((signer) => {
     const signerUserId = signer?.user_id ?? signer?.userId;
     if (!signerUserId) return true;
-    return Number(signerUserId) !== Number(userId);
+    return String(signerUserId) !== String(userId);
   });
 });
 const shouldAutoFinalize = computed(() => isDocumentOwner.value && !hasOtherSigners.value);
@@ -471,11 +471,11 @@ const canSendInvitationsFinal = computed(() => {
 });
 
 const selectableTenantMembers = computed(() => {
-  const currentUserId = Number(authStore.user?.id);
+  const currentUserId = String(authStore.user?.id);
   const currentEmail = normalizedCurrentUserEmail.value;
   return (Array.isArray(tenantMembers.value) ? tenantMembers.value : [])
     .filter((m) => {
-      const id = Number(m?.userId ?? m?.user_id ?? m?.id);
+      const id = String(m?.userId ?? m?.user_id ?? m?.id);
       const email = String(m?.email || m?.user?.email || '').trim().toLowerCase();
       if (currentUserId && id && id === currentUserId) return false;
       if (currentEmail && email && email === currentEmail) return false;

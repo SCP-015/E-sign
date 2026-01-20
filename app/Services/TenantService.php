@@ -3,13 +3,24 @@
 namespace App\Services;
 
 use App\Models\Tenant;
-use App\Models\TenantUser;
+use App\Models\Tenant\User as TenantUser;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Exception;
 
 class TenantService
 {
+    protected TenantDatabaseManager $dbManager;
+    protected RootCAService $rootCAService;
+
+    public function __construct(
+        TenantDatabaseManager $dbManager,
+        RootCAService $rootCAService
+    ) {
+        $this->dbManager = $dbManager;
+        $this->rootCAService = $rootCAService;
+    }
     /**
      * Create a new tenant/organization.
      *
@@ -25,29 +36,37 @@ class TenantService
             throw new Exception('Anda sudah mencapai batas maksimal 5 organization.');
         }
 
-        return DB::transaction(function () use ($data, $owner) {
-            // Create tenant
-            $tenant = Tenant::create([
-                'name' => $data['name'],
-                'description' => $data['description'] ?? null,
-                'owner_id' => $owner->id,
-                'plan' => $data['plan'] ?? 'free',
-            ]);
+        // Step 1: Create tenant record
+        // Events in Stancl\Tenancy (TenantCreated) will handle DB creation, migrations, and infrastructure
+        // NOTE: No transaction here because PG doesn't allow CREATE DATABASE inside transaction
+        // if the creation jobs are synchronous.
+        $tenant = Tenant::create([
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'owner_id' => $owner->id,
+            'plan' => $data['plan'] ?? 'free',
+            // Company/Organization DN fields
+            'company_legal_name' => $data['company_legal_name'] ?? null,
+            'company_country' => $data['company_country'] ?? 'ID',
+            'company_state' => $data['company_state'] ?? null,
+            'company_city' => $data['company_city'] ?? null,
+            'company_address' => $data['company_address'] ?? null,
+            'company_postal_code' => $data['company_postal_code'] ?? null,
+            'company_organization_unit' => $data['company_organization_unit'] ?? null,
+        ]);
 
-            // Add owner as owner
-            TenantUser::create([
-                'tenant_id' => $tenant->id,
-                'user_id' => $owner->id,
-                'role' => 'owner',
-                'is_owner' => true,
-                'joined_at' => now(),
-            ]);
+        Log::info("Tenant created. Automated provisioning started via events for ID: {$tenant->id}");
 
-            // Sync role to ACL so permission checks work in tenant context
-            $owner->assignRoleInTenant('owner', $tenant->id);
+        // Add owner as tenant user (in central DB)
+        TenantUser::create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $owner->id,
+            'role' => 'owner',
+            'is_owner' => true,
+            'joined_at' => now(),
+        ]);
 
-            return $tenant;
-        });
+        return $tenant;
     }
 
     /**

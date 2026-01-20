@@ -104,7 +104,7 @@ class KycService
         ];
     }
 
-    public function submitKycResult(int $userId, array $validated, UploadedFile $idPhoto, UploadedFile $selfiePhoto): array
+    public function submitKycResult(string $userId, array $validated, UploadedFile $idPhoto, UploadedFile $selfiePhoto): array
     {
         try {
             $user = User::findOrFail($userId);
@@ -162,7 +162,7 @@ class KycService
         }
     }
 
-    public function getMyKycResult(int $userId): array
+    public function getMyKycResult(string $userId): array
     {
         try {
             $kyc = KycData::where('user_id', $userId)->latest()->first();
@@ -193,7 +193,7 @@ class KycService
         }
     }
 
-    public function getMyKycFileResult(int $userId, string $type): array
+    public function getMyKycFileResult(string $userId, string $type): array
     {
         try {
             $kyc = KycData::where('user_id', $userId)->latest()->first();

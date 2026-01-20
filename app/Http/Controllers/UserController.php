@@ -19,7 +19,7 @@ class UserController extends Controller
             return ApiResponse::error('Unauthenticated', 401);
         }
 
-        return ApiResponse::fromService($this->userService->profile((int) $user->id));
+        return ApiResponse::fromService($this->userService->profile($user->id));
     }
 
     public function profile(Request $request)

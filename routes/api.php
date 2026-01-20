@@ -70,25 +70,25 @@ Route::middleware('auth:api')->group(function () {
 
     // Organization Routes
     Route::prefix('organizations')->group(function () {
-        Route::get('/', [\App\Http\Controllers\OrganizationController::class, 'index']);
-        Route::post('/', [\App\Http\Controllers\OrganizationController::class, 'store']);
-        Route::get('/current', [\App\Http\Controllers\OrganizationController::class, 'current']);
-        Route::post('/join', [\App\Http\Controllers\OrganizationController::class, 'join']);
-        Route::post('/switch', [\App\Http\Controllers\OrganizationController::class, 'switch']);
+        Route::get('/', [\App\Http\Controllers\Tenant\OrganizationController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\Tenant\OrganizationController::class, 'store']);
+        Route::get('/current', [\App\Http\Controllers\Tenant\OrganizationController::class, 'current']);
+        Route::post('/join', [\App\Http\Controllers\Tenant\OrganizationController::class, 'join']);
+        Route::post('/switch', [\App\Http\Controllers\Tenant\OrganizationController::class, 'switch']);
         
-        Route::get('/{organization}', [\App\Http\Controllers\OrganizationController::class, 'show']);
-        Route::put('/{organization}', [\App\Http\Controllers\OrganizationController::class, 'update']);
-        Route::delete('/{organization}', [\App\Http\Controllers\OrganizationController::class, 'destroy']);
+        Route::get('/{organization}', [\App\Http\Controllers\Tenant\OrganizationController::class, 'show']);
+        Route::put('/{organization}', [\App\Http\Controllers\Tenant\OrganizationController::class, 'update']);
+        Route::delete('/{organization}', [\App\Http\Controllers\Tenant\OrganizationController::class, 'destroy']);
         
         // Members management
-        Route::get('/{organization}/members', [\App\Http\Controllers\OrganizationMemberController::class, 'index']);
-        Route::put('/{organization}/members/{member}', [\App\Http\Controllers\OrganizationMemberController::class, 'update']);
-        Route::delete('/{organization}/members/{member}', [\App\Http\Controllers\OrganizationMemberController::class, 'destroy']);
+        Route::get('/{organization}/members', [\App\Http\Controllers\Tenant\MemberController::class, 'index']);
+        Route::put('/{organization}/members/{member}', [\App\Http\Controllers\Tenant\MemberController::class, 'update']);
+        Route::delete('/{organization}/members/{member}', [\App\Http\Controllers\Tenant\MemberController::class, 'destroy']);
         
         // Invitations management
-        Route::get('/{organization}/invitations', [\App\Http\Controllers\OrganizationInvitationController::class, 'index']);
-        Route::post('/{organization}/invitations', [\App\Http\Controllers\OrganizationInvitationController::class, 'store']);
-        Route::delete('/{organization}/invitations/{invitation}', [\App\Http\Controllers\OrganizationInvitationController::class, 'destroy']);
+        Route::get('/{organization}/invitations', [\App\Http\Controllers\Tenant\InvitationController::class, 'index']);
+        Route::post('/{organization}/invitations', [\App\Http\Controllers\Tenant\InvitationController::class, 'store']);
+        Route::delete('/{organization}/invitations/{invitation}', [\App\Http\Controllers\Tenant\InvitationController::class, 'destroy']);
     });
 
     // Quota Management (Owner only)
@@ -100,10 +100,10 @@ Route::middleware('auth:api')->group(function () {
 
     // Portal Settings
     Route::prefix('portal-settings')->group(function () {
-        Route::get('/', [\App\Http\Controllers\PortalSettingsController::class, 'show']);
-        Route::put('/', [\App\Http\Controllers\PortalSettingsController::class, 'update']);
-        Route::post('/logo', [\App\Http\Controllers\PortalSettingsController::class, 'uploadLogo']);
-        Route::post('/banner', [\App\Http\Controllers\PortalSettingsController::class, 'uploadBanner']);
+        Route::get('/', [\App\Http\Controllers\Tenant\PortalSettingsController::class, 'show']);
+        Route::put('/', [\App\Http\Controllers\Tenant\PortalSettingsController::class, 'update']);
+        Route::post('/logo', [\App\Http\Controllers\Tenant\PortalSettingsController::class, 'uploadLogo']);
+        Route::post('/banner', [\App\Http\Controllers\Tenant\PortalSettingsController::class, 'uploadBanner']);
     });
 
     // User Profile

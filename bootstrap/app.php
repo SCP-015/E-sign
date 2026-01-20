@@ -34,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->web(append: [
+            \App\Http\Middleware\SetTenantDatabase::class, // After session, before Inertia
             HandleInertiaRequests::class,
         ]);
 
@@ -45,6 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(prepend: [
             \App\Http\Middleware\SetLocaleFromHeader::class,
             \Illuminate\Session\Middleware\StartSession::class,
+            \App\Http\Middleware\SetTenantDatabase::class, // Multi-database tenant switching
         ]);
 
         $middleware->alias([

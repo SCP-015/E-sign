@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
+
+use App\Traits\UsesTenantAwareConnection;
 
 class DocumentSigner extends Model
 {
+    use HasUlids, UsesTenantAwareConnection;
     protected $fillable = [
         'document_id',
         'user_id',

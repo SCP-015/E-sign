@@ -2,12 +2,22 @@
 
 namespace App\Models;
 
+use App\Traits\UsesTenantAwareConnection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
+
 class UserQuotaOverride extends Model
 {
+    use HasUlids, UsesTenantAwareConnection;
+
     protected $table = 'user_quota_overrides';
+
+    protected $connection = 'tenant';
+
+    public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'user_id',

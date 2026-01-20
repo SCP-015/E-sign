@@ -269,11 +269,11 @@ const certificateExpiry = computed(() => {
 
 const isAssignedToMe = (doc) => {
     if (!doc?.signers || doc.signers.length === 0) {
-        return Number(doc?.user_id ?? doc?.userId) === Number(user.value?.id);
+        return String(doc?.user_id ?? doc?.userId) === String(user.value?.id);
     }
     return doc.signers.some((s) =>
-        (s.user_id && Number(s.user_id) === Number(user.value?.id)) ||
-        (s.userId && Number(s.userId) === Number(user.value?.id)) ||
+        (s.user_id && String(s.user_id) === String(user.value?.id)) ||
+        (s.userId && String(s.userId) === String(user.value?.id)) ||
         (s.email && s.email.toLowerCase() === user.value?.email?.toLowerCase())
     );
 };
@@ -281,8 +281,8 @@ const isAssignedToMe = (doc) => {
 const hasISigned = (doc) => {
     if (!doc?.signers) return false;
     const mySigner = doc.signers.find((s) =>
-        (s.user_id && Number(s.user_id) === Number(user.value?.id)) ||
-        (s.userId && Number(s.userId) === Number(user.value?.id)) ||
+        (s.user_id && String(s.user_id) === String(user.value?.id)) ||
+        (s.userId && String(s.userId) === String(user.value?.id)) ||
         (s.email && s.email.toLowerCase() === user.value?.email?.toLowerCase())
     );
     return Boolean(mySigner?.signed_at ?? mySigner?.signedAt);
@@ -300,7 +300,7 @@ const canFinalize = (doc) => {
     if (status !== 'signed') return false;
     const ownerId = doc?.user_id ?? doc?.userId;
     if (!ownerId || !authStore.user?.id) return false;
-    return Number(ownerId) === Number(authStore.user.id);
+    return String(ownerId) === String(authStore.user.id);
 };
 
 const stats = computed(() => [

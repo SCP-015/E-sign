@@ -118,7 +118,7 @@ class PublicVerifyService
 
                     if ($canBackfill && (!$evidence || !$evidence->signed_at || !$evidence->certificate_not_before || !$evidence->certificate_not_after)) {
                         $signedAtFallback = $document->completed_at ?? $document->updated_at;
-                        $cert = Certificate::where('user_id', (int) $document->user_id)
+                        $cert = Certificate::where('user_id', $document->user_id)
                             ->where(function ($q) use ($signedAtFallback) {
                                 $q->whereNull('issued_at')->orWhere('issued_at', '<=', $signedAtFallback);
                             })
@@ -130,7 +130,7 @@ class PublicVerifyService
                             ->first();
 
                         if (!$cert) {
-                            $cert = Certificate::where('user_id', (int) $document->user_id)
+                            $cert = Certificate::where('user_id', $document->user_id)
                                 ->orderByDesc('issued_at')
                                 ->orderByDesc('created_at')
                                 ->first();
@@ -162,7 +162,7 @@ class PublicVerifyService
 
                     $documentOwner = $document->user
                         ? [
-                            'id' => (int) $document->user->id,
+                            'id' => $document->user->id,
                             'name' => $document->user->name,
                             'email' => $document->user->email,
                             'avatar' => $document->user->avatar,
@@ -299,7 +299,7 @@ class PublicVerifyService
 
         if ($canBackfill && (!$evidence || !$evidence->signed_at || !$evidence->certificate_not_before || !$evidence->certificate_not_after)) {
             $signedAtFallback = $document->completed_at ?? $document->updated_at;
-            $cert = Certificate::where('user_id', (int) $document->user_id)
+            $cert = Certificate::where('user_id', $document->user_id)
                 ->where(function ($q) use ($signedAtFallback) {
                     $q->whereNull('issued_at')->orWhere('issued_at', '<=', $signedAtFallback);
                 })
@@ -311,7 +311,7 @@ class PublicVerifyService
                 ->first();
 
             if (!$cert) {
-                $cert = Certificate::where('user_id', (int) $document->user_id)
+                $cert = Certificate::where('user_id', $document->user_id)
                     ->orderByDesc('issued_at')
                     ->orderByDesc('created_at')
                     ->first();
@@ -337,7 +337,7 @@ class PublicVerifyService
             'message' => $wasCertValidAtSigning ? 'Document is valid' : 'Document cannot be validated (missing/invalid LTV evidence)',
             'document_owner' => $document->user
                 ? [
-                    'id' => (int) $document->user->id,
+                    'id' => $document->user->id,
                     'name' => $document->user->name,
                     'email' => $document->user->email,
                     'avatar' => $document->user->avatar,

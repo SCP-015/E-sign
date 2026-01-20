@@ -9,25 +9,45 @@ use Illuminate\Support\Facades\DB;
 trait HasAclPermissions
 {
     /**
-     * Get user's role in a specific tenant
+     * Get user's role in a specific tenant.
+     * 
+     * In multi-DB architecture, ACL tables are in tenant database.
+     * Personal mode has NO ACL - returns null.
      */
     public function getRoleInTenant(?string $tenantId): ?AclRole
     {
         if (!$tenantId) {
-            return null;
+            return null; // Personal mode - no ACL
         }
 
-        $roleRecord = DB::table('acl_model_has_roles')
-            ->where('model_type', get_class($this))
-            ->where('model_id', $this->id)
-            ->where('tenant_id', $tenantId)
-            ->first();
+        // Switch to tenant database
+        try {
+            $dbMgr = app(\App\Services\TenantDatabaseManager::class);
+            $dbName = $dbMgr->getTenantDatabaseName($tenantId);
+            
+            config(['database.connections.tenant.database' => $dbName]);
+            DB::purge('tenant');
 
-        if (!$roleRecord) {
+            $roleRecord = DB::connection('tenant')->table('acl_model_has_roles')
+                ->where('model_type', 'App\Models\User')
+                ->where('model_id', $this->id)
+                ->first();
+
+            if (!$roleRecord) {
+                return null;
+            }
+
+            // Return proper Eloquent model, not stdClass
+            return \App\Models\AclRole::on('tenant')->find($roleRecord->role_id);
+        } catch (\PDOException $e) {
+            // If database doesn't exist or connection fails, return null
+            \Illuminate\Support\Facades\Log::warning("Could not connect to tenant database for tenant {$tenantId}: " . $e->getMessage());
             return null;
+        } finally {
+            // Cleanup - ensure connection is reset
+            DB::purge('tenant');
+            DB::setDefaultConnection('pgsql');
         }
-
-        return AclRole::find($roleRecord->role_id);
     }
 
     /**
@@ -35,32 +55,52 @@ trait HasAclPermissions
      */
     public function assignRoleInTenant(string $roleName, string $tenantId): bool
     {
+        if (!$tenantId) {
+            return false; // Cannot assign role in personal mode
+        }
+
         $normalizedRoleName = strtolower($roleName);
         if ($normalizedRoleName === 'user') {
             $normalizedRoleName = 'member';
         }
 
-        $role = AclRole::where('name', $normalizedRoleName)->first();
-        if (!$role) {
+        // Switch to tenant database
+        try {
+            $dbMgr = app(\App\Services\TenantDatabaseManager::class);
+            $dbName = $dbMgr->getTenantDatabaseName($tenantId);
+            
+            config(['database.connections.tenant.database' => $dbName]);
+            DB::purge('tenant');
+
+            $role = DB::connection('tenant')->table('acl_roles')
+                ->where('name', $normalizedRoleName)
+                ->first();
+
+            if (!$role) {
+                return false;
+            }
+
+            // Remove existing role in this tenant first
+            DB::connection('tenant')->table('acl_model_has_roles')
+                ->where('model_type', 'App\Models\User')
+                ->where('model_id', $this->id)
+                ->delete();
+
+            // Assign new role (no tenant_id column in multi-DB)
+            DB::connection('tenant')->table('acl_model_has_roles')->insert([
+                'role_id' => $role->id,
+                'model_type' => 'App\Models\User',
+                'model_id' => $this->id,
+            ]);
+
+            return true;
+        } catch (\PDOException $e) {
+            \Illuminate\Support\Facades\Log::warning("Could not assign role in tenant database for tenant {$tenantId}. Database may be missing: " . $e->getMessage());
             return false;
+        } finally {
+            DB::purge('tenant');
+            DB::setDefaultConnection('pgsql');
         }
-
-        // Remove existing role in this tenant first
-        DB::table('acl_model_has_roles')
-            ->where('model_type', get_class($this))
-            ->where('model_id', $this->id)
-            ->where('tenant_id', $tenantId)
-            ->delete();
-
-        // Assign new role
-        DB::table('acl_model_has_roles')->insert([
-            'role_id' => $role->id,
-            'model_type' => get_class($this),
-            'model_id' => $this->id,
-            'tenant_id' => $tenantId,
-        ]);
-
-        return true;
     }
 
     /**
@@ -68,11 +108,29 @@ trait HasAclPermissions
      */
     public function removeRoleInTenant(string $tenantId): bool
     {
-        return DB::table('acl_model_has_roles')
-            ->where('model_type', get_class($this))
-            ->where('model_id', $this->id)
-            ->where('tenant_id', $tenantId)
-            ->delete() > 0;
+        if (!$tenantId) {
+            return false;
+        }
+
+        try {
+            $dbMgr = app(\App\Services\TenantDatabaseManager::class);
+            $dbName = $dbMgr->getTenantDatabaseName($tenantId);
+            
+            config(['database.connections.tenant.database' => $dbName]);
+            DB::purge('tenant');
+
+            $deleted = DB::connection('tenant')->table('acl_model_has_roles')
+                ->where('model_type', 'App\Models\User')
+                ->where('model_id', $this->id)
+                ->delete();
+
+            return $deleted > 0;
+        } catch (\PDOException $e) {
+            return false;
+        } finally {
+            DB::purge('tenant');
+            DB::setDefaultConnection('pgsql');
+        }
     }
 
     /**

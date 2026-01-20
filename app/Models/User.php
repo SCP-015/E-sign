@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -13,7 +14,16 @@ use App\Traits\HasAclPermissions;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens, HasAclPermissions;
+    use HasFactory, Notifiable, HasApiTokens, HasAclPermissions, HasUlids;
+
+    public $incrementing = false;
+    protected $keyType = 'string';
+
+    /**
+     * IMPORTANT: Users always in central database.
+     * OAuth tokens, sessions, and authentication MUST use central DB.
+     */
+    protected $connection = 'pgsql';
 
     /**
      * The attributes that are mass assignable.
@@ -82,7 +92,7 @@ class User extends Authenticatable
      */
     public function tenantUsers()
     {
-        return $this->hasMany(TenantUser::class);
+        return $this->hasMany(\App\Models\Tenant\User::class);
     }
 
     /**

@@ -115,6 +115,6 @@ class AuthController extends Controller
             return ApiResponse::error('Unauthenticated', 401);
         }
 
-        return ApiResponse::fromService($this->authService->logout((int) $user->id));
+        return ApiResponse::fromService($this->authService->logout($user->id));
     }
 }

@@ -12,15 +12,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('tenant_users', function (Blueprint $table) {
-            $table->id();
-            $table->string('tenant_id');
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->ulid('id')->primary();
+            $table->ulid('tenant_id');
+            $table->ulid('user_id');
             $table->enum('role', ['owner', 'admin', 'member'])->default('member');
             $table->boolean('is_owner')->default(false);
             $table->timestamp('joined_at')->nullable();
             $table->timestamps();
 
             $table->foreign('tenant_id')->references('id')->on('tenants')->cascadeOnDelete();
+            $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
             $table->unique(['tenant_id', 'user_id']);
         });
     }

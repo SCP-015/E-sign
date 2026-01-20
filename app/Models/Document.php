@@ -3,16 +3,18 @@
 namespace App\Models;
 
 use App\Helpers\StoragePathHelper;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\UsesTenantAwareConnection;
+use Illuminate\Support\Facades\Auth;
 
 class Document extends Model
 {
-    use HasFactory;
+    use HasFactory, UsesTenantAwareConnection, HasUlids;
 
     protected $fillable = [
         'user_id',
-        'tenant_id',
         'title',
         'file_path',
         'original_filename',
@@ -69,50 +71,42 @@ class Document extends Model
     }
 
     /**
-     * Scope: Filter dokumen berdasarkan context saat ini (STRICT ISOLATION)
-     * - Personal mode: HANYA dokumen dengan tenant_id = NULL
-     * - Tenant mode: HANYA dokumen dengan tenant_id = {tenant_uuid}
+     * Scope: Filter dokumen berdasarkan context saat ini.
+     * 
+     * NOTE: In multi-DB architecture, isolation is handled by connection switching.
+     * Personal mode queries central DB, tenant mode queries tenant DB.
+     * No need for tenant_id column filtering.
      */
     public function scopeForCurrentContext($query, ?string $tenantId)
     {
-        if ($tenantId === null) {
-            return $query->whereNull('tenant_id');
-        }
-        
-        return $query->where('tenant_id', $tenantId);
+        // In multi-DB setup, connection is already switched
+        // No filtering needed - just return query as-is
+        return $query;
     }
 
     /**
      * Scope: Dokumen yang bisa diakses user di context tertentu
      */
-    public function scopeAccessibleByUser($query, int $userId, ?string $tenantId, ?string $userEmail = null)
+    public function scopeAccessibleByUser($query, string $userId, ?string $tenantId, ?string $userEmail = null)
     {
         $email = is_string($userEmail) ? strtolower(trim($userEmail)) : null;
 
-        if ($tenantId === null) {
-            return $query->accessibleByUserAnyContextForPersonal($userId, $email);
-        }
-
-        return $query->forCurrentContext($tenantId)
-            ->where(function ($q) use ($userId, $email) {
-                $q->where('user_id', $userId)
-                    ->orWhereHas('signers', function ($sq) use ($userId) {
-                        $sq->where('user_id', $userId);
-                    });
-
-                if ($email) {
-                    $q->orWhereHas('signers', function ($sq) use ($email) {
-                        $sq->whereRaw('LOWER(email) = ?', [$email]);
-                    });
-                }
-            });
+        // Connection is already set to correct DB (personal vs tenant)
+        return $query->where(function ($q) use ($userId, $email) {
+            $q->where('user_id', $userId)
+                ->orWhereHas('signers', function ($sq) use ($userId, $email) {
+                    $sq->where('user_id', $userId);
+                    if ($email) {
+                        $sq->orWhereRaw('LOWER(email) = ?', [$email]);
+                    }
+                });
+        });
     }
 
     /**
      * Scope: Dokumen yang bisa diakses user lintas context (personal/tenant)
-     * Dipakai untuk personal-mode signer agar bisa melihat tenant document yang di-assign.
      */
-    public function scopeAccessibleByUserAnyContext($query, int $userId, ?string $userEmail = null)
+    public function scopeAccessibleByUserAnyContext($query, string $userId, ?string $userEmail = null)
     {
         $email = is_string($userEmail) ? strtolower(trim($userEmail)) : null;
 
@@ -127,22 +121,21 @@ class Document extends Model
         });
     }
 
-    public function scopeAccessibleByUserAnyContextForPersonal($query, int $userId, ?string $userEmail = null)
+    /**
+     * Scope: Personal mode documents accessible by user
+     */
+    public function scopeAccessibleByUserAnyContextForPersonal($query, string $userId, ?string $userEmail = null)
     {
         $email = is_string($userEmail) ? strtolower(trim($userEmail)) : null;
 
         return $query->where(function ($q) use ($userId, $email) {
-            $q->where(function ($qq) use ($userId) {
-                $qq->whereNull('tenant_id')->where('user_id', $userId);
-            })->orWhere(function ($qq) use ($userId, $email) {
-                $qq->where('user_id', '!=', $userId)
-                    ->whereHas('signers', function ($sq) use ($userId, $email) {
-                        $sq->where('user_id', $userId);
-                        if ($email) {
-                            $sq->orWhereRaw('LOWER(email) = ?', [$email]);
-                        }
-                    });
-            });
+            $q->where('user_id', $userId)
+                ->orWhereHas('signers', function ($sq) use ($userId, $email) {
+                    $sq->where('user_id', $userId);
+                    if ($email) {
+                        $sq->orWhereRaw('LOWER(email) = ?', [$email]);
+                    }
+                });
         });
     }
 
@@ -151,22 +144,26 @@ class Document extends Model
      */
     public function getStoragePath(string $type = 'original'): string
     {
-        return StoragePathHelper::getDocumentPath($this->tenant_id, $type);
+        // Determine tenant context from connection
+        $tenantId = $this->isInTenantContext() ? session('current_tenant_id') : null;
+        $userEmail = Auth::user()?->email;
+        
+        return StoragePathHelper::getDocumentPath($tenantId, $type, $userEmail);
     }
 
     /**
-     * Helper: Check apakah dokumen personal
+     * Helper: Check apakah dokumen personal (in central DB)
      */
     public function isPersonal(): bool
     {
-        return $this->tenant_id === null;
+        return $this->getConnectionName() === 'pgsql';
     }
 
     /**
-     * Helper: Check apakah dokumen tenant
+     * Helper: Check apakah dokumen tenant (in tenant DB)
      */
     public function isTenant(): bool
     {
-        return $this->tenant_id !== null;
+        return $this->getConnectionName() === 'tenant';
     }
 }

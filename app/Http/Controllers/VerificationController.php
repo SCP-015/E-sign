@@ -17,7 +17,7 @@ class VerificationController extends Controller
 
     public function verify(VerifyDocumentRequest $request)
     {
-        $result = $this->verificationService->verifyResult((int) $request->input('document_id'));
+        $result = $this->verificationService->verifyResult($request->input('document_id'));
         return ApiResponse::fromService($result);
     }
 }

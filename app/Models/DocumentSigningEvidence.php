@@ -5,9 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
+use App\Traits\UsesTenantAwareConnection;
+
 class DocumentSigningEvidence extends Model
 {
-    use HasFactory;
+    use HasFactory, HasUlids, UsesTenantAwareConnection;
 
     protected $table = 'document_signing_evidences';
 

@@ -49,7 +49,7 @@ class QuotaController extends Controller
         );
     }
 
-    public function updateUserOverride(UpdateQuotaUserOverrideRequest $request, int $userId): JsonResponse
+    public function updateUserOverride(UpdateQuotaUserOverrideRequest $request, string $userId): JsonResponse
     {
         $user = Auth::user();
         $result = $this->quotaService->updateUserOverride($user, $userId, $request->validated());

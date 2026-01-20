@@ -2,24 +2,35 @@
 
 namespace App\Helpers;
 
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 class StoragePathHelper
 {
     /**
-     * Get storage path untuk dokumen berdasarkan tenant context
+     * Get storage path untuk dokumen berdasarkan tenant context.
+     * 
+     * Personal Mode: storage/app/private/documents/{email}/
+     * Tenant Mode: storage/app/private/tenants/{tenant_uuid}/documents/
      * 
      * @param string|null $tenantId
      * @param string $type 'original' atau 'final'
+     * @param string|null $userEmail (required for personal mode)
      * @return string
      */
-    public static function getDocumentPath(?string $tenantId, string $type = 'original'): string
+    public static function getDocumentPath(?string $tenantId, string $type = 'original', ?string $userEmail = null): string
     {
         if ($tenantId === null) {
-            return "documents/personal/{$type}";
+            // Personal mode - use email-based path (existing structure)
+            if (!$userEmail) {
+                $userEmail = Auth::user()?->email ?? 'guest';
+            }
+            $email = strtolower((string) $userEmail);
+            return "{$email}/documents/{$type}";
         }
         
-        return "documents/{$tenantId}/{$type}";
+        // Tenant mode - use tenant UUID path
+        return "tenants/{$tenantId}/documents/{$type}";
     }
 
     /**
@@ -33,9 +44,9 @@ class StoragePathHelper
      */
     public static function generateDocumentFilename(
         ?string $tenantId, 
-        int $userId, 
+        string $userId, 
         string $originalName,
-        ?int $documentId = null
+        ?string $documentId = null
     ): string {
         $timestamp = now()->format('YmdHis');
         $extension = pathinfo($originalName, PATHINFO_EXTENSION);
@@ -56,8 +67,8 @@ class StoragePathHelper
      */
     public static function generateSignedFilename(
         ?string $tenantId,
-        int $userId,
-        int $documentId,
+        string $userId,
+        string $documentId,
         string $originalName
     ): string {
         $timestamp = now()->format('YmdHis');
@@ -85,8 +96,8 @@ class StoragePathHelper
         ];
 
         foreach ($paths as $path) {
-            if (!Storage::exists($path)) {
-                Storage::makeDirectory($path, 0755, true);
+            if (!Storage::disk('private')->exists($path)) {
+                Storage::disk('private')->makeDirectory($path);
             }
         }
     }
@@ -106,15 +117,49 @@ class StoragePathHelper
     public static function moveToFinalLocation(
         string $tempPath,
         ?string $tenantId,
-        int $documentId,
+        string $documentId,
         string $originalName
     ): string {
         $extension = pathinfo($originalName, PATHINFO_EXTENSION);
         $finalFilename = "{$documentId}_original.{$extension}";
         $finalPath = self::getFullPath($tenantId, 'original', $finalFilename);
         
-        Storage::move($tempPath, $finalPath);
+        Storage::disk('private')->move($tempPath, $finalPath);
         
         return $finalPath;
+    }
+
+    /**
+     * Get certificate storage path (personal vs tenant).
+     * 
+     * Personal: storage/app/private/{email}/certificates/
+     * Tenant: storage/app/private/tenants/{tenant_uuid}/certificates/
+     */
+    public static function getCertificatePath(?string $tenantId, ?string $userEmail = null): string
+    {
+        if ($tenantId === null) {
+            if (!$userEmail) {
+                $userEmail = Auth::user()?->email ?? 'guest';
+            }
+            $email = strtolower((string) $userEmail);
+            return "{$email}/certificates";
+        }
+
+        if (!$userEmail) {
+            $userEmail = Auth::user()?->email ?? 'guest';
+        }
+        $email = strtolower((string) $userEmail);
+        return "tenants/{$tenantId}/certificates/{$email}";
+    }
+
+    /**
+     * Get signature storage path (portable - always personal).
+     * 
+     * Signatures are portable, stored in personal  space only.
+     */
+    public static function getSignaturePath(string $userEmail): string
+    {
+        $email = strtolower((string) $userEmail);
+        return "{$email}/signatures";
     }
 }

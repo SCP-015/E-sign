@@ -23,14 +23,14 @@ class DocumentController extends Controller
     public function index(Request $request)
     {
         $tenantId = $this->getCurrentTenantId($request);
-        $result = $this->documentService->indexResult((int) $request->user()->id, $tenantId);
+        $result = $this->documentService->indexResult($request->user()->id, $tenantId);
         return ApiResponse::fromService($result);
     }
 
     public function sync(Request $request)
     {
         $tenantId = $this->getCurrentTenantId($request);
-        $result = $this->documentService->syncResult((int) $request->user()->id, $tenantId);
+        $result = $this->documentService->syncResult($request->user()->id, $tenantId);
         return ApiResponse::fromService($result);
     }
 
@@ -42,7 +42,7 @@ class DocumentController extends Controller
         $tenantId = $this->getCurrentTenantId($request);
 
         $result = $this->documentService->uploadWithMetadataResult(
-            (int) $user->id,
+            $user->id,
             $file,
             $title,
             $tenantId
@@ -55,8 +55,8 @@ class DocumentController extends Controller
     {
         $tenantId = $this->getCurrentTenantId($request);
         $result = $this->documentService->showResult(
-            (int) $id,
-            (int) $request->user()->id,
+            $id,
+            $request->user()->id,
             $tenantId
         );
 
@@ -71,7 +71,7 @@ class DocumentController extends Controller
 
             if ($tenantId === null) {
                 $document = Document::where('id', $id)
-                    ->accessibleByUserAnyContextForPersonal((int) $user->id, (string) $user->email)
+                    ->accessibleByUserAnyContextForPersonal($user->id, (string) $user->email)
                     ->firstOrFail();
             } elseif ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
                 $document = Document::where('id', $id)
@@ -117,7 +117,7 @@ class DocumentController extends Controller
 
         if ($tenantId === null) {
             $document = Document::where('id', $id)
-                ->accessibleByUserAnyContextForPersonal((int) $user->id, (string) $user->email)
+                ->accessibleByUserAnyContextForPersonal($user->id, (string) $user->email)
                 ->firstOrFail();
         } elseif ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
             $document = Document::where('id', $id)
@@ -203,7 +203,13 @@ class DocumentController extends Controller
             $document = $document->fresh();
 
             // Create/refresh signing evidence (LTV payload) for public verification
-            $cert = \App\Models\Certificate::where('user_id', (int) $document->user_id)
+            $certQuery = \App\Models\Certificate::query();
+            if ($tenantId) {
+                $certQuery = $certQuery->tenant((string) $tenantId);
+            }
+
+            $cert = $certQuery
+                ->where('user_id', $document->user_id)
                 ->where('status', 'active')
                 ->orderByDesc('issued_at')
                 ->orderByDesc('created_at')
@@ -242,7 +248,7 @@ class DocumentController extends Controller
             ->firstOrFail();
 
         $validated = $request->validate([
-            'signature_id' => 'required|integer|exists:signatures,id',
+            'signature_id' => 'required|string|exists:signatures,id',
             'signature_position' => 'required|array',
             'signature_position.x' => 'required|numeric|min:0|max:1',
             'signature_position.y' => 'required|numeric|min:0|max:1',
@@ -255,7 +261,12 @@ class DocumentController extends Controller
             ->where('user_id', $user->id)
             ->firstOrFail();
 
-        $cert = Certificate::where('user_id', $user->id)->where('status', 'active')->latest()->first();
+        $certQuery = Certificate::query();
+        if ($tenantId) {
+            $certQuery = $certQuery->tenant((string) $tenantId);
+        }
+
+        $cert = $certQuery->where('user_id', $user->id)->where('status', 'active')->latest()->first();
 
         if (!$cert) {
             return ApiResponse::error('No active certificate found', 400);
@@ -290,7 +301,7 @@ class DocumentController extends Controller
 
         if ($tenantId === null) {
             $document = Document::where('id', $id)
-                ->accessibleByUserAnyContextForPersonal((int) $user->id, (string) $user->email)
+                ->accessibleByUserAnyContextForPersonal($user->id, (string) $user->email)
                 ->firstOrFail();
         } elseif ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
             $document = Document::where('id', $id)
@@ -355,7 +366,7 @@ class DocumentController extends Controller
                 $document = $document->fresh();
 
                 // Create/refresh signing evidence so verify/upload can validate
-                $cert = \App\Models\Certificate::where('user_id', (int) $document->user_id)
+                $cert = \App\Models\Certificate::where('user_id', $document->user_id)
                     ->where('status', 'active')
                     ->orderByDesc('issued_at')
                     ->orderByDesc('created_at')
@@ -380,7 +391,7 @@ class DocumentController extends Controller
             || !$evidence->certificate_not_after;
 
         if ($evidenceMissing) {
-            $cert = Certificate::where('user_id', (int) $document->user_id)
+            $cert = Certificate::where('user_id', $document->user_id)
                 ->where('status', 'active')
                 ->orderByDesc('issued_at')
                 ->orderByDesc('created_at')

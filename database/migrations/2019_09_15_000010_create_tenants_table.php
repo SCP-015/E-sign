@@ -14,7 +14,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('tenants', function (Blueprint $table) {
-            $table->string('id')->primary();
+            $table->ulid('id')->primary();
             
             // Organization details
             $table->string('name');
@@ -23,7 +23,8 @@ return new class extends Migration
             $table->text('description')->nullable();
             
             // Owner
-            $table->foreignId('owner_id')->constrained('users')->cascadeOnDelete();
+            $table->ulid('owner_id');
+            $table->foreign('owner_id')->references('id')->on('users')->cascadeOnDelete();
             
             // Plan & settings
             $table->string('plan')->default('free');

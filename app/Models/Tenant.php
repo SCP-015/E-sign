@@ -7,9 +7,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Stancl\Tenancy\Contracts\TenantWithDatabase;
+use Stancl\Tenancy\Database\Concerns\HasDatabase;
+use Stancl\Tenancy\Database\Concerns\HasDomains;
+use Stancl\Tenancy\Database\Concerns\HasInternalKeys;
+use Stancl\Tenancy\Database\Concerns\TenantRun;
 
-class Tenant extends Model
+use Stancl\Tenancy\Database\Models\Tenant as BaseTenant;
+
+class Tenant extends BaseTenant implements TenantWithDatabase
 {
+    use HasFactory, HasDatabase, HasDomains, HasInternalKeys, TenantRun;
     /**
      * The primary key type.
      *
@@ -47,6 +56,16 @@ class Tenant extends Model
         'owner_id',
         'plan',
         'data',
+        // Company/Organization DN fields for Root CA
+        'company_legal_name',
+        'company_country',
+        'company_state',
+        'company_city',
+        'company_address',
+        'company_postal_code',
+        'company_organization_unit',
+        'has_root_ca',
+        'root_ca_created_at',
     ];
 
     /**
@@ -56,7 +75,55 @@ class Tenant extends Model
      */
     protected $casts = [
         'data' => 'array',
+        'root_ca_created_at' => 'datetime',
+        'has_root_ca' => 'boolean',
     ];
+
+    /**
+     * Get the name of the tenant's database.
+     */
+    public function databaseName(): string
+    {
+        $prefix = config('tenancy.database.prefix', 'tenant_');
+        return $prefix . str_replace('-', '_', strtolower((string) $this->id));
+    }
+
+    /**
+     * The custom columns that should be treated as actual database columns.
+     */
+    public static function getCustomColumns(): array
+    {
+        return [
+            'id',
+            'name',
+            'code',
+            'slug',
+            'description',
+            'owner_id',
+            'plan',
+            'created_at',
+            'updated_at',
+            'logo',
+            'banner',
+            'website',
+            'phone',
+            'address',
+            'facebook',
+            'twitter',
+            'instagram',
+            'linkedin',
+            'company_legal_name',
+            'company_country',
+            'company_state',
+            'company_city',
+            'company_address',
+            'company_postal_code',
+            'company_organization_unit',
+            'has_root_ca',
+            'root_ca_created_at',
+            'tenancy_db_name',
+        ];
+    }
 
     /**
      * Boot the model.
@@ -66,9 +133,13 @@ class Tenant extends Model
         parent::boot();
 
         static::creating(function ($tenant) {
-            if (empty($tenant->id)) {
+            if (empty($tenant->id) || !Str::isUlid((string) $tenant->id)) {
                 $tenant->id = (string) Str::ulid();
             }
+            
+            // Set tenancy_db_name for Stancl\Tenancy\Database\Concerns\HasDatabase
+            $tenant->tenancy_db_name = $tenant->databaseName();
+
             if (empty($tenant->code)) {
                 $tenant->code = static::generateCode();
             }
@@ -101,7 +172,7 @@ class Tenant extends Model
      */
     public function tenantUsers(): HasMany
     {
-        return $this->hasMany(TenantUser::class);
+        return $this->hasMany(\App\Models\Tenant\User::class);
     }
 
     /**
@@ -109,7 +180,7 @@ class Tenant extends Model
      */
     public function invitations(): HasMany
     {
-        return $this->hasMany(TenantInvitation::class);
+        return $this->hasMany(\App\Models\Tenant\Invitation::class);
     }
 
     /**
@@ -126,6 +197,22 @@ class Tenant extends Model
     public function getAdmins()
     {
         return $this->tenantUsers()->where('role', 'admin')->with('user')->get();
+    }
+
+    /**
+     * Get the name of the key used as the tenant identifier.
+     */
+    public function getTenantKeyName(): string
+    {
+        return 'id';
+    }
+
+    /**
+     * Get the value of the key used as the tenant identifier.
+     */
+    public function getTenantKey()
+    {
+        return $this->getAttribute($this->getTenantKeyName());
     }
 
     /**

@@ -12,6 +12,11 @@ use Stancl\Tenancy\Events;
 use Stancl\Tenancy\Jobs;
 use Stancl\Tenancy\Listeners;
 use Stancl\Tenancy\Middleware;
+use App\Jobs\SeedTenantAcl;
+use App\Jobs\AssignTenantOwnerRole;
+use App\Jobs\GenerateTenantRootCA;
+use App\Jobs\CreateTenantStorage;
+use App\Listeners\SyncOAuthDataToTenant;
 
 class TenancyServiceProvider extends ServiceProvider
 {
@@ -22,31 +27,28 @@ class TenancyServiceProvider extends ServiceProvider
     {
         return [
             // Tenant events
-            Events\CreatingTenant::class => [],
-            Events\TenantCreated::class => [
+            \Stancl\Tenancy\Events\CreatingTenant::class => [],
+            \Stancl\Tenancy\Events\TenantCreated::class => [
                 JobPipeline::make([
-                    Jobs\CreateDatabase::class,
-                    Jobs\MigrateDatabase::class,
-                    // Jobs\SeedDatabase::class,
-
-                    // Your own jobs to prepare the tenant.
-                    // Provision API keys, create S3 buckets, anything you want!
-
-                ])->send(function (Events\TenantCreated $event) {
+                    \App\Jobs\EnsureTenantDatabaseExists::class,
+                    SyncOAuthDataToTenant::class,
+                    AssignTenantOwnerRole::class,
+                    GenerateTenantRootCA::class,
+                ])->send(function (\Stancl\Tenancy\Events\TenantCreated $event) {
                     return $event->tenant;
-                })->shouldBeQueued(false), // `false` by default, but you probably want to make this `true` for production.
+                })->shouldBeQueued(false),
             ],
-            Events\SavingTenant::class => [],
-            Events\TenantSaved::class => [],
-            Events\UpdatingTenant::class => [],
-            Events\TenantUpdated::class => [],
-            Events\DeletingTenant::class => [],
-            Events\TenantDeleted::class => [
+            \Stancl\Tenancy\Events\SavingTenant::class => [],
+            \Stancl\Tenancy\Events\TenantSaved::class => [],
+            \Stancl\Tenancy\Events\UpdatingTenant::class => [],
+            \Stancl\Tenancy\Events\TenantUpdated::class => [],
+            \Stancl\Tenancy\Events\DeletingTenant::class => [],
+            \Stancl\Tenancy\Events\TenantDeleted::class => [
                 JobPipeline::make([
                     Jobs\DeleteDatabase::class,
-                ])->send(function (Events\TenantDeleted $event) {
+                ])->send(function (\Stancl\Tenancy\Events\TenantDeleted $event) {
                     return $event->tenant;
-                })->shouldBeQueued(false), // `false` by default, but you probably want to make this `true` for production.
+                })->shouldBeQueued(false),
             ],
 
             // Domain events

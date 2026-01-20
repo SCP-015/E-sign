@@ -47,7 +47,7 @@ class AuthService
         ];
     }
 
-    public function logout(int $userId): array
+    public function logout(string $userId): array
     {
         $user = User::findOrFail($userId);
         $user->tokens()->delete();

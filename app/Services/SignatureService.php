@@ -6,11 +6,16 @@ use App\Models\Signature;
 use App\Models\UserQuotaUsage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class SignatureService
 {
-    public function index(int $userId): array
+    public function __construct(private readonly TenantDatabaseManager $tenantDatabaseManager)
+    {
+    }
+
+    public function index(string $userId): array
     {
         $signatures = Signature::query()
             ->where('user_id', $userId)
@@ -24,7 +29,6 @@ class SignatureService
                     'image_type' => $signature->image_type,
                     'is_default' => $signature->is_default,
                     'is_portable' => $signature->isPortable(),
-                    'tenant_id' => $signature->tenant_id,
                     'created_at' => $signature->created_at,
                 ];
             });
@@ -41,7 +45,7 @@ class SignatureService
         ];
     }
 
-    public function store(int $userId, string $userEmail, UploadedFile $image, ?string $name, bool $isDefault, ?string $tenantId = null): array
+    public function store(string $userId, string $userEmail, UploadedFile $image, ?string $name, bool $isDefault, ?string $tenantId = null): array
     {
         $extension = strtolower($image->getClientOriginalExtension());
         $imageType = $extension === 'svg' ? 'svg' : 'png';
@@ -68,7 +72,6 @@ class SignatureService
 
         $signature = Signature::create([
             'user_id' => $userId,
-            'tenant_id' => null,
             'name' => $name ?: 'My Signature',
             'image_path' => "private/{$path}",
             'image_type' => $imageType,
@@ -76,7 +79,11 @@ class SignatureService
         ]);
 
         if (!empty($tenantId)) {
-            $usage = UserQuotaUsage::getOrCreateForUser((int) $userId, (string) $tenantId);
+            $dbName = $this->tenantDatabaseManager->getTenantDatabaseName($tenantId);
+            config(['database.connections.tenant.database' => $dbName]);
+            DB::purge('tenant');
+
+            $usage = UserQuotaUsage::getOrCreateForUser($userId, (string) $tenantId);
             $usage->increment('signatures_created', 1);
         }
 
@@ -91,7 +98,6 @@ class SignatureService
                     'image_type' => $signature->image_type,
                     'is_default' => $signature->is_default,
                     'is_portable' => $signature->isPortable(),
-                    'tenant_id' => $signature->tenant_id,
                     'mode' => 'global',
                     'created_at' => $signature->created_at,
                 ],
@@ -99,7 +105,7 @@ class SignatureService
         ];
     }
 
-    public function getImage(int $userId, int $signatureId): array
+    public function getImage(string $userId, string $signatureId): array
     {
         $signature = Signature::where('id', $signatureId)
             ->where('user_id', $userId)
@@ -135,7 +141,7 @@ class SignatureService
         ];
     }
 
-    public function setDefault(int $userId, int $signatureId): array
+    public function setDefault(string $userId, string $signatureId): array
     {
         $signature = Signature::where('id', $signatureId)
             ->where('user_id', $userId)
@@ -158,7 +164,7 @@ class SignatureService
         ];
     }
 
-    public function destroy(int $userId, int $signatureId): array
+    public function destroy(string $userId, string $signatureId): array
     {
         $signature = Signature::where('id', $signatureId)
             ->where('user_id', $userId)
