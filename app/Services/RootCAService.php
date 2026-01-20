@@ -31,7 +31,7 @@ class RootCAService
             $this->dbManager->switchToTenantDatabase($tenant->id);
 
             // Check if Root CA already exists
-            $existingCA = RootCertificateAuthority::where('status', 'active')->first();
+            $existingCA = RootCertificateAuthority::on('tenant')->where('status', 'active')->first();
             if ($existingCA) {
                 Log::warning("Root CA already exists for tenant: {$tenant->id}");
                 
@@ -102,7 +102,7 @@ class RootCAService
             $dnComponents = $this->parseDN($dn);
 
             // Create database record
-            $rootCA = RootCertificateAuthority::create([
+            $rootCA = RootCertificateAuthority::on('tenant')->create([
                 'ca_name' => $tenant->name . ' Root CA',
                 'certificate_path' => $certPath,
                 'private_key_path' => $keyPath,
@@ -157,7 +157,7 @@ class RootCAService
     {
         $this->dbManager->switchToTenantDatabase($tenantId);
         
-        $rootCA = RootCertificateAuthority::where('status', 'active')->first();
+        $rootCA = RootCertificateAuthority::on('tenant')->where('status', 'active')->first();
         
         $this->dbManager->switchToCentralDatabase();
         
@@ -254,7 +254,7 @@ class RootCAService
     {
         $this->dbManager->switchToTenantDatabase($tenantId);
         
-        $exists = RootCertificateAuthority::where('status', 'active')->exists();
+        $exists = RootCertificateAuthority::on('tenant')->where('status', 'active')->exists();
         
         $this->dbManager->switchToCentralDatabase();
         
@@ -271,7 +271,7 @@ class RootCAService
     {
         $this->dbManager->switchToTenantDatabase($tenantId);
         
-        $result = RootCertificateAuthority::where('status', 'active')
+        $result = RootCertificateAuthority::on('tenant')->where('status', 'active')
             ->update(['status' => 'revoked']);
         
         $this->dbManager->switchToCentralDatabase();
