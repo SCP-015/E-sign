@@ -92,15 +92,15 @@ class PortalSettingsService
 
     public function uploadLogo(User $actor, UploadedFile $logo): array
     {
-        return $this->uploadAsset($actor, $logo, 'logo', 'tenants/logos', 2048, 'Logo uploaded successfully');
+        return $this->uploadAsset($actor, $logo, 'logo', 2048, 'Logo uploaded successfully');
     }
 
     public function uploadBanner(User $actor, UploadedFile $banner): array
     {
-        return $this->uploadAsset($actor, $banner, 'banner', 'tenants/banners', 5120, 'Banner uploaded successfully');
+        return $this->uploadAsset($actor, $banner, 'banner', 5120, 'Banner uploaded successfully');
     }
 
-    private function uploadAsset(User $actor, UploadedFile $file, string $field, string $dir, int $maxKb, string $successMessage): array
+    private function uploadAsset(User $actor, UploadedFile $file, string $field, int $maxKb, string $successMessage): array
     {
         $context = $this->tenantContextService->getCurrentContext($actor);
         $tenant = $context['data']['tenant'] ?? null;
@@ -139,6 +139,7 @@ class PortalSettingsService
             Storage::disk('public')->delete($existing);
         }
 
+        $dir = "tenants/{$tenantId}/{$field}";
         $path = $file->store($dir, 'public');
         $tenant->update([$field => $path]);
 
