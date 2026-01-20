@@ -173,17 +173,22 @@ trait HasAclPermissions
             return [];
         }
 
-        $role = $this->getRoleInTenant($tenantId);
-        if (!$role) {
+        try {
+            $role = $this->getRoleInTenant($tenantId);
+            if (!$role) {
+                return [];
+            }
+
+            // Owner gets all permissions (ACL tables live in tenant DB)
+            if ($role->name === 'owner') {
+                return AclPermission::on('tenant')->pluck('name')->toArray();
+            }
+
+            return $role->permissions()->pluck('name')->toArray();
+        } catch (\Throwable $e) {
+            // Do not break profile endpoint if ACL tables are missing in tenant DB.
             return [];
         }
-
-        // Owner gets all permissions
-        if ($role->name === 'owner') {
-            return AclPermission::pluck('name')->toArray();
-        }
-
-        return $role->permissions()->pluck('name')->toArray();
     }
 
     /**
