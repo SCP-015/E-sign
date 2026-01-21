@@ -241,7 +241,7 @@ class RootCAService
      */
     public function getGlobalRootCAPath(): string
     {
-        return storage_path('app/private/secure/rootCA.crt');
+        return storage_path('app/private/rootca/rootCA.crt');
     }
 
     /**
