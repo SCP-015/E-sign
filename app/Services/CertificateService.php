@@ -149,8 +149,8 @@ class CertificateService
                 return $existing;
             }
 
-            $email = strtolower((string) $user->email);
-            $storagePath = storage_path("app/private/tenants/{$tenantId}/certificates/{$email}/");
+            $userId = (string) $user->id;
+            $storagePath = storage_path("app/private/tenants/{$tenantId}/certificates/{$userId}/");
             if (!is_dir($storagePath)) {
                 mkdir($storagePath, 0755, true);
             }
