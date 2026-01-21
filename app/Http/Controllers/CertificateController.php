@@ -26,7 +26,7 @@ class CertificateController extends Controller
             return ApiResponse::error('Unauthenticated', 401);
         }
 
-        $result = $this->certificateService->issueCertificateResult((int) $user->id);
+        $result = $this->certificateService->issueCertificateResult($user->id);
         return ApiResponse::fromService($result);
     }
 }

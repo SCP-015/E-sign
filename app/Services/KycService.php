@@ -104,7 +104,7 @@ class KycService
         ];
     }
 
-    public function submitKycResult(int $userId, array $validated, UploadedFile $idPhoto, UploadedFile $selfiePhoto): array
+    public function submitKycResult(string $userId, array $validated, UploadedFile $idPhoto, UploadedFile $selfiePhoto): array
     {
         try {
             $user = User::findOrFail($userId);
@@ -156,7 +156,111 @@ class KycService
             return [
                 'status' => 'error',
                 'code' => 500,
-                'message' => 'KYC submission failed: ' . $e->getMessage(),
+                'message' => __('KYC submission failed: :error', ['error' => $e->getMessage()]),
+                'data' => null,
+            ];
+        }
+    }
+
+    public function getMyKycResult(string $userId): array
+    {
+        try {
+            $kyc = KycData::where('user_id', $userId)->latest()->first();
+            if (!$kyc) {
+                return [
+                    'status' => 'error',
+                    'code' => 404,
+                    'message' => 'KYC data not found',
+                    'data' => null,
+                ];
+            }
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'OK',
+                'data' => [
+                    'kyc' => (new \App\Http\Resources\KycResource($kyc))->resolve(),
+                ],
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => __('Failed to fetch KYC data: :error', ['error' => $e->getMessage()]),
+                'data' => null,
+            ];
+        }
+    }
+
+    public function getMyKycFileResult(string $userId, string $type): array
+    {
+        try {
+            $kyc = KycData::where('user_id', $userId)->latest()->first();
+            if (!$kyc) {
+                return [
+                    'status' => 'error',
+                    'code' => 404,
+                    'message' => 'KYC data not found',
+                    'data' => null,
+                ];
+            }
+
+            $path = null;
+            if ($type === 'id') {
+                $path = $kyc->id_photo_path;
+            } elseif ($type === 'selfie') {
+                $path = $kyc->selfie_photo_path;
+            }
+
+            if (!is_string($path) || $path === '') {
+                return [
+                    'status' => 'error',
+                    'code' => 404,
+                    'message' => 'KYC file not found',
+                    'data' => null,
+                ];
+            }
+
+            $relativePath = str_replace('private/', '', $path);
+            if (!Storage::disk('private')->exists($relativePath)) {
+                return [
+                    'status' => 'error',
+                    'code' => 404,
+                    'message' => 'KYC file not found',
+                    'data' => null,
+                ];
+            }
+
+            $ciphertext = Storage::disk('private')->get($relativePath);
+            try {
+                $plaintext = Crypt::decrypt($ciphertext);
+            } catch (\Exception $e) {
+                $plaintext = $ciphertext;
+            }
+
+            $mimeType = 'application/octet-stream';
+            $lower = strtolower($relativePath);
+            if (str_contains($lower, '.png.')) {
+                $mimeType = 'image/png';
+            } elseif (str_contains($lower, '.jpg.') || str_contains($lower, '.jpeg.')) {
+                $mimeType = 'image/jpeg';
+            }
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => 'OK',
+                'data' => [
+                    'content' => $plaintext,
+                    'mimeType' => $mimeType,
+                ],
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'code' => 500,
+                'message' => __('Failed to fetch KYC file: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }

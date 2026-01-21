@@ -12,7 +12,7 @@ export const useToastStore = defineStore('toast', {
         toasts: [],
     }),
     actions: {
-        push({ message, type = 'info', duration = 4000 }) {
+        push({ message, type = 'info', duration = 1000 }) {
             const id = createToastId();
             this.toasts.push({ id, message, type, duration });
 
@@ -24,16 +24,16 @@ export const useToastStore = defineStore('toast', {
 
             return id;
         },
-        success(message, duration = 4000) {
+        success(message, duration = 1000) {
             return this.push({ message, type: 'success', duration });
         },
-        error(message, duration = 6000) {
+        error(message, duration = 2000) {
             return this.push({ message, type: 'error', duration });
         },
-        info(message, duration = 4000) {
+        info(message, duration = 1000) {
             return this.push({ message, type: 'info', duration });
         },
-        warning(message, duration = 5000) {
+        warning(message, duration = 2000) {
             return this.push({ message, type: 'warning', duration });
         },
         remove(id) {

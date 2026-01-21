@@ -11,20 +11,20 @@ class KycResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'user_id' => $this->user_id,
-            'full_name' => $this->full_name,
-            'id_type' => $this->id_type,
-            'id_number' => $this->id_number,
-            'date_of_birth' => $this->date_of_birth,
+            'userId' => $this->user_id,
+            'fullName' => $this->full_name,
+            'idType' => $this->id_type,
+            'idNumber' => $this->id_number,
+            'dateOfBirth' => $this->date_of_birth,
             'address' => $this->address,
             'city' => $this->city,
             'province' => $this->province,
-            'postal_code' => $this->postal_code,
-            'id_photo_path' => $this->id_photo_path,
-            'selfie_photo_path' => $this->selfie_photo_path,
+            'postalCode' => $this->postal_code,
+            'idPhotoPath' => $this->id_photo_path,
+            'selfiePhotoPath' => $this->selfie_photo_path,
             'status' => $this->status,
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
+            'createdAt' => $this->created_at,
+            'updatedAt' => $this->updated_at,
         ];
     }
 }

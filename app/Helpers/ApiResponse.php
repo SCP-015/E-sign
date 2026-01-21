@@ -8,6 +8,15 @@ use JsonSerializable;
 
 class ApiResponse
 {
+    private static function translateMessage(?string $message): ?string
+    {
+        if ($message === null || $message === '') {
+            return $message;
+        }
+
+        return __($message);
+    }
+
     private static function toCamelCaseKey(string $key): string
     {
         if (strpos($key, '_') === false) {
@@ -48,35 +57,39 @@ class ApiResponse
         return $out;
     }
 
-    public static function success(mixed $data = null, string $message = 'OK', int $code = 200): JsonResponse
+    public static function success(mixed $data = null, string $message = 'OK', int $code = 200, array $extra = []): JsonResponse
     {
-        return response()->json([
+        return response()->json(array_merge([
             'status' => 'success',
+            'success' => true,
             'data' => self::camelizeData($data),
-            'message' => $message,
-        ], $code);
+            'message' => self::translateMessage($message),
+        ], $extra), $code);
     }
 
-    public static function error(string $message = 'Error', int $code = 400, mixed $data = null): JsonResponse
+    public static function error(string $message = 'Error', int $code = 400, mixed $data = null, array $extra = []): JsonResponse
     {
-        return response()->json([
+        return response()->json(array_merge([
             'status' => 'error',
+            'success' => false,
             'data' => self::camelizeData($data),
-            'message' => $message,
-        ], $code);
+            'message' => self::translateMessage($message),
+        ], $extra), $code);
     }
 
-    public static function fromService(array $result): JsonResponse
+    public static function fromService(array $result, array $extra = []): JsonResponse
     {
         $status = $result['status'] ?? 'success';
         $data = $result['data'] ?? null;
         $message = $result['message'] ?? 'OK';
         $code = $result['code'] ?? ($status === 'success' ? 200 : 400);
+        $success = $status === 'success';
 
-        return response()->json([
+        return response()->json(array_merge([
             'status' => $status,
+            'success' => $success,
             'data' => self::camelizeData($data),
-            'message' => $message,
-        ], $code);
+            'message' => self::translateMessage((string) $message),
+        ], $extra), $code);
     }
 }

@@ -29,12 +29,30 @@ return Application::configure(basePath: dirname(__DIR__))
                 Request::HEADER_X_FORWARDED_AWS_ELB
         );
 
+        $middleware->web(prepend: [
+            \App\Http\Middleware\SetLocaleFromHeader::class,
+        ]);
+
         $middleware->web(append: [
+            \App\Http\Middleware\SetTenantDatabase::class, // After session, before Inertia
             HandleInertiaRequests::class,
+        ]);
+
+        $middleware->validateCsrfTokens(except: [
+            'organization/switch',
+        ]);
+
+        // Add session to API routes for organization switching
+        $middleware->api(prepend: [
+            \App\Http\Middleware\SetLocaleFromHeader::class,
+            \Illuminate\Session\Middleware\StartSession::class,
+            \App\Http\Middleware\SetTenantDatabase::class, // Multi-database tenant switching
         ]);
 
         $middleware->alias([
             'kyc.verified' => \App\Http\Middleware\RestrictIfNoKyc::class,
+            'permission' => \App\Http\Middleware\CheckAclPermission::class,
+            'tenant.slug' => \App\Http\Middleware\SetCurrentTenantFromSlug::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -23,8 +23,8 @@ class PlacementController extends Controller
     public function store(StorePlacementsRequest $request, $documentId)
     {
         $result = $this->placementService->storePlacements(
-            (int) $documentId,
-            $request->input('signerUserId') ? (int) $request->input('signerUserId') : null,
+            $documentId,
+            $request->input('signerUserId') ?: null,
             $request->input('email'),
             $request->input('placements')
         );
@@ -46,8 +46,8 @@ class PlacementController extends Controller
         ]);
 
                             $result = $this->placementService->updatePlacement(
-            (int) $documentId,
-            (int) $placementId,
+            $documentId,
+            $placementId,
             $request->only(['x', 'y', 'w', 'h'])
         );
 
@@ -60,7 +60,7 @@ class PlacementController extends Controller
      */
     public function index($documentId)
     {
-        $result = $this->placementService->getPlacements((int) $documentId);
+        $result = $this->placementService->getPlacements($documentId);
         return ApiResponse::fromService($result);
     }
 }

@@ -3,14 +3,38 @@
     <div class="min-h-screen bg-base-100">
         <main class="mx-auto w-full max-w-7xl space-y-6 px-4 py-6">
             <section class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">Documents</p>
-                    <h2 class="mt-1 text-2xl font-bold">Document History</h2>
-                    <p class="text-sm text-base-content/60">All documents you own or are assigned to.</p>
+                <div class="flex-1">
+                    <div class="flex items-center gap-3">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">Documents</p>
+                            <h2 class="mt-1 text-2xl font-bold">Document History</h2>
+                        </div>
+                        <ContextIndicator :tenant-id="currentTenantId" :tenant-name="currentTenantName" />
+                    </div>
+                    <div class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-[13px] text-blue-800">
+                            <strong>{{ isPersonalMode ? 'Personal Mode' : 'Organization Mode' }}:</strong>
+                            {{ isPersonalMode 
+                                ? 'Your personal documents. They will not be visible while you are in organization mode.' 
+                                : 'Documents you upload here are only visible within this organization.'
+                            }}
+                        </p>
+                    </div>
                 </div>
-                <Link href="/dashboard" class="btn btn-outline btn-sm w-full sm:w-auto">
-                    Back to Dashboard
-                </Link>
+                <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+                    <button
+                        type="button"
+                        class="btn btn-outline btn-sm w-full sm:w-auto"
+                        :class="syncing ? 'btn-disabled' : ''"
+                        :disabled="syncing"
+                        @click="syncDocuments"
+                    >
+                        Sync Documents
+                    </button>
+                    <Link href="/dashboard" class="btn btn-outline btn-sm w-full sm:w-auto">
+                        Back to Dashboard
+                    </Link>
+                </div>
             </section>
 
             <DocumentHistory
@@ -43,15 +67,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
 import { useToastStore } from '../stores/toast';
+import { formatApiError } from '../utils/errors';
+import { isApiSuccess, unwrapApiData } from '../utils/api';
 import SigningModal from '../components/SigningModal.vue';
 import VerifyResultModal from '../components/VerifyResultModal.vue';
 import DocumentHistory from '../components/dashboard/DocumentHistory.vue';
-import { formatApiError } from '../utils/errors';
+import ContextIndicator from '../components/ContextIndicator.vue';
+
+const page = usePage();
 
 const authStore = useAuthStore();
 const toastStore = useToastStore();
@@ -59,20 +87,95 @@ const user = computed(() => authStore.user || {});
 const kycStatus = computed(() => (user.value?.kyc_status ?? user.value?.kycStatus ?? 'unverified').toLowerCase());
 const hasSignature = computed(() => user.value?.has_signature ?? user.value?.hasSignature ?? false);
 
+const hydratedOrganization = ref(null);
+const currentOrganization = computed(() => hydratedOrganization.value || page.props.organization || page.props?.auth?.organization || null);
+const currentTenantId = computed(() => currentOrganization.value?.id || null);
+const currentTenantName = computed(() => currentOrganization.value?.name || null);
+const isPersonalMode = computed(() => !currentTenantId.value);
+
 const documents = ref([]);
 const showSigningModal = ref(false);
 const selectedDocId = ref(null);
 const selectedDocPageCount = ref(0);
 const verifyModalOpen = ref(false);
 const verifyModalResult = ref(null);
+const syncing = ref(false);
+
+const hideMissingDocumentsKey = 'hideMissingDocuments';
+const shouldHideMissingDocuments = () => localStorage.getItem(hideMissingDocumentsKey) === 'true';
+const enableHideMissingDocuments = () => localStorage.setItem(hideMissingDocumentsKey, 'true');
+
+const refreshDocuments = async () => {
+    if (shouldHideMissingDocuments()) {
+        await syncDocuments({ showToast: false });
+        return;
+    }
+    await fetchDocuments();
+};
+
+const handleOrganizationUpdate = async () => {
+    await refreshDocuments();
+};
+
+const hydrateOrganization = async () => {
+    try {
+        const res = await axios.get('/api/organizations/current');
+        const payload = res?.data;
+        if (isApiSuccess(payload) && payload?.data) {
+            hydratedOrganization.value = unwrapApiData(payload);
+        }
+    } catch (e) {
+        // noop
+    }
+};
+
+const syncDocuments = async (options = {}) => {
+    const showToast = options?.showToast !== false;
+    syncing.value = true;
+    try {
+        const beforeCount = Array.isArray(documents.value) ? documents.value.length : 0;
+        const res = await axios.post('/api/documents/sync');
+        const payload = res?.data;
+        if (!isApiSuccess(payload)) {
+            throw new Error(payload?.message || 'Sync failed');
+        }
+
+        const data = payload?.data;
+        const list = Array.isArray(data?.documents) ? data.documents : (Array.isArray(data) ? data : []);
+        documents.value = list;
+
+        enableHideMissingDocuments();
+
+        if (showToast) {
+            const removedCount = Math.max(0, beforeCount - (Array.isArray(list) ? list.length : 0));
+            if (removedCount > 0) {
+                toastStore.success(`Sync completed. ${removedCount} missing document(s) were hidden.`);
+            } else {
+                toastStore.success('Sync completed. No missing documents found.');
+            }
+        }
+    } catch (e) {
+        if (showToast) {
+            toastStore.error(formatApiError('Failed to sync documents', e));
+        }
+    } finally {
+        syncing.value = false;
+    }
+};
 
 onMounted(async () => {
     try {
         await authStore.fetchUser();
-        await fetchDocuments();
+        await hydrateOrganization();
+        await refreshDocuments();
+        window.addEventListener('organization-updated', handleOrganizationUpdate);
     } catch (e) {
         console.error('Failed to init documents:', e);
     }
+});
+
+onUnmounted(() => {
+    window.removeEventListener('organization-updated', handleOrganizationUpdate);
 });
 
 const openSigningModal = (docId, pageCount) => {
@@ -82,15 +185,15 @@ const openSigningModal = (docId, pageCount) => {
 };
 
 const onDocumentSigned = async () => {
-    await fetchDocuments();
+    await refreshDocuments();
 };
 
 const isAssignedToMe = (doc) => {
     if (!doc?.signers || doc.signers.length === 0) {
-        return Number(doc?.user_id ?? doc?.userId) === Number(authStore.user?.id);
+        return String(doc?.user_id ?? doc?.userId) === String(authStore.user?.id);
     }
     return doc.signers.some((s) =>
-        Number(s.user_id ?? s.userId) === Number(authStore.user?.id) ||
+        String(s.user_id ?? s.userId) === String(authStore.user?.id) ||
         String(s.email || '').toLowerCase() === String(authStore.user?.email || '').toLowerCase()
     );
 };
@@ -98,7 +201,7 @@ const isAssignedToMe = (doc) => {
 const hasISigned = (doc) => {
     if (!doc?.signers) return false;
     const mySigner = doc.signers.find((s) =>
-        Number(s.user_id ?? s.userId) === Number(authStore.user?.id) ||
+        String(s.user_id ?? s.userId) === String(authStore.user?.id) ||
         String(s.email || '').toLowerCase() === String(authStore.user?.email || '').toLowerCase()
     );
     return Boolean(mySigner?.signed_at ?? mySigner?.signedAt);
@@ -116,7 +219,7 @@ const canFinalize = (doc) => {
     if (status !== 'signed') return false;
     const ownerId = doc?.user_id ?? doc?.userId;
     if (!ownerId || !authStore.user?.id) return false;
-    return Number(ownerId) === Number(authStore.user.id);
+    return String(ownerId) === String(authStore.user.id);
 };
 
 const getOwnerInfo = (owner) => {
@@ -269,9 +372,17 @@ const verifyDocument = async (id) => {
 
 const fetchDocuments = async () => {
     try {
-        const res = await axios.get('/api/documents');
+        const res = await axios.get('/api/documents', {
+            params: { tenant_id: currentTenantId.value }
+        });
         const list = res.data?.data ?? res.data;
         documents.value = Array.isArray(list) ? list : [];
+        
+        console.log('Documents fetched:', {
+            mode: isPersonalMode.value ? 'personal' : 'tenant',
+            tenant_id: currentTenantId.value,
+            count: documents.value.length
+        });
     } catch (e) {
         console.error('Failed to fetch documents:', e);
         documents.value = [];
@@ -283,7 +394,7 @@ const finalizeDocument = async (id) => {
     try {
         await axios.post(`/api/documents/${id}/finalize`);
         toastStore.success('Document finalized.');
-        await fetchDocuments();
+        await refreshDocuments();
     } catch (e) {
         toastStore.error(formatApiError('Failed to finalize document', e));
     }

@@ -113,6 +113,31 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        /*
+        |--------------------------------------------------------------------------
+        | Tenant Database Connection (Dynamic Multi-Database)
+        |--------------------------------------------------------------------------
+        |
+        | This connection is used for tenant-specific databases. The database name
+        | will be set dynamically based on the current tenant context via middleware.
+        | Each tenant has their own isolated PostgreSQL database.
+        |
+        */
+        'tenant' => [
+            'driver' => 'pgsql',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '5432'),
+            'database' => env('DB_DATABASE', ''), // Set dynamically via TenantDatabaseManager
+            'username' => env('DB_USERNAME', 'postgres'),
+            'password' => env('DB_PASSWORD', ''),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => env('DB_SSLMODE', 'prefer'),
+        ],
+
     ],
 
     /*

@@ -2,22 +2,28 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\UsesTenantAwareConnection;
 
 class Certificate extends Model
 {
-    use HasFactory;
+    use HasFactory, UsesTenantAwareConnection, HasUlids;
 
     protected $fillable = [
         'user_id',
+        'root_ca_id',
         'certificate_number',
-        'private_key_path',
         'public_key_path',
         'certificate_path',
-        'status',
+        'private_key_path',
+        'subject_name',
+        'issuer_name',
+        'serial_number',
         'issued_at',
         'expires_at',
+        'status',
     ];
 
     protected $casts = [

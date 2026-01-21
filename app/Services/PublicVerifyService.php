@@ -5,9 +5,32 @@ namespace App\Services;
 use App\Models\Certificate;
 use App\Models\Document;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 class PublicVerifyService
 {
+    private function documentPdfExists(Document $document): bool
+    {
+        if (!empty($document->final_pdf_path)) {
+            if (file_exists(storage_path('app/' . $document->final_pdf_path))) {
+                return true;
+            }
+        }
+
+        foreach ([$document->signed_path, $document->file_path] as $path) {
+            if (!is_string($path) || $path === '') {
+                continue;
+            }
+
+            $relativePath = str_replace('private/', '', $path);
+            if (Storage::disk('private')->exists($relativePath)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function verifyUpload(UploadedFile $file): array
     {
         $tmpPath = sys_get_temp_dir() . '/verify_upload_' . uniqid() . '.pdf';
@@ -68,6 +91,25 @@ class PublicVerifyService
                     ->with(['user', 'signers.user', 'signingEvidence'])
                     ->first();
                 if ($document) {
+                    if (!$this->documentPdfExists($document)) {
+                        $payload = [
+                            'verified_at' => $verifiedAt,
+                            'is_valid' => false,
+                            'message' => 'Document file missing from storage',
+                            'signed_by' => null,
+                            'signed_at' => null,
+                            'document_id' => $document->id,
+                            'file_name' => $document->title ?? basename($document->file_path),
+                        ];
+
+                        return [
+                            'status' => 'success',
+                            'code' => 200,
+                            'message' => $payload['message'],
+                            'data' => $payload,
+                        ];
+                    }
+
                     $evidence = $document->signingEvidence;
                     $allowBackfill = filter_var(env('LTV_BACKFILL_ON_DEMAND', false), FILTER_VALIDATE_BOOLEAN);
                     $canBackfill = $allowBackfill
@@ -76,7 +118,7 @@ class PublicVerifyService
 
                     if ($canBackfill && (!$evidence || !$evidence->signed_at || !$evidence->certificate_not_before || !$evidence->certificate_not_after)) {
                         $signedAtFallback = $document->completed_at ?? $document->updated_at;
-                        $cert = Certificate::where('user_id', (int) $document->user_id)
+                        $cert = Certificate::where('user_id', $document->user_id)
                             ->where(function ($q) use ($signedAtFallback) {
                                 $q->whereNull('issued_at')->orWhere('issued_at', '<=', $signedAtFallback);
                             })
@@ -88,7 +130,7 @@ class PublicVerifyService
                             ->first();
 
                         if (!$cert) {
-                            $cert = Certificate::where('user_id', (int) $document->user_id)
+                            $cert = Certificate::where('user_id', $document->user_id)
                                 ->orderByDesc('issued_at')
                                 ->orderByDesc('created_at')
                                 ->first();
@@ -120,7 +162,7 @@ class PublicVerifyService
 
                     $documentOwner = $document->user
                         ? [
-                            'id' => (int) $document->user->id,
+                            'id' => $document->user->id,
                             'name' => $document->user->name,
                             'email' => $document->user->email,
                             'avatar' => $document->user->avatar,
@@ -190,7 +232,7 @@ class PublicVerifyService
             $payload = [
                 'verified_at' => now()->toIso8601String(),
                 'is_valid' => false,
-                'message' => 'Verification failed: ' . $e->getMessage(),
+                'message' => __('Verification failed: :error', ['error' => $e->getMessage()]),
                 'signed_by' => null,
                 'signed_at' => null,
                 'document_id' => null,
@@ -230,6 +272,25 @@ class PublicVerifyService
             ];
         }
 
+        if (!$this->documentPdfExists($document)) {
+            $payload = [
+                'verified_at' => $verifiedAt,
+                'is_valid' => false,
+                'message' => 'Document file missing from storage',
+                'signed_by' => null,
+                'signed_at' => null,
+                'document_id' => $document->id,
+                'file_name' => $document->title ?? basename($document->file_path),
+            ];
+
+            return [
+                'status' => 'success',
+                'code' => 200,
+                'message' => $payload['message'],
+                'data' => $payload,
+            ];
+        }
+
         $evidence = $document->signingEvidence;
         $allowBackfill = filter_var(env('LTV_BACKFILL_ON_DEMAND', false), FILTER_VALIDATE_BOOLEAN);
         $canBackfill = $allowBackfill
@@ -238,7 +299,7 @@ class PublicVerifyService
 
         if ($canBackfill && (!$evidence || !$evidence->signed_at || !$evidence->certificate_not_before || !$evidence->certificate_not_after)) {
             $signedAtFallback = $document->completed_at ?? $document->updated_at;
-            $cert = Certificate::where('user_id', (int) $document->user_id)
+            $cert = Certificate::where('user_id', $document->user_id)
                 ->where(function ($q) use ($signedAtFallback) {
                     $q->whereNull('issued_at')->orWhere('issued_at', '<=', $signedAtFallback);
                 })
@@ -250,7 +311,7 @@ class PublicVerifyService
                 ->first();
 
             if (!$cert) {
-                $cert = Certificate::where('user_id', (int) $document->user_id)
+                $cert = Certificate::where('user_id', $document->user_id)
                     ->orderByDesc('issued_at')
                     ->orderByDesc('created_at')
                     ->first();
@@ -276,7 +337,7 @@ class PublicVerifyService
             'message' => $wasCertValidAtSigning ? 'Document is valid' : 'Document cannot be validated (missing/invalid LTV evidence)',
             'document_owner' => $document->user
                 ? [
-                    'id' => (int) $document->user->id,
+                    'id' => $document->user->id,
                     'name' => $document->user->name,
                     'email' => $document->user->email,
                     'avatar' => $document->user->avatar,

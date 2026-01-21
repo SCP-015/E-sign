@@ -28,8 +28,8 @@ class SignerController extends Controller
         ];
 
         $result = $this->signerService->addSigners(
-            (int) $documentId,
-            (int) $request->user()->id,
+            $documentId,
+            $request->user()->id,
             $request->input('signers'),
             $options
         );
@@ -43,7 +43,7 @@ class SignerController extends Controller
      */
     public function index($documentId)
     {
-        $result = $this->signerService->getSigners((int) $documentId);
+        $result = $this->signerService->getSigners($documentId);
         return ApiResponse::fromService($result);
     }
 }

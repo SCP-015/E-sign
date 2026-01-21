@@ -6,7 +6,7 @@ use App\Http\Resources\UserResource;
 
 class UserService
 {
-    public function profile(int $userId): array
+    public function profile(string $userId): array
     {
         $user = \App\Models\User::with('certificate')->findOrFail($userId);
 

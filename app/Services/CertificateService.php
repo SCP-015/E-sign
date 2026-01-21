@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\KycData;
+use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -12,10 +14,16 @@ class CertificateService
     protected $caCertPath;
     protected $securePath;
 
-    public function __construct()
+    protected TenantDatabaseManager $dbManager;
+    protected RootCAService $rootCAService;
+
+    public function __construct(TenantDatabaseManager $dbManager, RootCAService $rootCAService)
     {
+        $this->dbManager = $dbManager;
+        $this->rootCAService = $rootCAService;
+
         // Use central secure path for rootCA ONLY
-        $this->securePath = storage_path('app/private/secure/');
+        $this->securePath = storage_path('app/private/rootca/');
         $this->caKeyPath = $this->securePath . 'rootCA.key';
         $this->caCertPath = $this->securePath . 'rootCA.crt';
         
@@ -116,8 +124,83 @@ class CertificateService
 
         throw new \Exception("Failed to generate certificate files.");
     }
+
+    public function ensureTenantUserCertificate(User $user, string $tenantId): \App\Models\Certificate
+    {
+        $tenant = Tenant::findOrFail($tenantId);
+
+        // Ensure tenant Root CA exists first (RootCAService handles its own DB switching)
+        $rootCa = $this->rootCAService->getTenantRootCA($tenantId);
+        if (!$rootCa) {
+            $rootCa = $this->rootCAService->generateTenantRootCA($tenant);
+        }
+
+        $this->dbManager->switchToTenantDatabase($tenantId);
+
+        try {
+            $existing = \App\Models\Certificate::on('tenant')
+                ->where('user_id', $user->id)
+                ->where('status', 'active')
+                ->orderByDesc('issued_at')
+                ->orderByDesc('created_at')
+                ->first();
+
+            if ($existing) {
+                return $existing;
+            }
+
+            $email = strtolower((string) $user->email);
+            $storagePath = storage_path("app/private/tenants/{$tenantId}/certificates/{$email}/");
+            if (!is_dir($storagePath)) {
+                mkdir($storagePath, 0755, true);
+            }
+
+            $keyPath = $storagePath . 'user.key';
+            $csrPath = $storagePath . 'user.csr';
+            $certPath = $storagePath . 'user.crt';
+
+            $userName = $user->name ?: $user->email;
+            $orgName = $tenant->company_legal_name ?? $tenant->name;
+            $subj = "/C=" . ($tenant->company_country ?? 'ID') . "/O={$orgName}/OU=Users/CN={$userName}/emailAddress={$user->email}";
+            $subj = escapeshellarg($subj);
+
+            exec("openssl genrsa -out {$keyPath} 2048");
+            exec("openssl req -new -key {$keyPath} -out {$csrPath} -subj {$subj}");
+
+            $caCertPath = $rootCa->certificate_path;
+            $caKeyPath = $rootCa->private_key_path;
+
+            $command = "openssl x509 -req -in {$csrPath} -CA {$caCertPath} -CAkey {$caKeyPath} -CAcreateserial -out {$certPath} -days 365 -sha256";
+            exec($command);
+
+            if (!file_exists($certPath) || !file_exists($keyPath)) {
+                throw new \Exception('Failed to generate tenant user certificate files.');
+            }
+
+            \App\Models\Certificate::on('tenant')
+                ->where('user_id', $user->id)
+                ->where('status', 'active')
+                ->update(['status' => 'inactive']);
+
+            $certNumber = 'TENANT-CERT-' . date('Y') . '-' . Str::upper(Str::random(10));
+
+            return \App\Models\Certificate::on('tenant')->create([
+                'user_id' => $user->id,
+                'root_ca_id' => $rootCa->id,
+                'certificate_number' => $certNumber,
+                'private_key_path' => $keyPath,
+                'public_key_path' => $csrPath,
+                'certificate_path' => $certPath,
+                'status' => 'active',
+                'issued_at' => now(),
+                'expires_at' => now()->addYear(),
+            ]);
+        } finally {
+            $this->dbManager->switchToCentralDatabase();
+        }
+    }
     
-    public function issueCertificateResult(int $userId): array
+    public function issueCertificateResult(string $userId): array
     {
         try {
             $user = \App\Models\User::findOrFail($userId);
@@ -187,7 +270,7 @@ class CertificateService
             return [
                 'status' => 'error',
                 'code' => 500,
-                'message' => 'Failed to issue certificate: ' . $e->getMessage(),
+                'message' => __('Failed to issue certificate: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }

@@ -12,12 +12,45 @@ use Illuminate\Support\Str;
 
 class SignerService
 {
-    public function addSigners(int $documentId, int $ownerUserId, array $signersInput, array $options = []): array
+    protected function getCurrentTenantId(): ?string
+    {
+        $tenantId = config('tenant.currentTenantId');
+        if (is_string($tenantId) && $tenantId !== '') {
+            return $tenantId;
+        }
+
+        $tenantId = session('current_tenant_id');
+        return is_string($tenantId) && $tenantId !== '' ? $tenantId : null;
+    }
+
+    protected function findOwnerDocumentOrFail(string $documentId, string $ownerUserId): Document
+    {
+        $tenantId = $this->getCurrentTenantId();
+        $query = Document::query();
+
+        if ($tenantId) {
+            $query = $query->tenant($tenantId);
+        }
+
+        return $query->where('id', $documentId)
+            ->where('user_id', $ownerUserId)
+            ->firstOrFail();
+    }
+
+    protected function findDocumentOrFail(string $documentId): Document
+    {
+        $tenantId = $this->getCurrentTenantId();
+        if ($tenantId) {
+            return Document::query()->tenant($tenantId)->where('id', $documentId)->firstOrFail();
+        }
+
+        return Document::query()->where('id', $documentId)->firstOrFail();
+    }
+
+    public function addSigners(string $documentId, string $ownerUserId, array $signersInput, array $options = []): array
     {
         try {
-            $document = Document::where('id', $documentId)
-                ->where('user_id', $ownerUserId)
-                ->firstOrFail();
+            $document = $this->findOwnerDocumentOrFail($documentId, $ownerUserId);
 
             $owner = User::findOrFail($ownerUserId);
 
@@ -191,16 +224,16 @@ class SignerService
             return [
                 'status' => 'error',
                 'code' => 500,
-                'message' => 'Failed to add signers: ' . $e->getMessage(),
+                'message' => __('Failed to add signers: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }
     }
 
-    public function getSigners(int $documentId): array
+    public function getSigners(string $documentId): array
     {
         try {
-            $document = Document::findOrFail($documentId);
+            $document = $this->findDocumentOrFail($documentId);
             $signers = $document->signers()->with('user')->get();
 
             return [
@@ -224,7 +257,7 @@ class SignerService
             return [
                 'status' => 'error',
                 'code' => 404,
-                'message' => 'Document not found: ' . $e->getMessage(),
+                'message' => __('Document not found: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }

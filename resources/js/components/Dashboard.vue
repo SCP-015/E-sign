@@ -267,10 +267,10 @@ const canSign = (doc) => {
 
 const isAssignedToMe = (doc) => {
     if (!doc.signers || doc.signers.length === 0) {
-        return Number(doc.userId) === Number(user.value.id);
+        return String(doc.userId) === String(user.value.id);
     }
     return doc.signers.some(s => 
-        (s.userId && Number(s.userId) === Number(user.value.id)) || 
+        (s.userId && String(s.userId) === String(user.value.id)) || 
         (s.email && s.email.toLowerCase() === user.value.email?.toLowerCase())
     );
 };
@@ -278,14 +278,14 @@ const isAssignedToMe = (doc) => {
 const hasISigned = (doc) => {
     if (!doc.signers) return false;
     const mySigner = doc.signers.find(s => 
-        (s.userId && Number(s.userId) === Number(user.value.id)) || 
+        (s.userId && String(s.userId) === String(user.value.id)) || 
         (s.email && s.email.toLowerCase() === user.value.email?.toLowerCase())
     );
     return !!(mySigner && mySigner.signedAt);
 };
 
 const isOwner = (doc) => {
-    return Number(doc.userId) === Number(user.value.id);
+    return String(doc.userId) === String(user.value.id);
 };
 
 const allSignersSigned = (doc) => {

@@ -21,6 +21,8 @@ class RestrictIfNoKyc
             return $next($request);
         }
 
+        $tenantId = session('current_tenant_id');
+
         // Check if KYC is verified
         $isKycVerified = strtolower($user->kyc_status) === 'verified';
         
@@ -29,6 +31,26 @@ class RestrictIfNoKyc
         
         // Check if certificate exists (optional but good for e-sign)
         $hasCertificate = $user->certificate()->exists();
+
+        // Tenant mode: do not enforce personal KYC gate. Certificate is handled per-tenant.
+        if ($tenantId) {
+            // Allow document upload flows in tenant even if signature isn't setup yet.
+            if ($request->is('api/documents*') && $request->isMethod('post')) {
+                return $next($request);
+            }
+
+            // Only enforce signature requirement for signing endpoints.
+            if (($request->is('api/documents/*/sign*') || $request->is('api/placements*')) && !$hasSignature) {
+                return response()->json([
+                    'message' => 'Please setup your signature first.',
+                    'requires_kyc' => false,
+                    'requires_signature' => true,
+                    'requires_certificate' => false,
+                ], 403);
+            }
+
+            return $next($request);
+        }
 
         // Allow signature setup routes even if signature is missing
         if ($request->is('api/signatures*') && $request->isMethod('post')) {

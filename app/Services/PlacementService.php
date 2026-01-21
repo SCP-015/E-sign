@@ -12,10 +12,31 @@ use Illuminate\Support\Facades\DB;
 
 class PlacementService
 {
-    public function storePlacements(int $documentId, ?int $signerUserId, ?string $email, array $placements): array
+    protected function getCurrentTenantId(): ?string
+    {
+        $tenantId = config('tenant.currentTenantId');
+        if (is_string($tenantId) && $tenantId !== '') {
+            return $tenantId;
+        }
+
+        $tenantId = session('current_tenant_id');
+        return is_string($tenantId) && $tenantId !== '' ? $tenantId : null;
+    }
+
+    protected function findDocumentOrFail(string $documentId): Document
+    {
+        $tenantId = $this->getCurrentTenantId();
+        if ($tenantId) {
+            return Document::query()->tenant($tenantId)->where('id', $documentId)->firstOrFail();
+        }
+
+        return Document::query()->where('id', $documentId)->firstOrFail();
+    }
+
+    public function storePlacements(string $documentId, ?string $signerUserId, ?string $email, array $placements): array
     {
         try {
-            $document = Document::findOrFail($documentId);
+            $document = $this->findDocumentOrFail($documentId);
 
             $existingSignersCount = DocumentSigner::where('document_id', $documentId)->count();
             
@@ -135,7 +156,7 @@ class PlacementService
                         ->orderBy('id')
                         ->first();
 
-                    if ($nextSigner && (int) $nextSigner->id !== (int) $signer->id) {
+                    if ($nextSigner && $nextSigner->id !== $signer->id) {
                         DB::rollBack();
 
                         return [
@@ -185,7 +206,13 @@ class PlacementService
                         ]);
 
                         // Upsert signing evidence (owner certificate)
-                        $cert = Certificate::where('user_id', (int) $document->user_id)
+                        $tenantId = $this->getCurrentTenantId();
+                        $certQuery = Certificate::query();
+                        if ($tenantId) {
+                            $certQuery = $certQuery->tenant($tenantId);
+                        }
+
+                        $cert = $certQuery->where('user_id', $document->user_id)
                             ->where('status', 'active')
                             ->orderByDesc('issued_at')
                             ->orderByDesc('created_at')
@@ -236,13 +263,13 @@ class PlacementService
             return [
                 'status' => 'error',
                 'code' => 500,
-                'message' => 'Failed to save placement: ' . $e->getMessage(),
+                'message' => __('Failed to save placement: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }
     }
 
-    public function updatePlacement(int $documentId, int $placementId, array $data): array
+    public function updatePlacement(string $documentId, string $placementId, array $data): array
     {
         try {
             $placement = SignaturePlacement::where('id', $placementId)
@@ -268,16 +295,16 @@ class PlacementService
             return [
                 'status' => 'error',
                 'code' => 404,
-                'message' => 'Placement not found: ' . $e->getMessage(),
+                'message' => __('Placement not found: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }
     }
 
-    public function getPlacements(int $documentId): array
+    public function getPlacements(string $documentId): array
     {
         try {
-            $document = Document::findOrFail($documentId);
+            $document = $this->findDocumentOrFail($documentId);
             
             $placements = $document->placements()
                 ->with(['signer', 'signature'])
@@ -306,7 +333,7 @@ class PlacementService
             return [
                 'status' => 'error',
                 'code' => 404,
-                'message' => 'Document not found: ' . $e->getMessage(),
+                'message' => __('Document not found: :error', ['error' => $e->getMessage()]),
                 'data' => null,
             ];
         }

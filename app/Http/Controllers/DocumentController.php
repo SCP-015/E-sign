@@ -22,7 +22,15 @@ class DocumentController extends Controller
 
     public function index(Request $request)
     {
-        $result = $this->documentService->indexResult((int) $request->user()->id);
+        $tenantId = $this->getCurrentTenantId($request);
+        $result = $this->documentService->indexResult($request->user()->id, $tenantId);
+        return ApiResponse::fromService($result);
+    }
+
+    public function sync(Request $request)
+    {
+        $tenantId = $this->getCurrentTenantId($request);
+        $result = $this->documentService->syncResult($request->user()->id, $tenantId);
         return ApiResponse::fromService($result);
     }
 
@@ -31,11 +39,13 @@ class DocumentController extends Controller
         $user = $request->user();
         $file = $request->file('file');
         $title = $request->input('title', $file->getClientOriginalName());
+        $tenantId = $this->getCurrentTenantId($request);
 
         $result = $this->documentService->uploadWithMetadataResult(
-            (int) $user->id,
+            $user->id,
             $file,
-            $title
+            $title,
+            $tenantId
         );
 
         return ApiResponse::fromService($result);
@@ -43,9 +53,11 @@ class DocumentController extends Controller
 
     public function show(Request $request, $id)
     {
+        $tenantId = $this->getCurrentTenantId($request);
         $result = $this->documentService->showResult(
-            (int) $id,
-            (int) $request->user()->id
+            $id,
+            $request->user()->id,
+            $tenantId
         );
 
         return ApiResponse::fromService($result);
@@ -55,16 +67,28 @@ class DocumentController extends Controller
     {
         try {
             $user = $request->user();
-            
-            $document = Document::where('id', $id)
-                ->where(function($query) use ($user) {
-                    $query->where('user_id', $user->id)
-                          ->orWhereHas('signers', function($q) use ($user) {
-                              $q->where('user_id', $user->id)
-                                ->orWhere('email', $user->email);
-                          });
-                })
-                ->firstOrFail();
+            $tenantId = $this->getCurrentTenantId($request);
+
+            if ($tenantId === null) {
+                $document = Document::where('id', $id)
+                    ->accessibleByUserAnyContextForPersonal($user->id, (string) $user->email)
+                    ->firstOrFail();
+            } elseif ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
+                $document = Document::where('id', $id)
+                    ->forCurrentContext($tenantId)
+                    ->firstOrFail();
+            } else {
+                $document = Document::where('id', $id)
+                    ->forCurrentContext($tenantId)
+                    ->where(function($query) use ($user) {
+                        $query->where('user_id', $user->id)
+                              ->orWhereHas('signers', function($q) use ($user) {
+                                  $q->where('user_id', $user->id)
+                                    ->orWhere('email', $user->email);
+                              });
+                    })
+                    ->firstOrFail();
+            }
 
             $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($document->file_path);
 
@@ -89,15 +113,28 @@ class DocumentController extends Controller
     public function getQrPosition(Request $request, $id)
     {
         $user = $request->user();
-        $document = Document::where('id', $id)
-            ->where(function($query) use ($user) {
-                $query->where('user_id', $user->id)
-                      ->orWhereHas('signers', function($q) use ($user) {
-                          $q->where('user_id', $user->id)
-                            ->orWhere('email', $user->email);
-                      });
-            })
-            ->firstOrFail();
+        $tenantId = $this->getCurrentTenantId($request);
+
+        if ($tenantId === null) {
+            $document = Document::where('id', $id)
+                ->accessibleByUserAnyContextForPersonal($user->id, (string) $user->email)
+                ->firstOrFail();
+        } elseif ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
+            $document = Document::where('id', $id)
+                ->forCurrentContext($tenantId)
+                ->firstOrFail();
+        } else {
+            $document = Document::where('id', $id)
+                ->forCurrentContext($tenantId)
+                ->where(function($query) use ($user) {
+                    $query->where('user_id', $user->id)
+                          ->orWhereHas('signers', function($q) use ($user) {
+                              $q->where('user_id', $user->id)
+                                ->orWhere('email', $user->email);
+                          });
+                })
+                ->firstOrFail();
+        }
 
         // Return default QR config that will be used during finalization
         $qrConfig = [
@@ -109,8 +146,12 @@ class DocumentController extends Controller
         ];
 
         return ApiResponse::success([
+            // Backward-compatible keys
             'qr_position' => $qrConfig,
             'document_id' => $document->id,
+            // Preferred camelCase keys
+            'qrPosition' => $qrConfig,
+            'documentId' => $document->id,
         ]);
     }
 
@@ -124,7 +165,12 @@ class DocumentController extends Controller
         ]);
 
         $user = $request->user();
-        $document = Document::where('id', $id)->where('user_id', $user->id)->firstOrFail();
+        $tenantId = $this->getCurrentTenantId($request);
+        
+        $document = Document::where('id', $id)
+            ->forCurrentContext($tenantId)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
 
         // Check if all signers have signed
         if (!$document->isAllSigned()) {
@@ -145,7 +191,7 @@ class DocumentController extends Controller
         ]);
 
         try {
-            $finalPdfPath = $this->documentService->finalizePdf($document, $verifyToken, $qrConfig);
+            $finalPdfPath = $this->documentService->finalizePdf($document, $verifyToken, $qrConfig, $tenantId);
 
             // Update document status
             $document->update([
@@ -157,7 +203,13 @@ class DocumentController extends Controller
             $document = $document->fresh();
 
             // Create/refresh signing evidence (LTV payload) for public verification
-            $cert = \App\Models\Certificate::where('user_id', (int) $document->user_id)
+            $certQuery = \App\Models\Certificate::query();
+            if ($tenantId) {
+                $certQuery = $certQuery->tenant((string) $tenantId);
+            }
+
+            $cert = $certQuery
+                ->where('user_id', $document->user_id)
                 ->where('status', 'active')
                 ->orderByDesc('issued_at')
                 ->orderByDesc('created_at')
@@ -188,10 +240,15 @@ class DocumentController extends Controller
         // Legacy method for backward compatibility
         // In MVP flow, use PlacementController instead
         $user = $request->user();
-        $document = Document::where('id', $id)->where('user_id', $user->id)->firstOrFail();
+        $tenantId = $this->getCurrentTenantId($request);
+        
+        $document = Document::where('id', $id)
+            ->forCurrentContext($tenantId)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
 
         $validated = $request->validate([
-            'signature_id' => 'required|integer|exists:signatures,id',
+            'signature_id' => 'required|string|exists:signatures,id',
             'signature_position' => 'required|array',
             'signature_position.x' => 'required|numeric|min:0|max:1',
             'signature_position.y' => 'required|numeric|min:0|max:1',
@@ -204,7 +261,12 @@ class DocumentController extends Controller
             ->where('user_id', $user->id)
             ->firstOrFail();
 
-        $cert = Certificate::where('user_id', $user->id)->where('status', 'active')->latest()->first();
+        $certQuery = Certificate::query();
+        if ($tenantId) {
+            $certQuery = $certQuery->tenant((string) $tenantId);
+        }
+
+        $cert = $certQuery->where('user_id', $user->id)->where('status', 'active')->latest()->first();
 
         if (!$cert) {
             return ApiResponse::error('No active certificate found', 400);
@@ -235,15 +297,28 @@ class DocumentController extends Controller
     public function download(Request $request, $id)
     {
         $user = $request->user();
-        $document = Document::where('id', $id)
-            ->where(function($query) use ($user) {
-                $query->where('user_id', $user->id)
-                      ->orWhereHas('signers', function($q) use ($user) {
-                          $q->where('user_id', $user->id)
-                            ->orWhere('email', $user->email);
-                      });
-            })
-            ->firstOrFail();
+        $tenantId = $this->getCurrentTenantId($request);
+
+        if ($tenantId === null) {
+            $document = Document::where('id', $id)
+                ->accessibleByUserAnyContextForPersonal($user->id, (string) $user->email)
+                ->firstOrFail();
+        } elseif ($tenantId && $user->hasPermissionInTenant('documents.view_all', $tenantId)) {
+            $document = Document::where('id', $id)
+                ->forCurrentContext($tenantId)
+                ->firstOrFail();
+        } else {
+            $document = Document::where('id', $id)
+                ->forCurrentContext($tenantId)
+                ->where(function($query) use ($user) {
+                    $query->where('user_id', $user->id)
+                          ->orWhereHas('signers', function($q) use ($user) {
+                              $q->where('user_id', $user->id)
+                                ->orWhere('email', $user->email);
+                          });
+                })
+                ->firstOrFail();
+        }
 
         $hasSigners = $document->signers()->exists();
 
@@ -258,11 +333,13 @@ class DocumentController extends Controller
         // Check if final PDF exists (from finalize), otherwise use signed_path (legacy)
         $filePath = null;
         
-        if ($document->final_pdf_path && file_exists(storage_path('app/' . $document->final_pdf_path))) {
-            $filePath = storage_path('app/' . $document->final_pdf_path);
+        if ($document->final_pdf_path && \Illuminate\Support\Facades\Storage::disk('private')->exists($document->final_pdf_path)) {
+            $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($document->final_pdf_path);
         } elseif ($document->signed_path) {
-            $relativePath = str_replace('private/', '', $document->signed_path);
-            $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($relativePath);
+            $signedRelPath = str_replace('private/', '', $document->signed_path);
+            if (\Illuminate\Support\Facades\Storage::disk('private')->exists($signedRelPath)) {
+                $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($signedRelPath);
+            }
         }
 
         if (!$filePath || !file_exists($filePath)) {
@@ -280,7 +357,7 @@ class DocumentController extends Controller
                     'size' => 35,
                 ];
                 
-                $finalPdfPath = $this->documentService->finalizePdf($document, $verifyToken, $qrConfig);
+                $finalPdfPath = $this->documentService->finalizePdf($document, $verifyToken, $qrConfig, $tenantId);
                 $document->update([
                     'final_pdf_path' => $finalPdfPath,
                     'verify_token' => $verifyToken,
@@ -289,7 +366,7 @@ class DocumentController extends Controller
                 $document = $document->fresh();
 
                 // Create/refresh signing evidence so verify/upload can validate
-                $cert = \App\Models\Certificate::where('user_id', (int) $document->user_id)
+                $cert = \App\Models\Certificate::where('user_id', $document->user_id)
                     ->where('status', 'active')
                     ->orderByDesc('issued_at')
                     ->orderByDesc('created_at')
@@ -299,7 +376,7 @@ class DocumentController extends Controller
                     $this->documentService->upsertSigningEvidence($document, $cert, $document->final_pdf_path, $document->completed_at ?? now());
                 }
                 
-                $filePath = storage_path('app/' . $finalPdfPath);
+                $filePath = \Illuminate\Support\Facades\Storage::disk('private')->path($finalPdfPath);
             } catch (\Exception $e) {
                 return ApiResponse::error('Failed to generate PDF: ' . $e->getMessage(), 500);
             }
@@ -314,7 +391,7 @@ class DocumentController extends Controller
             || !$evidence->certificate_not_after;
 
         if ($evidenceMissing) {
-            $cert = Certificate::where('user_id', (int) $document->user_id)
+            $cert = Certificate::where('user_id', $document->user_id)
                 ->where('status', 'active')
                 ->orderByDesc('issued_at')
                 ->orderByDesc('created_at')
@@ -340,5 +417,13 @@ class DocumentController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
+    }
+
+    /**
+     * Get current tenant ID from session or user
+     */
+    private function getCurrentTenantId(Request $request): ?string
+    {
+        return session('current_tenant_id') ?? $request->user()->current_tenant_id;
     }
 }

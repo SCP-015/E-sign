@@ -114,7 +114,7 @@ const props = defineProps({
     },
     showAllLabel: {
         type: String,
-        default: 'Lihat selengkapnya',
+        default: 'View all',
     },
     actionsDisabled: {
         type: Boolean,
@@ -122,7 +122,7 @@ const props = defineProps({
     },
     disabledHint: {
         type: String,
-        default: 'Selesaikan KYC terlebih dahulu untuk mengakses dokumen.',
+        default: 'Complete KYC first to access documents.',
     },
     formatDate: {
         type: Function,

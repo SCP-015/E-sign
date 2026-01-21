@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ApiDocumentationController;
+use App\Http\Controllers\Tenant\OrganizationController as TenantOrganizationController;
 use Inertia\Inertia;
 
 Route::get('/api-docs', [ApiDocumentationController::class, 'index'])->name('api.docs');
@@ -78,20 +79,86 @@ Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->name('dashboard');
 
+Route::get('/{tenantSlug}/dashboard', function (string $tenantSlug) {
+    return Inertia::render('Dashboard');
+})->middleware('tenant.slug')->name('tenant.dashboard');
+
 Route::get('/documents', function () {
     return Inertia::render('Documents');
 })->name('documents');
+
+Route::get('/{tenantSlug}/documents', function (string $tenantSlug) {
+    return Inertia::render('Documents');
+})->middleware('tenant.slug')->name('tenant.documents');
 
 Route::get('/signature-setup', function () {
     return Inertia::render('SignatureSetup');
 })->name('signature.setup');
 
+Route::get('/{tenantSlug}/signature-setup', function (string $tenantSlug) {
+    return Inertia::render('SignatureSetup');
+})->middleware('tenant.slug')->name('tenant.signature.setup');
+
 Route::get('/verify', function () {
     return Inertia::render('Verify');
 })->name('verify');
+
+Route::get('/{tenantSlug}/verify', function (string $tenantSlug) {
+    return Inertia::render('Verify');
+})->middleware('tenant.slug')->name('tenant.verify');
 
 Route::get('/qr-positioner/{documentId}', function (int $documentId) {
     return Inertia::render('DocumentQrPositioner', [
         'documentId' => $documentId,
     ]);
 })->name('qr.positioner');
+
+Route::get('/organization/setup', function () {
+    return Inertia::render('Organization/Setup');
+})->name('organization.setup');
+
+Route::get('/organization/members', function () {
+    return Inertia::render('Organization/Members');
+})->name('organization.members');
+
+Route::get('/{tenantSlug}/organization/members', function (string $tenantSlug) {
+    return Inertia::render('Organization/Members');
+})->middleware('tenant.slug')->name('tenant.organization.members');
+
+Route::get('/organization/invitations', function () {
+    return Inertia::render('Organization/Invitations');
+})->name('organization.invitations');
+
+Route::get('/{tenantSlug}/organization/invitations', function (string $tenantSlug) {
+    return Inertia::render('Organization/Invitations');
+})->middleware('tenant.slug')->name('tenant.organization.invitations');
+
+Route::get('/organization/billing', function () {
+    return Inertia::render('Organization/Billing');
+})->name('organization.billing');
+
+Route::get('/{tenantSlug}/organization/billing', function (string $tenantSlug) {
+    return Inertia::render('Organization/Billing');
+})->middleware('tenant.slug')->name('tenant.organization.billing');
+
+Route::post('/organization/switch', [TenantOrganizationController::class, 'switch'])->name('organization.switch');
+
+Route::get('/profile', function () {
+    return Inertia::render('Profile');
+})->name('profile');
+
+Route::get('/organization/settings', function () {
+    return Inertia::render('Organization/Settings');
+})->name('organization.settings');
+
+Route::get('/{tenantSlug}/organization/settings', function (string $tenantSlug) {
+    return Inertia::render('Organization/Settings');
+})->middleware('tenant.slug')->name('tenant.organization.settings');
+
+Route::get('/organization/quota', function () {
+    return Inertia::render('Organization/Quota');
+})->name('organization.quota');
+
+Route::get('/{tenantSlug}/organization/quota', function (string $tenantSlug) {
+    return Inertia::render('Organization/Quota');
+})->middleware('tenant.slug')->name('tenant.organization.quota');

@@ -18,7 +18,7 @@ class SignatureController extends Controller
      */
     public function index(Request $request)
     {
-        return ApiResponse::fromService($this->signatureService->index((int) $request->user()->id));
+        return ApiResponse::fromService($this->signatureService->index($request->user()->id));
     }
 
     /**
@@ -27,12 +27,15 @@ class SignatureController extends Controller
     public function store(SignatureStoreRequest $request)
     {
         $user = $request->user();
+        $tenantId = $this->getCurrentTenantId($request);
+
         $result = $this->signatureService->store(
-            (int) $user->id,
+            $user->id,
             (string) $user->email,
             $request->file('image'),
             $request->input('name'),
-            $request->boolean('is_default')
+            $request->boolean('is_default'),
+            $tenantId
         );
 
         return ApiResponse::fromService($result);
@@ -44,7 +47,7 @@ class SignatureController extends Controller
     public function getImage(Request $request, $id)
     {
         $user = $request->user();
-        $result = $this->signatureService->getImage((int) $user->id, (int) $id);
+        $result = $this->signatureService->getImage($user->id, $id);
         if (($result['status'] ?? 'error') !== 'success') {
             return ApiResponse::fromService($result);
         }
@@ -64,7 +67,7 @@ class SignatureController extends Controller
     public function setDefault(Request $request, $id)
     {
         $user = $request->user();
-        return ApiResponse::fromService($this->signatureService->setDefault((int) $user->id, (int) $id));
+        return ApiResponse::fromService($this->signatureService->setDefault($user->id, $id));
     }
 
     /**
@@ -73,6 +76,14 @@ class SignatureController extends Controller
     public function destroy(Request $request, $id)
     {
         $user = $request->user();
-        return ApiResponse::fromService($this->signatureService->destroy((int) $user->id, (int) $id));
+        return ApiResponse::fromService($this->signatureService->destroy($user->id, $id));
+    }
+
+    /**
+     * Get current tenant ID from session or user
+     */
+    private function getCurrentTenantId(Request $request): ?string
+    {
+        return session('current_tenant_id') ?? $request->user()->current_tenant_id;
     }
 }
